@@ -1,3 +1,5 @@
+﻿export const dynamic = 'force-dynamic'
+
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { validateQRToken } from '@/lib/qr-token'
@@ -9,7 +11,7 @@ export async function GET(req: NextRequest) {
   const t   = searchParams.get('t')    // totp token
 
   if (!aid || !eid || !t) {
-    return new NextResponse(scanPage('error', 'QR inválido', ''), { headers: { 'Content-Type': 'text/html' } })
+    return new NextResponse(scanPage('error', 'QR invÃ¡lido', ''), { headers: { 'Content-Type': 'text/html' } })
   }
 
   // Get applicant with their secret
@@ -23,7 +25,7 @@ export async function GET(req: NextRequest) {
   const valid = validateQRToken(t, secret)
   if (!valid) {
     return new NextResponse(
-      scanPage('error', 'QR Expirado o Inválido', `El código QR de ${aplicante.nombreCompleto} ya expiró. Pídele que lo muestre de nuevo.`),
+      scanPage('error', 'QR Expirado o InvÃ¡lido', `El cÃ³digo QR de ${aplicante.nombreCompleto} ya expirÃ³. PÃ­dele que lo muestre de nuevo.`),
       { headers: { 'Content-Type': 'text/html' } }
     )
   }
@@ -35,7 +37,7 @@ export async function GET(req: NextRequest) {
   })
   if (!asignacion) {
     return new NextResponse(
-      scanPage('error', 'Sin asignación', `${aplicante.nombreCompleto} no está asignado a este evento.`),
+      scanPage('error', 'Sin asignaciÃ³n', `${aplicante.nombreCompleto} no estÃ¡ asignado a este evento.`),
       { headers: { 'Content-Type': 'text/html' } }
     )
   }
@@ -59,7 +61,7 @@ export async function GET(req: NextRequest) {
     tipo = 'SALIDA'
   } else {
     return new NextResponse(
-      scanPage('warning', 'Turno completo', `${aplicante.nombreCompleto} ya registró entrada y salida hoy.`),
+      scanPage('warning', 'Turno completo', `${aplicante.nombreCompleto} ya registrÃ³ entrada y salida hoy.`),
       { headers: { 'Content-Type': 'text/html' } }
     )
   }
@@ -71,14 +73,14 @@ export async function GET(req: NextRequest) {
     })
   } catch {
     return new NextResponse(
-      scanPage('warning', 'Ya registrado', `Este QR ya fue escaneado. Espera el próximo código.`),
+      scanPage('warning', 'Ya registrado', `Este QR ya fue escaneado. Espera el prÃ³ximo cÃ³digo.`),
       { headers: { 'Content-Type': 'text/html' } }
     )
   }
 
   const hora = new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
   return new NextResponse(
-    scanPage('success', tipo === 'ENTRADA' ? '✓ Entrada Registrada' : '✓ Salida Registrada',
+    scanPage('success', tipo === 'ENTRADA' ? 'âœ“ Entrada Registrada' : 'âœ“ Salida Registrada',
       `${aplicante.nombreCompleto}\nEvento: ${asignacion.evento.nombre}\nHora: ${hora}`),
     { headers: { 'Content-Type': 'text/html' } }
   )
@@ -92,9 +94,9 @@ function startOfToday(): Date {
 
 function scanPage(type: 'success' | 'error' | 'warning', title: string, body: string): string {
   const colors = {
-    success: { bg: '#14532d', border: '#16a34a', text: '#4ade80', icon: '✓' },
-    error:   { bg: '#4c0519', border: '#dc2626', text: '#f87171', icon: '✗' },
-    warning: { bg: '#713f12', border: '#d97706', text: '#fbbf24', icon: '⚠' },
+    success: { bg: '#14532d', border: '#16a34a', text: '#4ade80', icon: 'âœ“' },
+    error:   { bg: '#4c0519', border: '#dc2626', text: '#f87171', icon: 'âœ—' },
+    warning: { bg: '#713f12', border: '#d97706', text: '#fbbf24', icon: 'âš ' },
   }
   const c = colors[type]
   const lines = body.split('\n').map(l => `<p style="margin:4px 0;color:#e2e8f0;">${l}</p>`).join('')
@@ -119,8 +121,9 @@ function scanPage(type: 'success' | 'error' | 'warning', title: string, body: st
     <div class="icon">${c.icon}</div>
     <div class="title">${title}</div>
     ${lines}
-    <div class="brand"><span>Magic Dreams</span> Staff · Sistema de Asistencia</div>
+    <div class="brand"><span>Magic Dreams</span> Staff Â· Sistema de Asistencia</div>
   </div>
 </body>
 </html>`
 }
+

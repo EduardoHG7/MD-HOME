@@ -1,3 +1,5 @@
+﻿export const dynamic = 'force-dynamic'
+
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { generateQRToken, secondsUntilRefresh } from '@/lib/qr-token'
@@ -9,7 +11,7 @@ export async function GET(req: NextRequest) {
   const eventoId    = searchParams.get('eid')
 
   if (!aplicanteId || !eventoId) {
-    return NextResponse.json({ error: 'Parámetros faltantes' }, { status: 400 })
+    return NextResponse.json({ error: 'ParÃ¡metros faltantes' }, { status: 400 })
   }
 
   // Verify assignment exists
@@ -18,7 +20,7 @@ export async function GET(req: NextRequest) {
     include: { aplicante: { select: { qrSecret: true } } },
   })
   if (!asignacion) {
-    return NextResponse.json({ error: 'Sin asignación' }, { status: 404 })
+    return NextResponse.json({ error: 'Sin asignaciÃ³n' }, { status: 404 })
   }
 
   const secret = `${asignacion.aplicante.qrSecret}-${eventoId}`
@@ -37,3 +39,4 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({ qr: qrDataUrl, ttl, token })
 }
+
