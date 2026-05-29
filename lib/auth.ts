@@ -47,4 +47,9 @@ export const authOptions: NextAuthOptions = {
     error: '/login',
   },
   session: { strategy: 'jwt' },
+  debug: true,
+  events: {
+    async signIn(message) { console.log('SIGN_IN_EVENT', JSON.stringify(message)) },
+    async session(message) { console.log('SESSION_EVENT', JSON.stringify(message)) },
+  },
 }
