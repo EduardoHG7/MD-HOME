@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
@@ -25,16 +27,16 @@ export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const { eventoId, numPersonas, funcion, tipoTarifa } = await req.json()
+  const { eventoId, numPersonas, funcion } = await req.json()
 
-  const tarifa = await prisma.tarifa.findUnique({ where: { tipo: tipoTarifa } })
-  if (!tarifa) return NextResponse.json({ error: 'Tarifa no encontrada' }, { status: 400 })
+  if (!eventoId || !numPersonas || !funcion) {
+    return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
+  }
 
   const solicitud = await prisma.solicitud.create({
     data: {
       eventoId,
       solicitanteId: session.user.id,
-      tarifaId: tarifa.id,
       numPersonas,
       funcion,
     },

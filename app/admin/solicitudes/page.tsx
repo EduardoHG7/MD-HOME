@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { formatDate, formatCurrency, TARIFA_LABELS, ESTADO_COLORS, ESTADO_SOLICITUD_LABELS } from '@/lib/utils'
 
+interface Tarifa   { id: string; tipo: string; precioPorDia: number }
 interface Solicitud {
   id: string
   numPersonas: number
@@ -13,22 +14,43 @@ interface Solicitud {
   createdAt: string
   evento: { id: string; nombre: string; fechaInicio: string; fechaFin: string }
   solicitante: { name: string; email: string }
-  tarifa: { tipo: string; precioPorDia: number }
+  tarifa: Tarifa | null
 }
 
 export default function SolicitudesAdminPage() {
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([])
-  const [selected, setSelected]       = useState<Solicitud | null>(null)
-  const [costo, setCosto]             = useState('')
-  const [nota, setNota]               = useState('')
-  const [loading, setLoading]         = useState(false)
-  const [filter, setFilter]           = useState<'TODAS' | 'PENDIENTE' | 'APROBADA' | 'RECHAZADA'>('PENDIENTE')
+  const [tarifas,     setTarifas]     = useState<Tarifa[]>([])
+  const [selected,    setSelected]    = useState<Solicitud | null>(null)
+  const [costo,       setCosto]       = useState('')
+  const [nota,        setNota]        = useState('')
+  const [tipoTarifa,  setTipoTarifa]  = useState('')
+  const [loading,     setLoading]     = useState(false)
+  const [filter, setFilter] = useState<'TODAS' | 'PENDIENTE' | 'APROBADA' | 'RECHAZADA'>('PENDIENTE')
 
   useEffect(() => {
-    fetch('/api/solicitudes').then(r => r.json()).then(setSolicitudes)
+    Promise.all([
+      fetch('/api/solicitudes').then(r => r.json()),
+      fetch('/api/tarifas').then(r => r.json()),
+    ]).then(([sol, tar]) => {
+      setSolicitudes(sol)
+      setTarifas(tar)
+    })
   }, [])
 
   const filtered = solicitudes.filter(s => filter === 'TODAS' || s.estado === filter)
+
+  function selectSolicitud(s: Solicitud) {
+    setSelected(s)
+    setCosto(s.costoTotal?.toString() ?? '')
+    setNota(s.notaAdmin ?? '')
+    setTipoTarifa(s.tarifa?.tipo ?? (tarifas[0]?.tipo ?? ''))
+  }
+
+  // Auto-calcular estimado cuando cambia tarifa o personas
+  const selectedTarifa = tarifas.find(t => t.tipo === tipoTarifa)
+  const estimadoPorDia = selectedTarifa && selected
+    ? selectedTarifa.precioPorDia * selected.numPersonas
+    : 0
 
   async function handleDecision(estado: 'APROBADA' | 'RECHAZADA') {
     if (!selected) return
@@ -40,7 +62,8 @@ export default function SolicitudesAdminPage() {
       body: JSON.stringify({
         estado,
         costoTotal: estado === 'APROBADA' && !isNaN(costoNum) ? costoNum : null,
-        notaAdmin: nota || null,
+        notaAdmin:  nota || null,
+        tipoTarifa: estado === 'APROBADA' ? tipoTarifa : undefined,
       }),
     })
     if (res.ok) {
@@ -49,20 +72,19 @@ export default function SolicitudesAdminPage() {
       setSelected(null)
       setCosto('')
       setNota('')
+      setTipoTarifa('')
     }
     setLoading(false)
   }
-
-  const estimadoPorDia = selected ? selected.tarifa.precioPorDia * selected.numPersonas : 0
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Solicitudes de Personal</h1>
-        <p className="text-gray-500 mt-1">Aprueba o rechaza solicitudes de personal eventual</p>
+        <p className="text-gray-500 mt-1">Aprueba o rechaza solicitudes y asigna la tarifa correspondiente</p>
       </div>
 
-      {/* Filters */}
+      {/* Filtros */}
       <div className="flex gap-2">
         {(['TODAS', 'PENDIENTE', 'APROBADA', 'RECHAZADA'] as const).map(f => (
           <button key={f} onClick={() => setFilter(f)}
@@ -77,7 +99,7 @@ export default function SolicitudesAdminPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-6">
-        {/* List */}
+        {/* Lista */}
         <div className="space-y-2">
           {filtered.length === 0 && (
             <div className="card p-6 text-center text-gray-400">No hay solicitudes en este estado.</div>
@@ -85,7 +107,7 @@ export default function SolicitudesAdminPage() {
           {filtered.map(s => (
             <button
               key={s.id}
-              onClick={() => { setSelected(s); setCosto(s.costoTotal?.toString() ?? ''); setNota(s.notaAdmin ?? '') }}
+              onClick={() => selectSolicitud(s)}
               className={`card w-full text-left p-4 hover:border-gray-400 hover:shadow-md transition-all ${selected?.id === s.id ? 'border-gray-400 shadow-md' : ''}`}
             >
               <div className="flex justify-between items-start mb-2">
@@ -94,13 +116,13 @@ export default function SolicitudesAdminPage() {
               </div>
               <p className="text-gray-500 text-xs">{s.funcion} · {s.numPersonas} persona(s)</p>
               <p className="text-gray-400 text-xs mt-1">Por: {s.solicitante.name ?? s.solicitante.email}</p>
-              <p className="text-gray-400 text-xs">{TARIFA_LABELS[s.tarifa.tipo]} · {formatDate(s.createdAt)}</p>
+              <p className="text-gray-400 text-xs">{formatDate(s.createdAt)}</p>
               {s.costoTotal && <p className="text-amber-600 text-xs mt-1 font-semibold">Costo: {formatCurrency(s.costoTotal)}</p>}
             </button>
           ))}
         </div>
 
-        {/* Detail panel */}
+        {/* Panel de detalle */}
         {selected && (
           <div className="card p-6 space-y-5 h-fit sticky top-4">
             <div>
@@ -110,24 +132,51 @@ export default function SolicitudesAdminPage() {
               </p>
             </div>
 
-            <div className="space-y-2 text-sm divide-y divide-gray-100">
+            <div className="space-y-0 text-sm divide-y divide-gray-100">
               <Row label="Solicitante" value={selected.solicitante.name ?? selected.solicitante.email} />
               <Row label="Función"     value={selected.funcion} />
               <Row label="Personas"    value={`${selected.numPersonas}`} />
-              <Row label="Tarifa"      value={TARIFA_LABELS[selected.tarifa.tipo]} />
-              <Row label="Precio/día"  value={formatCurrency(selected.tarifa.precioPorDia)} />
-              <Row label="Est./día"    value={formatCurrency(estimadoPorDia)} />
             </div>
 
             {selected.estado === 'PENDIENTE' && (
               <div className="space-y-3 pt-2 border-t border-gray-100">
+                {/* Tarifa */}
+                <div>
+                  <label className="label">Tipo de tarifa *</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {tarifas.map(t => (
+                      <button key={t.tipo} type="button"
+                        onClick={() => setTipoTarifa(t.tipo)}
+                        className={`p-2 rounded-xl border-2 text-center transition-all ${
+                          tipoTarifa === t.tipo
+                            ? 'border-gray-900 bg-gray-50'
+                            : 'border-gray-200 bg-white hover:border-gray-300'
+                        }`}>
+                        <p className="text-xs font-semibold text-gray-500">{TARIFA_LABELS[t.tipo]}</p>
+                        <p className="text-sm font-bold text-gray-900">{formatCurrency(t.precioPorDia)}/día</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Estimado */}
+                {estimadoPorDia > 0 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 flex justify-between text-sm">
+                    <span className="text-amber-700">Est. por día ({selected.numPersonas} × {formatCurrency(selectedTarifa!.precioPorDia)})</span>
+                    <span className="text-amber-600 font-bold">{formatCurrency(estimadoPorDia)}</span>
+                  </div>
+                )}
+
+                {/* Costo total */}
                 <div>
                   <label className="label">Costo total aprobado ($)</label>
                   <input
-                    type="number" step="0.01" className="input" placeholder="Ej: 500.00"
+                    type="number" step="0.01" className="input" placeholder="Ej: 1500.00"
                     value={costo} onChange={e => setCosto(e.target.value)}
                   />
                 </div>
+
+                {/* Nota */}
                 <div>
                   <label className="label">Nota para el solicitante (opcional)</label>
                   <textarea
@@ -135,11 +184,14 @@ export default function SolicitudesAdminPage() {
                     value={nota} onChange={e => setNota(e.target.value)}
                   />
                 </div>
+
                 <div className="flex gap-3">
-                  <button onClick={() => handleDecision('RECHAZADA')} disabled={loading} className="btn-danger flex-1">
+                  <button onClick={() => handleDecision('RECHAZADA')} disabled={loading}
+                    className="flex-1 px-4 py-2 rounded-xl border-2 border-red-200 text-red-600 hover:bg-red-50 font-medium text-sm transition-all">
                     Rechazar
                   </button>
-                  <button onClick={() => handleDecision('APROBADA')} disabled={loading} className="btn-gold flex-1">
+                  <button onClick={() => handleDecision('APROBADA')} disabled={loading || !tipoTarifa}
+                    className="flex-1 btn-primary">
                     {loading ? '...' : 'Aprobar ✓'}
                   </button>
                 </div>
@@ -149,7 +201,8 @@ export default function SolicitudesAdminPage() {
             {selected.estado !== 'PENDIENTE' && (
               <div className={`rounded-xl p-3 border ${ESTADO_COLORS[selected.estado]}`}>
                 <p className="text-sm font-semibold">{ESTADO_SOLICITUD_LABELS[selected.estado]}</p>
-                {selected.costoTotal && <p className="text-sm mt-1">Costo: {formatCurrency(selected.costoTotal)}</p>}
+                {selected.tarifa && <p className="text-sm mt-1">Tarifa: {TARIFA_LABELS[selected.tarifa.tipo]}</p>}
+                {selected.costoTotal && <p className="text-sm mt-1">Costo total: {formatCurrency(selected.costoTotal)}</p>}
                 {selected.notaAdmin && <p className="text-sm mt-1 opacity-80">{selected.notaAdmin}</p>}
               </div>
             )}

@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { href: '/admin/solicitudes', label: 'Solicitudes', icon: '📋' },
   { href: '/admin/aplicantes',  label: 'Aplicantes',  icon: '👥' },
   { href: '/admin/eventos',     label: 'Eventos',     icon: '🎪' },
+  { href: '/admin/puestos',     label: 'Puestos',     icon: '🔧' },
   { href: '/admin/tarifas',     label: 'Tarifas',     icon: '💰' },
 ]
 

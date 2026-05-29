@@ -9,11 +9,22 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
 
-  const { estado, costoTotal, notaAdmin } = await req.json()
+  const { estado, costoTotal, notaAdmin, tipoTarifa } = await req.json()
+
+  let tarifaId: string | undefined
+  if (tipoTarifa) {
+    const tarifa = await prisma.tarifa.findUnique({ where: { tipo: tipoTarifa } })
+    if (tarifa) tarifaId = tarifa.id
+  }
 
   const solicitud = await prisma.solicitud.update({
     where: { id: params.id },
-    data: { estado, costoTotal, notaAdmin },
+    data: {
+      estado,
+      costoTotal,
+      notaAdmin,
+      ...(tarifaId ? { tarifaId } : {}),
+    },
     include: { evento: true, tarifa: true },
   })
   return NextResponse.json(solicitud)

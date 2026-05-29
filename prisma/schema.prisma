@@ -54,7 +54,7 @@ model Solicitud {
   id            String   @id @default(cuid())
   eventoId      String
   solicitanteId String
-  tarifaId      String
+  tarifaId      String?
   numPersonas   Int
   funcion       String
   estado        String   @default("PENDIENTE")
@@ -65,11 +65,20 @@ model Solicitud {
 
   evento      Evento    @relation(fields: [eventoId], references: [id])
   solicitante User      @relation(fields: [solicitanteId], references: [id])
-  tarifa      Tarifa    @relation(fields: [tarifaId], references: [id])
+  tarifa      Tarifa?   @relation(fields: [tarifaId], references: [id])
 
   asignaciones AsignacionAplicante[]
 
   @@map("solicitudes")
+}
+
+model Puesto {
+  id        String   @id @default(cuid())
+  nombre    String   @unique
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@map("puestos")
 }
 
 model Aplicante {
