@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { formatDate, formatDateTime, formatCurrency } from '@/lib/utils'
+import { formatDate, formatDateTime } from '@/lib/utils'
 
 interface Registro { tipo: string; timestamp: string }
 interface Asignacion {
@@ -40,24 +40,21 @@ export default function AplicantesAdminPage() {
     a.email.toLowerCase().includes(search.toLowerCase())
   )
 
-  const totalEventos = selected?.asignaciones.length ?? 0
-  const totalHoras = selected?.asignaciones.reduce((acc, a) => {
-    const entradas = a.registros.filter(r => r.tipo === 'ENTRADA')
-    const salidas  = a.registros.filter(r => r.tipo === 'SALIDA')
-    return acc + Math.min(entradas.length, salidas.length)
+  const totalDias = selected?.asignaciones.reduce((acc, a) => {
+    return acc + Math.min(
+      a.registros.filter(r => r.tipo === 'ENTRADA').length,
+      a.registros.filter(r => r.tipo === 'SALIDA').length
+    )
   }, 0) ?? 0
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Base de Aplicantes</h1>
-          <p className="text-brand-400 mt-1">{aplicantes.length} aplicante(s) registrado(s)</p>
+          <h1 className="text-2xl font-bold text-gray-900">Base de Aplicantes</h1>
+          <p className="text-gray-500 mt-1">{aplicantes.length} aplicante(s) registrado(s)</p>
         </div>
-        <button
-          onClick={() => exportCSV(aplicantes)}
-          className="btn-gold text-sm"
-        >
+        <button onClick={() => exportCSV(aplicantes)} className="btn-gold text-sm">
           ↓ Exportar CSV
         </button>
       </div>
@@ -76,22 +73,22 @@ export default function AplicantesAdminPage() {
             <button
               key={a.id}
               onClick={() => setSelected(a)}
-              className={`card w-full text-left p-4 hover:border-brand-600/60 transition-all ${selected?.id === a.id ? 'border-brand-500/60' : ''}`}
+              className={`card w-full text-left p-4 hover:border-brand-300 hover:shadow-md transition-all ${selected?.id === a.id ? 'border-brand-400 shadow-md' : ''}`}
             >
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-full bg-brand-700 flex items-center justify-center text-sm font-bold text-white shrink-0">
                   {a.nombreCompleto[0]}
                 </div>
                 <div className="min-w-0">
-                  <p className="font-semibold text-white text-sm truncate">{a.nombreCompleto}</p>
-                  <p className="text-brand-400 text-xs truncate">{a.cedula}</p>
-                  <p className="text-brand-500 text-xs">{a.asignaciones.length} evento(s)</p>
+                  <p className="font-semibold text-gray-900 text-sm truncate">{a.nombreCompleto}</p>
+                  <p className="text-gray-500 text-xs truncate">{a.cedula}</p>
+                  <p className="text-gray-400 text-xs">{a.asignaciones.length} evento(s)</p>
                 </div>
               </div>
             </button>
           ))}
           {filtered.length === 0 && (
-            <div className="card p-6 text-center text-brand-400">Sin resultados.</div>
+            <div className="card p-6 text-center text-gray-400">Sin resultados.</div>
           )}
         </div>
 
@@ -105,10 +102,10 @@ export default function AplicantesAdminPage() {
                   {selected.nombreCompleto[0]}
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-white">{selected.nombreCompleto}</h3>
-                  <p className="text-brand-400 text-sm">Registrado: {formatDate(selected.createdAt)}</p>
+                  <h3 className="text-lg font-bold text-gray-900">{selected.nombreCompleto}</h3>
+                  <p className="text-gray-500 text-sm">Registrado: {formatDate(selected.createdAt)}</p>
                   {selected.terminosAceptadosAt && (
-                    <p className="text-green-400 text-xs">✓ T&C aceptados: {formatDate(selected.terminosAceptadosAt)}</p>
+                    <p className="text-green-600 text-xs mt-0.5">✓ T&C aceptados: {formatDate(selected.terminosAceptadosAt)}</p>
                   )}
                 </div>
               </div>
@@ -122,20 +119,20 @@ export default function AplicantesAdminPage() {
 
             {/* Stats */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="card p-4 text-center">
-                <p className="text-2xl font-bold text-brand-300">{totalEventos}</p>
-                <p className="text-brand-400 text-xs mt-1">Eventos participados</p>
+              <div className="card p-4 text-center border-l-4 border-l-brand-400">
+                <p className="text-2xl font-bold text-brand-700">{selected.asignaciones.length}</p>
+                <p className="text-gray-500 text-xs mt-1">Eventos participados</p>
               </div>
-              <div className="card p-4 text-center">
-                <p className="text-2xl font-bold text-green-400">{totalHoras}</p>
-                <p className="text-brand-400 text-xs mt-1">Días con registro completo</p>
+              <div className="card p-4 text-center border-l-4 border-l-green-400">
+                <p className="text-2xl font-bold text-green-600">{totalDias}</p>
+                <p className="text-gray-500 text-xs mt-1">Días con registro completo</p>
               </div>
             </div>
 
             {/* Event history */}
             {selected.asignaciones.length > 0 && (
               <div className="card p-5">
-                <h4 className="text-sm font-semibold text-brand-300 uppercase tracking-wider mb-3">
+                <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3">
                   Historial de Eventos
                 </h4>
                 <div className="space-y-3">
@@ -143,21 +140,22 @@ export default function AplicantesAdminPage() {
                     const entrada = a.registros.find(r => r.tipo === 'ENTRADA')
                     const salida  = a.registros.find(r => r.tipo === 'SALIDA')
                     return (
-                      <div key={a.id} className="bg-brand-900/40 rounded-xl p-3">
+                      <div key={a.id} className="bg-gray-50 rounded-xl p-3">
                         <div className="flex justify-between items-start">
                           <div>
-                            <p className="text-white text-sm font-medium">{a.evento.nombre}</p>
-                            <p className="text-brand-400 text-xs">{a.funcion} · {formatDate(a.evento.fechaInicio)}</p>
+                            <p className="text-gray-900 text-sm font-medium">{a.evento.nombre}</p>
+                            <p className="text-gray-500 text-xs">{a.funcion} · {formatDate(a.evento.fechaInicio)}</p>
                           </div>
-                          <span className={`badge text-xs ${
-                            a.estado === 'ACTIVA' ? 'bg-green-500/20 text-green-400 border-green-500/30' :
-                            'bg-gray-500/20 text-gray-400 border-gray-500/30'
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                            a.estado === 'ACTIVA'
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-gray-100 text-gray-600'
                           }`}>{a.estado}</span>
                         </div>
                         {(entrada || salida) && (
-                          <div className="flex gap-4 mt-2 pt-2 border-t border-brand-800/40">
-                            {entrada && <span className="text-green-400 text-xs">↓ {formatDateTime(entrada.timestamp)}</span>}
-                            {salida  && <span className="text-blue-400 text-xs">↑ {formatDateTime(salida.timestamp)}</span>}
+                          <div className="flex gap-4 mt-2 pt-2 border-t border-gray-200">
+                            {entrada && <span className="text-green-600 text-xs">↓ {formatDateTime(entrada.timestamp)}</span>}
+                            {salida  && <span className="text-blue-600 text-xs">↑ {formatDateTime(salida.timestamp)}</span>}
                           </div>
                         )}
                       </div>
@@ -175,9 +173,9 @@ export default function AplicantesAdminPage() {
 
 function Field({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <p className="text-brand-400 text-xs">{label}</p>
-      <p className="text-white text-sm font-medium break-all">{value}</p>
+    <div className="bg-gray-50 rounded-lg p-3">
+      <p className="text-gray-400 text-xs mb-0.5">{label}</p>
+      <p className="text-gray-900 text-sm font-medium break-all">{value}</p>
     </div>
   )
 }
@@ -192,7 +190,7 @@ function exportCSV(aplicantes: Aplicante[]) {
       a.createdAt,
     ]),
   ]
-  const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n')
+  const csv  = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n')
   const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
   const url  = URL.createObjectURL(blob)
   const a    = document.createElement('a')

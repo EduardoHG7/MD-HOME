@@ -1,12 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 
-const TERMINOS = `TÉRMINOS Y CONDICIONES - PERSONAL EVENTUAL MAGIC DREAMS
+const TERMINOS = `TÉRMINOS Y CONDICIONES - PERSONAL EVENTUAL MAGIC DREAMS PRODUCTIONS
 
 1. OBJETO
-El presente documento establece los términos bajo los cuales el personal eventual presta servicios a Magic Dreams para eventos específicos.
+El presente documento establece los términos bajo los cuales el personal eventual presta servicios a Magic Dreams Productions para eventos específicos.
 
 2. NATURALEZA DEL SERVICIO
 La prestación de servicios es de carácter eventual y no genera relación laboral permanente. Cada evento constituye un contrato independiente.
@@ -25,27 +25,22 @@ El código QR personal es intransferible. Está prohibido compartir capturas de 
 El pago se realizará en la cuenta bancaria registrada, según la tarifa acordada para el evento correspondiente, dentro de los 5 días hábiles tras la finalización del evento.
 
 6. PROTECCIÓN DE DATOS
-Los datos personales proporcionados serán tratados conforme a las leyes de protección de datos aplicables y usados exclusivamente para la gestión de personal en Magic Dreams.
+Los datos personales proporcionados serán tratados conforme a las leyes de protección de datos aplicables y usados exclusivamente para la gestión de personal en Magic Dreams Productions.
 
 7. SANCIONES
-El incumplimiento de las presentes condiciones podrá resultar en la exclusión del banco de candidatos de Magic Dreams.
+El incumplimiento de las presentes condiciones podrá resultar en la exclusión del banco de candidatos de Magic Dreams Productions.
 
 Al hacer clic en "Acepto los Términos y Condiciones", confirmas que has leído, entendido y aceptas todas las disposiciones aquí establecidas.`
 
 export default function RegistroAplicantePage() {
-  const router = useRouter()
-  const [step, setStep] = useState<'form' | 'terms' | 'done'>('form')
+  const [step, setStep]       = useState<'form' | 'terms' | 'done'>('form')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError]     = useState('')
   const [applicantId, setApplicantId] = useState('')
-  const [termsRead, setTermsRead] = useState(false)
+  const [termsRead, setTermsRead]     = useState(false)
 
   const [form, setForm] = useState({
-    nombreCompleto: '',
-    cedula: '',
-    telefono: '',
-    email: '',
-    cuentaBancaria: '',
+    nombreCompleto: '', cedula: '', telefono: '', email: '', cuentaBancaria: '',
   })
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -72,40 +67,34 @@ export default function RegistroAplicantePage() {
         body: JSON.stringify(form),
       })
       const data = await res.json()
-      if (!res.ok) {
-        setError(data.error ?? 'Error al registrar. Intenta de nuevo.')
-        setStep('form')
-        return
-      }
+      if (!res.ok) { setError(data.error ?? 'Error al registrar.'); setStep('form'); return }
       setApplicantId(data.id)
       setStep('done')
     } catch {
-      setError('Error de conexión. Intenta de nuevo.')
+      setError('Error de conexión.')
       setStep('form')
-    } finally {
-      setLoading(false)
-    }
+    } finally { setLoading(false) }
   }
 
   if (step === 'done') {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4">
-        <div className="card card-gold p-10 max-w-md w-full text-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <div className="card p-10 max-w-md w-full text-center border-t-4 border-t-green-400">
           <div className="text-5xl mb-4">🎉</div>
-          <h2 className="text-2xl font-bold text-white mb-2">¡Registro Exitoso!</h2>
-          <p className="text-brand-300 mb-6">
-            Bienvenido(a) al equipo de colaboradores eventuales de Magic Dreams.
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">¡Registro Exitoso!</h2>
+          <p className="text-gray-500 mb-6">
+            Bienvenido(a) al equipo de colaboradores eventuales de Magic Dreams Productions.
           </p>
-          <div className="bg-brand-900/60 rounded-xl p-4 mb-6 text-left">
-            <p className="text-brand-400 text-sm">Tu nombre:</p>
-            <p className="text-white font-semibold">{form.nombreCompleto}</p>
-            <p className="text-brand-400 text-sm mt-2">Tu correo:</p>
-            <p className="text-white font-semibold">{form.email}</p>
+          <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 mb-6 text-left">
+            <p className="text-gray-400 text-xs">Tu nombre:</p>
+            <p className="text-gray-900 font-semibold">{form.nombreCompleto}</p>
+            <p className="text-gray-400 text-xs mt-2">Tu correo:</p>
+            <p className="text-gray-900 font-semibold">{form.email}</p>
           </div>
-          <p className="text-brand-400 text-sm mb-6">
+          <p className="text-gray-500 text-sm mb-6">
             Cuando seas asignado a un evento, recibirás acceso a tu código QR de asistencia.
           </p>
-          <a href={`/aplicante/${applicantId}`} className="btn-gold block">
+          <a href={`/aplicante/${applicantId}`} className="btn-primary block text-center">
             Ver mi perfil y QR
           </a>
         </div>
@@ -115,13 +104,13 @@ export default function RegistroAplicantePage() {
 
   if (step === 'terms') {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4 py-10">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-10">
         <div className="card p-8 max-w-2xl w-full">
-          <h2 className="text-xl font-bold text-white mb-1">Términos y Condiciones</h2>
-          <p className="text-brand-400 text-sm mb-4">Lee el documento completo antes de aceptar.</p>
+          <h2 className="text-xl font-bold text-gray-900 mb-1">Términos y Condiciones</h2>
+          <p className="text-gray-500 text-sm mb-4">Desplázate hasta el final para poder aceptar.</p>
 
           <div
-            className="bg-brand-900/60 rounded-xl p-5 h-72 overflow-y-auto text-brand-200 text-sm leading-relaxed mb-4 border border-brand-700/40"
+            className="bg-gray-50 border border-gray-200 rounded-xl p-5 h-72 overflow-y-auto text-gray-700 text-sm leading-relaxed mb-4"
             onScroll={(e) => {
               const el = e.currentTarget
               if (el.scrollHeight - el.scrollTop - el.clientHeight < 30) setTermsRead(true)
@@ -131,22 +120,16 @@ export default function RegistroAplicantePage() {
           </div>
 
           {!termsRead && (
-            <p className="text-gold-400 text-xs mb-4 flex items-center gap-2">
-              <span>⬇</span> Desplázate hasta el final para poder aceptar
+            <p className="text-amber-600 text-xs mb-4 flex items-center gap-1">
+              ⬇ Desplázate hasta el final para poder aceptar
             </p>
           )}
 
-          {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
+          {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
 
           <div className="flex gap-3">
-            <button onClick={() => setStep('form')} className="btn-ghost flex-1">
-              Atrás
-            </button>
-            <button
-              onClick={handleAcceptTerms}
-              disabled={!termsRead || loading}
-              className="btn-gold flex-1"
-            >
+            <button onClick={() => setStep('form')} className="btn-ghost flex-1">Atrás</button>
+            <button onClick={handleAcceptTerms} disabled={!termsRead || loading} className="btn-primary flex-1">
               {loading ? 'Registrando...' : 'Acepto los Términos y Condiciones'}
             </button>
           </div>
@@ -156,23 +139,18 @@ export default function RegistroAplicantePage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-10">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-lg">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-brand-800/60 border border-gold-500/40 mb-3">
-            <span className="text-2xl">✨</span>
-          </div>
-          <h1 className="text-2xl font-bold text-white">Magic Dreams</h1>
-          <p className="text-brand-400 text-sm">Registro de Personal Eventual</p>
+          <Image src="/logo.png" alt="Magic Dreams Productions" width={200} height={100} className="mx-auto object-contain" priority />
+          <p className="text-gray-500 text-sm mt-2 tracking-widest uppercase">Registro de Personal Eventual</p>
         </div>
 
         <div className="card p-8">
-          <h2 className="text-lg font-semibold text-white mb-6">Completa tu información</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-6">Completa tu información</h2>
 
           {error && (
-            <div className="bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl px-4 py-3 mb-4 text-sm">
-              {error}
-            </div>
+            <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl px-4 py-3 mb-4 text-sm">{error}</div>
           )}
 
           <form onSubmit={handleFormSubmit} className="space-y-4">
@@ -201,15 +179,12 @@ export default function RegistroAplicantePage() {
               <input name="cuentaBancaria" value={form.cuentaBancaria} onChange={handleChange}
                 className="input" placeholder="Ej: CR21015200009123456789" required />
             </div>
-
-            <button type="submit" className="btn-primary w-full mt-2">
-              Continuar →
-            </button>
+            <button type="submit" className="btn-primary w-full mt-2">Continuar →</button>
           </form>
 
-          <p className="text-center text-brand-500 text-xs mt-6">
+          <p className="text-center text-gray-400 text-xs mt-6">
             ¿Ya tienes cuenta?{' '}
-            <a href="/login" className="text-gold-400 hover:text-gold-300">Iniciar sesión</a>
+            <a href="/login" className="text-brand-700 hover:text-brand-900 font-medium">Iniciar sesión</a>
           </p>
         </div>
       </div>

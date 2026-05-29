@@ -53,15 +53,13 @@ export default function SolicitudesAdminPage() {
     setLoading(false)
   }
 
-  const estimadoPorDia = selected
-    ? selected.tarifa.precioPorDia * selected.numPersonas
-    : 0
+  const estimadoPorDia = selected ? selected.tarifa.precioPorDia * selected.numPersonas : 0
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">Solicitudes de Personal</h1>
-        <p className="text-brand-400 mt-1">Aprueba o rechaza solicitudes de personal eventual</p>
+        <h1 className="text-2xl font-bold text-gray-900">Solicitudes de Personal</h1>
+        <p className="text-gray-500 mt-1">Aprueba o rechaza solicitudes de personal eventual</p>
       </div>
 
       {/* Filters */}
@@ -70,8 +68,8 @@ export default function SolicitudesAdminPage() {
           <button key={f} onClick={() => setFilter(f)}
             className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
               filter === f
-                ? 'bg-brand-600 text-white'
-                : 'bg-brand-900/60 text-brand-400 hover:text-white'
+                ? 'bg-brand-700 text-white shadow-sm'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}>
             {f === 'TODAS' ? 'Todas' : ESTADO_SOLICITUD_LABELS[f]}
           </button>
@@ -80,24 +78,24 @@ export default function SolicitudesAdminPage() {
 
       <div className="grid grid-cols-2 gap-6">
         {/* List */}
-        <div className="space-y-3">
+        <div className="space-y-2">
           {filtered.length === 0 && (
-            <div className="card p-6 text-center text-brand-400">No hay solicitudes en este estado.</div>
+            <div className="card p-6 text-center text-gray-400">No hay solicitudes en este estado.</div>
           )}
           {filtered.map(s => (
             <button
               key={s.id}
               onClick={() => { setSelected(s); setCosto(s.costoTotal?.toString() ?? ''); setNota(s.notaAdmin ?? '') }}
-              className={`card w-full text-left p-4 hover:border-brand-600/60 transition-all ${selected?.id === s.id ? 'border-brand-500/60' : ''}`}
+              className={`card w-full text-left p-4 hover:border-brand-300 hover:shadow-md transition-all ${selected?.id === s.id ? 'border-brand-400 shadow-md' : ''}`}
             >
               <div className="flex justify-between items-start mb-2">
-                <p className="font-semibold text-white text-sm">{s.evento.nombre}</p>
+                <p className="font-semibold text-gray-900 text-sm">{s.evento.nombre}</p>
                 <span className={`badge ${ESTADO_COLORS[s.estado]}`}>{ESTADO_SOLICITUD_LABELS[s.estado]}</span>
               </div>
-              <p className="text-brand-400 text-xs">{s.funcion} · {s.numPersonas} persona(s)</p>
-              <p className="text-brand-500 text-xs mt-1">Por: {s.solicitante.name ?? s.solicitante.email}</p>
-              <p className="text-brand-500 text-xs">{TARIFA_LABELS[s.tarifa.tipo]} · {formatDate(s.createdAt)}</p>
-              {s.costoTotal && <p className="text-gold-400 text-xs mt-1 font-semibold">Costo: {formatCurrency(s.costoTotal)}</p>}
+              <p className="text-gray-500 text-xs">{s.funcion} · {s.numPersonas} persona(s)</p>
+              <p className="text-gray-400 text-xs mt-1">Por: {s.solicitante.name ?? s.solicitante.email}</p>
+              <p className="text-gray-400 text-xs">{TARIFA_LABELS[s.tarifa.tipo]} · {formatDate(s.createdAt)}</p>
+              {s.costoTotal && <p className="text-amber-600 text-xs mt-1 font-semibold">Costo: {formatCurrency(s.costoTotal)}</p>}
             </button>
           ))}
         </div>
@@ -106,13 +104,13 @@ export default function SolicitudesAdminPage() {
         {selected && (
           <div className="card p-6 space-y-5 h-fit sticky top-4">
             <div>
-              <h3 className="text-lg font-bold text-white">{selected.evento.nombre}</h3>
-              <p className="text-brand-400 text-sm">
+              <h3 className="text-lg font-bold text-gray-900">{selected.evento.nombre}</h3>
+              <p className="text-gray-500 text-sm">
                 {formatDate(selected.evento.fechaInicio)} – {formatDate(selected.evento.fechaFin)}
               </p>
             </div>
 
-            <div className="space-y-2 text-sm">
+            <div className="space-y-2 text-sm divide-y divide-gray-100">
               <Row label="Solicitante" value={selected.solicitante.name ?? selected.solicitante.email} />
               <Row label="Función"     value={selected.funcion} />
               <Row label="Personas"    value={`${selected.numPersonas}`} />
@@ -122,7 +120,7 @@ export default function SolicitudesAdminPage() {
             </div>
 
             {selected.estado === 'PENDIENTE' && (
-              <div className="space-y-3 pt-2 border-t border-brand-800/50">
+              <div className="space-y-3 pt-2 border-t border-gray-100">
                 <div>
                   <label className="label">Costo total aprobado ($)</label>
                   <input
@@ -164,9 +162,9 @@ export default function SolicitudesAdminPage() {
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between">
-      <span className="text-brand-400">{label}:</span>
-      <span className="text-white font-medium">{value}</span>
+    <div className="flex justify-between py-1.5">
+      <span className="text-gray-500">{label}:</span>
+      <span className="text-gray-900 font-medium">{value}</span>
     </div>
   )
 }

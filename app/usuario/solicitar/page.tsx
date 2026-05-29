@@ -22,19 +22,15 @@ const FUNCIONES = [
 ]
 
 export default function SolicitarPage() {
-  const [eventos, setEventos] = useState<Evento[]>([])
-  const [tarifas, setTarifas] = useState<Tarifa[]>([])
+  const [eventos, setEventos]       = useState<Evento[]>([])
+  const [tarifas, setTarifas]       = useState<Tarifa[]>([])
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([])
-  const [loading, setLoading] = useState(false)
-  const [success, setSuccess] = useState(false)
-  const [error, setError] = useState('')
+  const [loading, setLoading]       = useState(false)
+  const [success, setSuccess]       = useState(false)
+  const [error, setError]           = useState('')
 
   const [form, setForm] = useState({
-    eventoId: '',
-    numPersonas: 1,
-    funcion: '',
-    funcionCustom: '',
-    tipoTarifa: '',
+    eventoId: '', numPersonas: 1, funcion: '', funcionCustom: '', tipoTarifa: '',
   })
 
   useEffect(() => {
@@ -56,13 +52,9 @@ export default function SolicitarPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
-    if (!form.eventoId || !form.tipoTarifa) {
-      setError('Selecciona un evento y una tarifa.')
-      return
-    }
+    if (!form.eventoId || !form.tipoTarifa) { setError('Selecciona un evento y una tarifa.'); return }
     const funcion = form.funcion === 'Otro' ? form.funcionCustom : form.funcion
     if (!funcion) { setError('Indica la función del personal.'); return }
-
     setLoading(true)
     try {
       const res = await fetch('/api/solicitudes', {
@@ -76,31 +68,27 @@ export default function SolicitarPage() {
       setSuccess(true)
       setForm(f => ({ ...f, eventoId: '', numPersonas: 1, funcion: '', funcionCustom: '' }))
       setTimeout(() => setSuccess(false), 4000)
-    } catch {
-      setError('Error de conexión.')
-    } finally {
-      setLoading(false)
-    }
+    } catch { setError('Error de conexión.') }
+    finally { setLoading(false) }
   }
 
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-white">Solicitar Personal</h1>
-        <p className="text-brand-400 mt-1">Completa el formulario para solicitar personal eventual para tu evento.</p>
+        <h1 className="text-2xl font-bold text-gray-900">Solicitar Personal</h1>
+        <p className="text-gray-500 mt-1">Completa el formulario para solicitar personal eventual para tu evento.</p>
       </div>
 
-      {/* Form */}
       <div className="card p-6">
-        <h2 className="text-lg font-semibold text-white mb-5">Nueva Solicitud</h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-5">Nueva Solicitud</h2>
 
         {success && (
-          <div className="bg-green-500/10 border border-green-500/30 text-green-400 rounded-xl px-4 py-3 mb-4 text-sm">
+          <div className="bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 mb-4 text-sm">
             ✓ Solicitud enviada correctamente. El administrador la revisará pronto.
           </div>
         )}
         {error && (
-          <div className="bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl px-4 py-3 mb-4 text-sm">
+          <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl px-4 py-3 mb-4 text-sm">
             {error}
           </div>
         )}
@@ -108,7 +96,8 @@ export default function SolicitarPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="label">Evento *</label>
-            <select className="input" value={form.eventoId} onChange={e => setForm(f => ({ ...f, eventoId: e.target.value }))} required>
+            <select className="input" value={form.eventoId}
+              onChange={e => setForm(f => ({ ...f, eventoId: e.target.value }))} required>
               <option value="">Seleccionar evento...</option>
               {eventos.map(ev => (
                 <option key={ev.id} value={ev.id}>
@@ -117,32 +106,27 @@ export default function SolicitarPage() {
               ))}
             </select>
             {eventos.length === 0 && (
-              <p className="text-brand-500 text-xs mt-1">No hay eventos activos. El administrador debe crear un evento primero.</p>
+              <p className="text-gray-400 text-xs mt-1">No hay eventos activos. El administrador debe crear un evento primero.</p>
             )}
           </div>
 
           <div>
             <label className="label">Cantidad de personas *</label>
-            <input
-              type="number" min={1} max={500}
-              className="input" value={form.numPersonas}
-              onChange={e => setForm(f => ({ ...f, numPersonas: parseInt(e.target.value) || 1 }))}
-              required
-            />
+            <input type="number" min={1} max={500} className="input" value={form.numPersonas}
+              onChange={e => setForm(f => ({ ...f, numPersonas: parseInt(e.target.value) || 1 }))} required />
           </div>
 
           <div>
             <label className="label">Función a desempeñar *</label>
-            <select className="input" value={form.funcion} onChange={e => setForm(f => ({ ...f, funcion: e.target.value }))} required>
+            <select className="input" value={form.funcion}
+              onChange={e => setForm(f => ({ ...f, funcion: e.target.value }))} required>
               <option value="">Seleccionar función...</option>
               {FUNCIONES.map(f => <option key={f} value={f}>{f}</option>)}
             </select>
             {form.funcion === 'Otro' && (
-              <input
-                className="input mt-2" placeholder="Describe la función..."
+              <input className="input mt-2" placeholder="Describe la función..."
                 value={form.funcionCustom}
-                onChange={e => setForm(f => ({ ...f, funcionCustom: e.target.value }))}
-              />
+                onChange={e => setForm(f => ({ ...f, funcionCustom: e.target.value }))} />
             )}
           </div>
 
@@ -150,31 +134,28 @@ export default function SolicitarPage() {
             <label className="label">Tarifa *</label>
             <div className="grid grid-cols-3 gap-3">
               {tarifas.map(t => (
-                <button
-                  key={t.tipo} type="button"
+                <button key={t.tipo} type="button"
                   onClick={() => setForm(f => ({ ...f, tipoTarifa: t.tipo }))}
-                  className={`p-3 rounded-xl border text-left transition-all ${
+                  className={`p-3 rounded-xl border-2 text-left transition-all ${
                     form.tipoTarifa === t.tipo
-                      ? 'border-brand-500 bg-brand-800/60 text-white'
-                      : 'border-brand-700/40 bg-brand-900/40 text-brand-300 hover:border-brand-600'
-                  }`}
-                >
-                  <p className="text-xs font-semibold uppercase tracking-wide">{TARIFA_LABELS[t.tipo]}</p>
-                  <p className="text-lg font-bold mt-0.5">{formatCurrency(t.precioPorDia)}</p>
-                  <p className="text-xs opacity-60">por día</p>
+                      ? 'border-brand-600 bg-brand-50 shadow-sm'
+                      : 'border-gray-200 bg-white hover:border-gray-300'
+                  }`}>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{TARIFA_LABELS[t.tipo]}</p>
+                  <p className="text-xl font-bold text-gray-900 mt-0.5">{formatCurrency(t.precioPorDia)}</p>
+                  <p className="text-xs text-gray-400">por día</p>
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Cost estimate */}
           {estimado > 0 && (
-            <div className="bg-gold-500/10 border border-gold-500/30 rounded-xl p-4 flex justify-between items-center">
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex justify-between items-center">
               <div>
-                <p className="text-gold-400 text-xs font-semibold uppercase tracking-wide">Estimado por día</p>
-                <p className="text-white text-sm">{form.numPersonas} persona(s) × {formatCurrency(selectedTarifa!.precioPorDia)}</p>
+                <p className="text-amber-700 text-xs font-semibold uppercase tracking-wide">Estimado por día</p>
+                <p className="text-gray-700 text-sm">{form.numPersonas} persona(s) × {formatCurrency(selectedTarifa!.precioPorDia)}</p>
               </div>
-              <p className="text-gold-400 text-2xl font-bold">{formatCurrency(estimado)}</p>
+              <p className="text-amber-600 text-2xl font-bold">{formatCurrency(estimado)}</p>
             </div>
           )}
 
@@ -184,21 +165,20 @@ export default function SolicitarPage() {
         </form>
       </div>
 
-      {/* My requests */}
       {solicitudes.length > 0 && (
         <div>
-          <h2 className="text-lg font-semibold text-white mb-4">Mis Solicitudes</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Mis Solicitudes</h2>
           <div className="space-y-3">
             {solicitudes.map(s => (
               <div key={s.id} className="card p-4 flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-white truncate">{s.evento.nombre}</p>
-                  <p className="text-brand-400 text-sm">{s.funcion} · {s.numPersonas} persona(s)</p>
-                  <p className="text-brand-500 text-xs mt-1">
+                  <p className="font-semibold text-gray-900 truncate">{s.evento.nombre}</p>
+                  <p className="text-gray-500 text-sm">{s.funcion} · {s.numPersonas} persona(s)</p>
+                  <p className="text-gray-400 text-xs mt-1">
                     {TARIFA_LABELS[s.tarifa.tipo]} · {formatDate(s.createdAt)}
                   </p>
                   {s.costoTotal && (
-                    <p className="text-gold-400 text-sm font-semibold mt-1">
+                    <p className="text-amber-600 text-sm font-semibold mt-1">
                       Total aprobado: {formatCurrency(s.costoTotal)}
                     </p>
                   )}

@@ -2,19 +2,22 @@
 
 import { signOut } from 'next-auth/react'
 import { Session } from 'next-auth'
+import Image from 'next/image'
 
 export function UserNav({ session }: { session: Session }) {
   return (
-    <header className="border-b border-brand-800/40 backdrop-blur-sm bg-brand-950/60">
-      <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-brand-800/60 border border-gold-500/40 flex items-center justify-center text-base">
-            ✨
-          </div>
-          <span className="font-bold text-white text-sm">Magic Dreams Staff</span>
-        </div>
+    <header className="border-b border-gray-200 bg-white">
+      <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+        <Image
+          src="/logo.png"
+          alt="Magic Dreams Productions"
+          width={130}
+          height={65}
+          className="object-contain"
+          priority
+        />
         <div className="flex items-center gap-4">
-          <span className="text-brand-400 text-sm hidden sm:block">
+          <span className="text-gray-500 text-sm hidden sm:block">
             {session.user?.name ?? session.user?.email}
           </span>
           <button

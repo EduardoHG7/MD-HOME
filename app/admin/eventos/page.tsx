@@ -44,17 +44,17 @@ export default function EventosPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Gestión de Eventos</h1>
-          <p className="text-brand-400 mt-1">{eventos.length} evento(s) registrado(s)</p>
+          <h1 className="text-2xl font-bold text-gray-900">Gestión de Eventos</h1>
+          <p className="text-gray-500 mt-1">{eventos.length} evento(s) registrado(s)</p>
         </div>
-        <button onClick={() => setShowForm(v => !v)} className="btn-gold">
+        <button onClick={() => setShowForm(v => !v)} className="btn-primary">
           {showForm ? 'Cancelar' : '+ Nuevo Evento'}
         </button>
       </div>
 
       {showForm && (
         <div className="card p-6">
-          <h2 className="text-lg font-semibold text-white mb-4">Crear Evento</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Crear Evento</h2>
           <form onSubmit={handleCreate} className="space-y-4">
             <div>
               <label className="label">Nombre del evento *</label>
@@ -87,23 +87,25 @@ export default function EventosPage() {
 
       <div className="space-y-3">
         {eventos.map(ev => (
-          <div key={ev.id} className="card p-5 flex items-center justify-between">
+          <div key={ev.id} className="card p-5 flex items-center justify-between hover:shadow-md transition-shadow">
             <div>
-              <p className="font-semibold text-white">{ev.nombre}</p>
-              {ev.descripcion && <p className="text-brand-400 text-sm">{ev.descripcion}</p>}
-              <p className="text-brand-500 text-xs mt-1">
+              <p className="font-semibold text-gray-900">{ev.nombre}</p>
+              {ev.descripcion && <p className="text-gray-500 text-sm">{ev.descripcion}</p>}
+              <p className="text-gray-400 text-xs mt-1">
                 {formatDate(ev.fechaInicio)} – {formatDate(ev.fechaFin)}
               </p>
             </div>
             <div className="text-right">
-              <p className="text-2xl font-bold text-brand-300">{ev._count.asignaciones}</p>
-              <p className="text-brand-500 text-xs">aplicante(s)</p>
+              <p className="text-2xl font-bold text-brand-700">{ev._count.asignaciones}</p>
+              <p className="text-gray-400 text-xs">aplicante(s)</p>
             </div>
           </div>
         ))}
         {eventos.length === 0 && (
-          <div className="card p-8 text-center text-brand-400">
-            No hay eventos. Crea el primero para comenzar.
+          <div className="card p-8 text-center">
+            <p className="text-3xl mb-3">🎪</p>
+            <p className="text-gray-700 font-semibold">No hay eventos aún</p>
+            <p className="text-gray-400 text-sm mt-1">Crea el primero para comenzar.</p>
           </div>
         )}
       </div>

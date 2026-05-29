@@ -3,61 +3,60 @@
 @tailwind utilities;
 
 :root {
-  --foreground-rgb: 255, 255, 255;
-  --background-start-rgb: 15, 10, 30;
-  --background-end-rgb: 10, 5, 20;
+  --color-text: #111827;
+  --color-text-secondary: #6b7280;
+  --color-border: #e5e7eb;
+  --color-surface: #ffffff;
+  --color-surface-alt: #f9f8ff;
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-    to bottom,
-    rgb(var(--background-start-rgb)),
-    rgb(var(--background-end-rgb))
-  );
+  color: var(--color-text);
+  background: #ffffff;
   min-height: 100vh;
+  font-family: system-ui, -apple-system, sans-serif;
 }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #1e1535; }
-::-webkit-scrollbar-thumb { background: #6822d4; border-radius: 3px; }
+::-webkit-scrollbar-track { background: #f3f4f6; }
+::-webkit-scrollbar-thumb { background: #c4b5fd; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #7c3aed; }
 
 @layer utilities {
   .card {
-    @apply bg-brand-950/60 border border-brand-800/40 rounded-2xl backdrop-blur-sm;
+    @apply bg-white border border-gray-200 rounded-2xl shadow-sm;
   }
   .card-gold {
-    @apply bg-brand-950/60 border border-gold-500/30 rounded-2xl backdrop-blur-sm;
+    @apply bg-white border-2 border-amber-200 rounded-2xl shadow-sm;
   }
   .btn-primary {
-    @apply bg-brand-600 hover:bg-brand-700 text-white font-semibold px-5 py-2.5 rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply bg-brand-700 hover:bg-brand-800 text-white font-semibold px-5 py-2.5 rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .btn-gold {
-    @apply bg-gold-500 hover:bg-gold-600 text-brand-950 font-semibold px-5 py-2.5 rounded-xl transition-all duration-200 disabled:opacity-50;
+    @apply bg-amber-500 hover:bg-amber-600 text-white font-semibold px-5 py-2.5 rounded-xl transition-all duration-200 disabled:opacity-50;
   }
   .btn-ghost {
-    @apply text-brand-300 hover:text-white hover:bg-brand-800/50 px-4 py-2 rounded-xl transition-all duration-200;
+    @apply text-gray-600 hover:text-gray-900 hover:bg-gray-100 px-4 py-2 rounded-xl transition-all duration-200;
   }
   .btn-danger {
-    @apply bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-600/30 font-semibold px-5 py-2.5 rounded-xl transition-all duration-200;
+    @apply bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-semibold px-5 py-2.5 rounded-xl transition-all duration-200;
   }
   .input {
-    @apply w-full bg-brand-900/60 border border-brand-700/50 text-white placeholder-brand-400 rounded-xl px-4 py-3 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all;
+    @apply w-full bg-gray-50 border border-gray-200 text-gray-900 placeholder-gray-400 rounded-xl px-4 py-3 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all;
   }
   .label {
-    @apply block text-sm font-medium text-brand-300 mb-1.5;
+    @apply block text-sm font-medium text-gray-700 mb-1.5;
   }
   .badge {
     @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border;
   }
 }
 
-/* QR animation */
+/* QR countdown animation */
 @keyframes pulse-border {
-  0%, 100% { border-color: rgba(124, 58, 237, 0.4); }
-  50% { border-color: rgba(245, 158, 11, 0.8); }
+  0%, 100% { border-color: rgba(124, 58, 237, 0.3); }
+  50%       { border-color: rgba(245, 158, 11, 0.7); }
 }
 .qr-pulse {
   animation: pulse-border 2s ease-in-out infinite;
