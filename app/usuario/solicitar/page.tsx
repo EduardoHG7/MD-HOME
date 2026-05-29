@@ -138,7 +138,7 @@ export default function SolicitarPage() {
                   onClick={() => setForm(f => ({ ...f, tipoTarifa: t.tipo }))}
                   className={`p-3 rounded-xl border-2 text-left transition-all ${
                     form.tipoTarifa === t.tipo
-                      ? 'border-brand-600 bg-brand-50 shadow-sm'
+                      ? 'border-gray-900 bg-gray-50 shadow-sm'
                       : 'border-gray-200 bg-white hover:border-gray-300'
                   }`}>
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{TARIFA_LABELS[t.tipo]}</p>

@@ -143,7 +143,6 @@ export default function RegistroAplicantePage() {
       <div className="w-full max-w-lg">
         <div className="text-center mb-8">
           <Image src="/logo.png" alt="Magic Dreams Productions" width={200} height={100} className="mx-auto object-contain" priority />
-          <p className="text-gray-500 text-sm mt-2 tracking-widest uppercase">Registro de Personal Eventual</p>
         </div>
 
         <div className="card p-8">
@@ -184,7 +183,7 @@ export default function RegistroAplicantePage() {
 
           <p className="text-center text-gray-400 text-xs mt-6">
             ¿Ya tienes cuenta?{' '}
-            <a href="/login" className="text-brand-700 hover:text-brand-900 font-medium">Iniciar sesión</a>
+            <a href="/login" className="text-gray-900 hover:text-black font-semibold underline">Iniciar sesión</a>
           </p>
         </div>
       </div>

@@ -54,7 +54,7 @@ export default function LoginPage() {
           <div className="mt-8 pt-6 border-t border-gray-100">
             <p className="text-center text-gray-500 text-xs">
               ¿Eres personal eventual?{' '}
-              <a href="/aplicante/registro" className="text-brand-700 hover:text-brand-900 font-semibold">
+              <a href="/aplicante/registro" className="text-gray-900 hover:text-black font-semibold underline">
                 Regístrate aquí
               </a>
             </p>

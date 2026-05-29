@@ -15,7 +15,7 @@ export default async function AdminDashboard() {
   const stats = [
     { label: 'Solicitudes Pendientes', value: pendientes, icon: '⏳', border: 'border-l-yellow-400', text: 'text-yellow-600' },
     { label: 'Solicitudes Aprobadas',  value: aprobadas,  icon: '✓',  border: 'border-l-green-400',  text: 'text-green-600' },
-    { label: 'Aplicantes Registrados', value: aplicantes, icon: '👥', border: 'border-l-brand-400',  text: 'text-brand-700' },
+    { label: 'Aplicantes Registrados', value: aplicantes, icon: '👥', border: 'border-l-gray-400',   text: 'text-gray-900' },
     { label: 'Eventos Activos',        value: eventos,    icon: '🎪', border: 'border-l-amber-400',  text: 'text-amber-600' },
   ]
 
@@ -56,9 +56,9 @@ export default async function AdminDashboard() {
           { href: '/admin/eventos',     label: 'Gestionar Eventos',    icon: '🎪', desc: 'Crear y administrar eventos' },
           { href: '/admin/tarifas',     label: 'Configurar Tarifas',   icon: '💰', desc: 'Actualizar las tarifas de pago por día' },
         ].map(link => (
-          <a key={link.href} href={link.href} className="card p-5 hover:border-brand-300 hover:shadow-md transition-all group">
+          <a key={link.href} href={link.href} className="card p-5 hover:border-gray-400 hover:shadow-md transition-all group">
             <span className="text-2xl">{link.icon}</span>
-            <p className="text-gray-900 font-semibold mt-2 group-hover:text-brand-700">{link.label}</p>
+            <p className="text-gray-900 font-semibold mt-2 group-hover:text-black">{link.label}</p>
             <p className="text-gray-400 text-xs mt-1">{link.desc}</p>
           </a>
         ))}

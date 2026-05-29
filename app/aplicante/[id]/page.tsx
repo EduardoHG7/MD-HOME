@@ -100,7 +100,7 @@ export default function AplicantePage() {
       {/* Profile Card */}
       <div className="card p-5 mb-4">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-brand-700 flex items-center justify-center text-xl font-bold text-white">
+          <div className="w-12 h-12 rounded-full bg-gray-900 flex items-center justify-center text-xl font-bold text-white">
             {aplicante.nombreCompleto[0]}
           </div>
           <div>
@@ -127,7 +127,7 @@ export default function AplicantePage() {
       {/* QR Code */}
       {asignacionActiva ? (
         <div className="card qr-pulse border-2 p-6 mb-4 text-center">
-          <p className="text-brand-700 font-bold text-sm mb-0.5 uppercase tracking-wider">
+          <p className="text-gray-900 font-bold text-sm mb-0.5 uppercase tracking-wider">
             {asignacionActiva.evento.nombre}
           </p>
           <p className="text-gray-500 text-xs mb-4">{asignacionActiva.funcion}</p>

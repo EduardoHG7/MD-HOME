@@ -33,7 +33,7 @@ export function AdminSidebar({ session }: { session: Session }) {
 
       {/* Badge */}
       <div className="px-4 py-2 border-b border-gray-100">
-        <span className="text-xs font-semibold text-brand-700 bg-brand-50 border border-brand-200 rounded-full px-3 py-1">
+        <span className="text-xs font-semibold text-gray-600 bg-gray-100 border border-gray-200 rounded-full px-3 py-1">
           Panel Administrativo
         </span>
       </div>
@@ -48,7 +48,7 @@ export function AdminSidebar({ session }: { session: Session }) {
               href={item.href}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
                 active
-                  ? 'bg-brand-700 text-white shadow-sm'
+                  ? 'bg-gray-900 text-white shadow-sm'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
               }`}
             >
@@ -62,7 +62,7 @@ export function AdminSidebar({ session }: { session: Session }) {
       {/* User */}
       <div className="p-3 border-t border-gray-100">
         <div className="flex items-center gap-3 px-3 py-2 mb-1 bg-gray-50 rounded-xl">
-          <div className="w-8 h-8 rounded-full bg-brand-700 flex items-center justify-center text-sm font-bold text-white shrink-0">
+          <div className="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center text-sm font-bold text-white shrink-0">
             {session.user?.name?.[0] ?? session.user?.email?.[0] ?? 'A'}
           </div>
           <div className="min-w-0">

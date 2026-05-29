@@ -96,7 +96,7 @@ export default function EventosPage() {
               </p>
             </div>
             <div className="text-right">
-              <p className="text-2xl font-bold text-brand-700">{ev._count.asignaciones}</p>
+              <p className="text-2xl font-bold text-gray-900">{ev._count.asignaciones}</p>
               <p className="text-gray-400 text-xs">aplicante(s)</p>
             </div>
           </div>

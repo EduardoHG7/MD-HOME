@@ -73,10 +73,10 @@ export default function AplicantesAdminPage() {
             <button
               key={a.id}
               onClick={() => setSelected(a)}
-              className={`card w-full text-left p-4 hover:border-brand-300 hover:shadow-md transition-all ${selected?.id === a.id ? 'border-brand-400 shadow-md' : ''}`}
+              className={`card w-full text-left p-4 hover:border-gray-400 hover:shadow-md transition-all ${selected?.id === a.id ? 'border-gray-400 shadow-md' : ''}`}
             >
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-brand-700 flex items-center justify-center text-sm font-bold text-white shrink-0">
+                <div className="w-9 h-9 rounded-full bg-gray-900 flex items-center justify-center text-sm font-bold text-white shrink-0">
                   {a.nombreCompleto[0]}
                 </div>
                 <div className="min-w-0">
@@ -98,7 +98,7 @@ export default function AplicantesAdminPage() {
             {/* Profile */}
             <div className="card p-5">
               <div className="flex items-center gap-4 mb-4">
-                <div className="w-14 h-14 rounded-full bg-brand-700 flex items-center justify-center text-2xl font-bold text-white">
+                <div className="w-14 h-14 rounded-full bg-gray-900 flex items-center justify-center text-2xl font-bold text-white">
                   {selected.nombreCompleto[0]}
                 </div>
                 <div>
@@ -119,8 +119,8 @@ export default function AplicantesAdminPage() {
 
             {/* Stats */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="card p-4 text-center border-l-4 border-l-brand-400">
-                <p className="text-2xl font-bold text-brand-700">{selected.asignaciones.length}</p>
+              <div className="card p-4 text-center border-l-4 border-l-gray-400">
+                <p className="text-2xl font-bold text-gray-900">{selected.asignaciones.length}</p>
                 <p className="text-gray-500 text-xs mt-1">Eventos participados</p>
               </div>
               <div className="card p-4 text-center border-l-4 border-l-green-400">

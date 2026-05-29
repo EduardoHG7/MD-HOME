@@ -68,7 +68,7 @@ export default function SolicitudesAdminPage() {
           <button key={f} onClick={() => setFilter(f)}
             className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
               filter === f
-                ? 'bg-brand-700 text-white shadow-sm'
+                ? 'bg-gray-900 text-white shadow-sm'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}>
             {f === 'TODAS' ? 'Todas' : ESTADO_SOLICITUD_LABELS[f]}
@@ -86,7 +86,7 @@ export default function SolicitudesAdminPage() {
             <button
               key={s.id}
               onClick={() => { setSelected(s); setCosto(s.costoTotal?.toString() ?? ''); setNota(s.notaAdmin ?? '') }}
-              className={`card w-full text-left p-4 hover:border-brand-300 hover:shadow-md transition-all ${selected?.id === s.id ? 'border-brand-400 shadow-md' : ''}`}
+              className={`card w-full text-left p-4 hover:border-gray-400 hover:shadow-md transition-all ${selected?.id === s.id ? 'border-gray-400 shadow-md' : ''}`}
             >
               <div className="flex justify-between items-start mb-2">
                 <p className="font-semibold text-gray-900 text-sm">{s.evento.nombre}</p>

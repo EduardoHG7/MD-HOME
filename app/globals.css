@@ -20,8 +20,8 @@ body {
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: #f3f4f6; }
-::-webkit-scrollbar-thumb { background: #c4b5fd; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #7c3aed; }
+::-webkit-scrollbar-thumb { background: #9ca3af; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #6b7280; }
 
 @layer utilities {
   .card {
@@ -31,7 +31,7 @@ body {
     @apply bg-white border-2 border-amber-200 rounded-2xl shadow-sm;
   }
   .btn-primary {
-    @apply bg-brand-700 hover:bg-brand-800 text-white font-semibold px-5 py-2.5 rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply bg-gray-900 hover:bg-gray-700 text-white font-semibold px-5 py-2.5 rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .btn-gold {
     @apply bg-amber-500 hover:bg-amber-600 text-white font-semibold px-5 py-2.5 rounded-xl transition-all duration-200 disabled:opacity-50;
@@ -43,7 +43,7 @@ body {
     @apply bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-semibold px-5 py-2.5 rounded-xl transition-all duration-200;
   }
   .input {
-    @apply w-full bg-gray-50 border border-gray-200 text-gray-900 placeholder-gray-400 rounded-xl px-4 py-3 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all;
+    @apply w-full bg-gray-50 border border-gray-200 text-gray-900 placeholder-gray-400 rounded-xl px-4 py-3 focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-all;
   }
   .label {
     @apply block text-sm font-medium text-gray-700 mb-1.5;
@@ -55,7 +55,7 @@ body {
 
 /* QR countdown animation */
 @keyframes pulse-border {
-  0%, 100% { border-color: rgba(124, 58, 237, 0.3); }
+  0%, 100% { border-color: rgba(0, 0, 0, 0.15); }
   50%       { border-color: rgba(245, 158, 11, 0.7); }
 }
 .qr-pulse {
