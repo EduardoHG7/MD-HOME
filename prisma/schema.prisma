@@ -1,0 +1,124 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Role: ADMIN | USER
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  image     String?
+  role      String   @default("USER")
+  createdAt DateTime @default(now())
+
+  solicitudes Solicitud[]
+
+  @@map("users")
+}
+
+// TipoTarifa: DIARIA | QUINCENAL | MENSUAL
+model Tarifa {
+  id           String   @id @default(cuid())
+  tipo         String   @unique
+  precioPorDia Float
+  updatedAt    DateTime @updatedAt
+
+  solicitudes Solicitud[]
+
+  @@map("tarifas")
+}
+
+// EstadoEvento: ACTIVO | COMPLETADO | CANCELADO
+model Evento {
+  id          String   @id @default(cuid())
+  nombre      String
+  descripcion String?
+  fechaInicio DateTime
+  fechaFin    DateTime
+  estado      String   @default("ACTIVO")
+  createdAt   DateTime @default(now())
+
+  solicitudes  Solicitud[]
+  asignaciones AsignacionAplicante[]
+
+  @@map("eventos")
+}
+
+// EstadoSolicitud: PENDIENTE | APROBADA | RECHAZADA
+model Solicitud {
+  id            String   @id @default(cuid())
+  eventoId      String
+  solicitanteId String
+  tarifaId      String
+  numPersonas   Int
+  funcion       String
+  estado        String   @default("PENDIENTE")
+  costoTotal    Float?
+  notaAdmin     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  evento      Evento    @relation(fields: [eventoId], references: [id])
+  solicitante User      @relation(fields: [solicitanteId], references: [id])
+  tarifa      Tarifa    @relation(fields: [tarifaId], references: [id])
+
+  asignaciones AsignacionAplicante[]
+
+  @@map("solicitudes")
+}
+
+model Aplicante {
+  id                  String    @id @default(cuid())
+  nombreCompleto      String
+  cedula              String    @unique
+  telefono            String
+  email               String    @unique
+  cuentaBancaria      String
+  terminosAceptados   Boolean   @default(false)
+  terminosAceptadosAt DateTime?
+  qrSecret            String    @default(cuid())
+  activo              Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+
+  asignaciones AsignacionAplicante[]
+
+  @@map("aplicantes")
+}
+
+// EstadoAsignacion: ACTIVA | COMPLETADA | CANCELADA
+model AsignacionAplicante {
+  id          String   @id @default(cuid())
+  aplicanteId String
+  eventoId    String
+  solicitudId String
+  funcion     String
+  estado      String   @default("ACTIVA")
+  createdAt   DateTime @default(now())
+
+  aplicante Aplicante @relation(fields: [aplicanteId], references: [id])
+  evento    Evento    @relation(fields: [eventoId], references: [id])
+  solicitud Solicitud @relation(fields: [solicitudId], references: [id])
+  registros RegistroAsistencia[]
+
+  @@unique([aplicanteId, eventoId])
+  @@map("asignaciones_aplicantes")
+}
+
+// TipoRegistro: ENTRADA | SALIDA
+model RegistroAsistencia {
+  id           String   @id @default(cuid())
+  asignacionId String
+  tipo         String
+  timestamp    DateTime @default(now())
+  tokenUsado   String
+
+  asignacion AsignacionAplicante @relation(fields: [asignacionId], references: [id])
+
+  @@unique([asignacionId, tipo, tokenUsado])
+  @@map("registros_asistencia")
+}
