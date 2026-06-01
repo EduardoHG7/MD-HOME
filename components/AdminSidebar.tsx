@@ -9,6 +9,7 @@ import Image from 'next/image'
 const NAV_ITEMS = [
   { href: '/admin',             label: 'Dashboard',   icon: '◉' },
   { href: '/admin/solicitudes', label: 'Solicitudes', icon: '📋' },
+  { href: '/admin/usuarios',   label: 'Usuarios',    icon: '👥' },
   { href: '/admin/aplicantes',  label: 'Aplicantes',  icon: '👥' },
   { href: '/admin/eventos',     label: 'Eventos',     icon: '🎪' },
   { href: '/admin/puestos',     label: 'Puestos',     icon: '🔧' },
