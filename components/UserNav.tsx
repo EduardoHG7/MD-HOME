@@ -3,8 +3,17 @@
 import { signOut } from 'next-auth/react'
 import { Session } from 'next-auth'
 import Image from 'next/image'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+
+const NAV_ITEMS = [
+  { href: '/usuario/solicitar', label: '📋 Solicitudes' },
+  { href: '/usuario/facturas',  label: '🧾 Facturas' },
+]
 
 export function UserNav({ session }: { session: Session }) {
+  const pathname = usePathname()
+
   return (
     <header className="border-b border-gray-200 bg-white">
       <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -16,13 +25,31 @@ export function UserNav({ session }: { session: Session }) {
           className="object-contain"
           priority
         />
-        <div className="flex items-center gap-4">
+
+        {/* Nav tabs */}
+        <nav className="flex items-center gap-1">
+          {NAV_ITEMS.map(item => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                pathname.startsWith(item.href)
+                  ? 'bg-gray-900 text-white'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
+
+        <div className="flex items-center gap-3">
           <span className="text-gray-500 text-sm hidden sm:block">
             {session.user?.name ?? session.user?.email}
           </span>
           <button
             onClick={() => signOut({ callbackUrl: '/login' })}
-            className="btn-ghost text-sm py-1.5"
+            className="text-sm text-gray-500 hover:text-red-600 px-3 py-1.5 rounded-xl hover:bg-red-50 transition-all"
           >
             Salir
           </button>

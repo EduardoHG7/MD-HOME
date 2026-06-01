@@ -21,23 +21,15 @@ Si un campo no aparece, usa null para texto y 0 para montos. Los montos sin sím
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
-  if (!session || session.user.role !== 'ADMIN') {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  }
+  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) {
-    return NextResponse.json({ error: 'API key de Claude no configurada' }, { status: 500 })
-  }
+  if (!apiKey) return NextResponse.json({ error: 'API key de Claude no configurada' }, { status: 500 })
 
   const { base64, mimeType, fileName } = await req.json()
-
-  if (!base64 || !mimeType) {
-    return NextResponse.json({ error: 'Faltan datos del archivo' }, { status: 400 })
-  }
+  if (!base64 || !mimeType) return NextResponse.json({ error: 'Faltan datos del archivo' }, { status: 400 })
 
   const isPdf = mimeType === 'application/pdf'
-
   const contentBlock = isPdf
     ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
     : { type: 'image',    source: { type: 'base64', media_type: mimeType,            data: base64 } }
@@ -67,7 +59,6 @@ export async function POST(req: Request) {
 
   try {
     const parsed = JSON.parse(text)
-    // Calcular fecha de pago (emisión + 30 días)
     let fechaPago: string | null = null
     if (parsed.fecha_emision) {
       const [d, m, y] = parsed.fecha_emision.split('/')
@@ -75,14 +66,13 @@ export async function POST(req: Request) {
       date.setDate(date.getDate() + 30)
       fechaPago = `${String(date.getDate()).padStart(2,'0')}/${String(date.getMonth()+1).padStart(2,'0')}/${date.getFullYear()}`
     }
-
     return NextResponse.json({
       numeroFactura: parsed.numero_factura ?? null,
       proveedor:     parsed.proveedor     ?? null,
       rucDv:         parsed.ruc_dv        ?? null,
       descripcion:   parsed.descripcion   ?? null,
       fechaEmision:  parsed.fecha_emision ?? null,
-      fechaPago:     fechaPago,
+      fechaPago,
       subtotal:      Number(parsed.subtotal) || 0,
       itbms:         Number(parsed.itbms)    || 0,
       total:         Number(parsed.total)    || 0,

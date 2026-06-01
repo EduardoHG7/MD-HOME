@@ -7,8 +7,14 @@ import { prisma } from '@/lib/prisma'
 
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
-  if (!session || session.user.role !== 'ADMIN') {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+  const factura = await prisma.factura.findUnique({ where: { id: params.id } })
+  if (!factura) return NextResponse.json({ error: 'No encontrada' }, { status: 404 })
+
+  // Solo admin o el creador pueden eliminar
+  if (session.user.role !== 'ADMIN' && factura.creadoPorId !== session.user.id) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
   }
 
   await prisma.factura.delete({ where: { id: params.id } })
