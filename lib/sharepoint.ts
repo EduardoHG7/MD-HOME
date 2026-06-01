@@ -29,7 +29,7 @@ async function getAppToken(): Promise<string> {
 
   if (!res.ok) {
     const err = await res.text()
-    throw new Error(`Error obteniendo token de SharePoint: ${err}`)
+    throw new Error(`Error token SharePoint (${res.status}): ${err}`)
   }
 
   const data = await res.json()
@@ -42,12 +42,12 @@ async function getAppToken(): Promise<string> {
 
 async function getSiteId(): Promise<string> {
   const token = await getAppToken()
-  const res = await fetch(
-    `https://graph.microsoft.com/v1.0/sites/${SP_HOST}:${SP_SITE_PATH}`,
-    { headers: { Authorization: `Bearer ${token}` } }
-  )
-  if (!res.ok) throw new Error('No se pudo obtener el Site ID de SharePoint')
-  const data = await res.json()
+  const url   = `https://graph.microsoft.com/v1.0/sites/${SP_HOST}:${SP_SITE_PATH}`
+  const res   = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+  const data  = await res.json()
+  if (!res.ok) {
+    throw new Error(`SharePoint Site ID error (${res.status}): ${JSON.stringify(data)}`)
+  }
   return data.id
 }
 
