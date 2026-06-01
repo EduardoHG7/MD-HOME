@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useSession } from 'next-auth/react'
 import { formatCurrency } from '@/lib/utils'
 
 interface Evento  { id: string; nombre: string }
@@ -32,12 +33,18 @@ interface QueueItem {
 }
 
 export default function FacturasPage() {
+  const { data: session } = useSession()
   const [eventos,      setEventos]      = useState<Evento[]>([])
   const [facturas,     setFacturas]     = useState<Factura[]>([])
   const [queue,        setQueue]        = useState<QueueItem[]>([])
   const [extracted,    setExtracted]    = useState<Extracted[]>([])
   const [eventoId,     setEventoId]     = useState('')
   const [responsable,  setResponsable]  = useState('')
+
+  useEffect(() => {
+    if (session?.user?.name) setResponsable(session.user.name)
+    else if (session?.user?.email) setResponsable(session.user.email)
+  }, [session])
   const [saving,       setSaving]       = useState(false)
   const [exporting,    setExporting]    = useState(false)
   const [tab,          setTab]          = useState<'subir' | 'guardadas'>('subir')
