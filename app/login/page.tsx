@@ -51,11 +51,17 @@ export default function LoginPage() {
             Continuar con Microsoft
           </button>
 
-          <div className="mt-8 pt-6 border-t border-gray-100">
-            <p className="text-center text-gray-500 text-xs">
+          <div className="mt-8 pt-6 border-t border-gray-100 space-y-2 text-center">
+            <p className="text-gray-500 text-xs">
               ¿Eres personal eventual?{' '}
-              <a href="/aplicante/registro" className="text-gray-900 hover:text-black font-semibold underline">
-                Regístrate aquí
+              <a href="/aplicante/login" className="text-gray-900 hover:text-black font-semibold underline">
+                Inicia sesión aquí
+              </a>
+            </p>
+            <p className="text-gray-400 text-xs">
+              ¿Primera vez?{' '}
+              <a href="/aplicante/registro" className="text-gray-600 hover:text-black font-semibold underline">
+                Regístrate
               </a>
             </p>
           </div>

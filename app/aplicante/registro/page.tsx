@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 
 const TERMINOS = `TÉRMINOS Y CONDICIONES - PERSONAL EVENTUAL MAGIC DREAMS PRODUCTIONS
 
@@ -32,16 +33,49 @@ El incumplimiento de las presentes condiciones podrá resultar en la exclusión 
 
 Al hacer clic en "Acepto los Términos y Condiciones", confirmas que has leído, entendido y aceptas todas las disposiciones aquí establecidas.`
 
+type Step = 'form' | 'fotos' | 'terms' | 'done'
+
+interface FotoState {
+  preview: string | null
+  url:     string | null
+  loading: boolean
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload  = () => resolve((reader.result as string).split(',')[1])
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
 export default function RegistroAplicantePage() {
-  const [step, setStep]       = useState<'form' | 'terms' | 'done'>('form')
-  const [loading, setLoading] = useState(false)
-  const [error, setError]     = useState('')
+  const [step,        setStep]        = useState<Step>('form')
+  const [loading,     setLoading]     = useState(false)
+  const [error,       setError]       = useState('')
   const [applicantId, setApplicantId] = useState('')
-  const [termsRead, setTermsRead]     = useState(false)
+  const [termsRead,   setTermsRead]   = useState(false)
 
   const [form, setForm] = useState({
-    nombreCompleto: '', cedula: '', telefono: '', email: '', cuentaBancaria: '',
+    nombreCompleto: '', cedula: '', telefono: '',
+    email: '', cuentaBancaria: '',
+    password: '', confirmPassword: '',
   })
+
+  const [fotos, setFotos] = useState<{
+    fotoPersonal:  FotoState
+    fotoCedula:    FotoState
+    fotoConCedula: FotoState
+  }>({
+    fotoPersonal:  { preview: null, url: null, loading: false },
+    fotoCedula:    { preview: null, url: null, loading: false },
+    fotoConCedula: { preview: null, url: null, loading: false },
+  })
+
+  const inputPersonal  = useRef<HTMLInputElement>(null)
+  const inputCedula    = useRef<HTMLInputElement>(null)
+  const inputConCedula = useRef<HTMLInputElement>(null)
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
@@ -51,10 +85,40 @@ export default function RegistroAplicantePage() {
   function handleFormSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!form.nombreCompleto || !form.cedula || !form.telefono || !form.email || !form.cuentaBancaria) {
-      setError('Por favor completa todos los campos.')
-      return
+      setError('Por favor completa todos los campos.'); return
     }
-    setStep('terms')
+    if (!form.password || form.password.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres.'); return
+    }
+    if (form.password !== form.confirmPassword) {
+      setError('Las contraseñas no coinciden.'); return
+    }
+    setStep('fotos')
+  }
+
+  async function handleFotoSelect(
+    tipo: 'fotoPersonal' | 'fotoCedula' | 'fotoConCedula',
+    file: File
+  ) {
+    // Mostrar preview inmediatamente
+    const preview = URL.createObjectURL(file)
+    setFotos(prev => ({ ...prev, [tipo]: { preview, url: null, loading: true } }))
+
+    try {
+      const base64 = await fileToBase64(file)
+      const res = await fetch('/api/upload/foto', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ base64, mimeType: file.type, cedula: form.cedula, tipo }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Error al subir')
+      setFotos(prev => ({ ...prev, [tipo]: { preview, url: data.url, loading: false } }))
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error'
+      setFotos(prev => ({ ...prev, [tipo]: { preview: null, url: null, loading: false } }))
+      setError(`Error subiendo foto: ${msg}`)
+    }
   }
 
   async function handleAcceptTerms() {
@@ -62,20 +126,30 @@ export default function RegistroAplicantePage() {
     setError('')
     try {
       const res = await fetch('/api/aplicantes', {
-        method: 'POST',
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          nombreCompleto: form.nombreCompleto,
+          cedula:         form.cedula,
+          telefono:       form.telefono,
+          email:          form.email,
+          cuentaBancaria: form.cuentaBancaria,
+          password:       form.password,
+          fotoPersonal:   fotos.fotoPersonal.url,
+          fotoCedula:     fotos.fotoCedula.url,
+          fotoConCedula:  fotos.fotoConCedula.url,
+        }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Error al registrar.'); setStep('form'); return }
       setApplicantId(data.id)
       setStep('done')
     } catch {
-      setError('Error de conexión.')
-      setStep('form')
+      setError('Error de conexión.'); setStep('form')
     } finally { setLoading(false) }
   }
 
+  /* ─── DONE ─── */
   if (step === 'done') {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
@@ -85,50 +159,49 @@ export default function RegistroAplicantePage() {
           <p className="text-gray-500 mb-6">
             Bienvenido(a) al equipo de colaboradores eventuales de Magic Dreams Productions.
           </p>
-          <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 mb-6 text-left">
-            <p className="text-gray-400 text-xs">Tu nombre:</p>
-            <p className="text-gray-900 font-semibold">{form.nombreCompleto}</p>
-            <p className="text-gray-400 text-xs mt-2">Tu correo:</p>
-            <p className="text-gray-900 font-semibold">{form.email}</p>
+          <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 mb-6 text-left space-y-2">
+            <div>
+              <p className="text-gray-400 text-xs">Tu nombre</p>
+              <p className="text-gray-900 font-semibold">{form.nombreCompleto}</p>
+            </div>
+            <div>
+              <p className="text-gray-400 text-xs">Tu usuario (cédula)</p>
+              <p className="text-gray-900 font-semibold">{form.cedula}</p>
+            </div>
           </div>
-          <p className="text-gray-500 text-sm mb-6">
-            Cuando seas asignado a un evento, recibirás acceso a tu código QR de asistencia.
-          </p>
-          <a href={`/aplicante/${applicantId}`} className="btn-primary block text-center">
-            Ver mi perfil y QR
+          <Link href="/aplicante/login" className="btn-primary block text-center mb-3">
+            Iniciar sesión en mi cuenta
+          </Link>
+          <a href={`/aplicante/${applicantId}`} className="text-sm text-gray-400 hover:text-gray-600 underline">
+            Ver mi QR de asistencia
           </a>
         </div>
       </div>
     )
   }
 
+  /* ─── TERMS ─── */
   if (step === 'terms') {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-10">
         <div className="card p-8 max-w-2xl w-full">
           <h2 className="text-xl font-bold text-gray-900 mb-1">Términos y Condiciones</h2>
           <p className="text-gray-500 text-sm mb-4">Desplázate hasta el final para poder aceptar.</p>
-
           <div
             className="bg-gray-50 border border-gray-200 rounded-xl p-5 h-72 overflow-y-auto text-gray-700 text-sm leading-relaxed mb-4"
-            onScroll={(e) => {
+            onScroll={e => {
               const el = e.currentTarget
               if (el.scrollHeight - el.scrollTop - el.clientHeight < 30) setTermsRead(true)
             }}
           >
             <pre className="whitespace-pre-wrap font-sans">{TERMINOS}</pre>
           </div>
-
           {!termsRead && (
-            <p className="text-amber-600 text-xs mb-4 flex items-center gap-1">
-              ⬇ Desplázate hasta el final para poder aceptar
-            </p>
+            <p className="text-amber-600 text-xs mb-4">⬇ Desplázate hasta el final para aceptar</p>
           )}
-
           {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
-
           <div className="flex gap-3">
-            <button onClick={() => setStep('form')} className="btn-ghost flex-1">Atrás</button>
+            <button onClick={() => setStep('fotos')} className="btn-ghost flex-1">Atrás</button>
             <button onClick={handleAcceptTerms} disabled={!termsRead || loading} className="btn-primary flex-1">
               {loading ? 'Registrando...' : 'Acepto los Términos y Condiciones'}
             </button>
@@ -138,6 +211,112 @@ export default function RegistroAplicantePage() {
     )
   }
 
+  /* ─── FOTOS ─── */
+  if (step === 'fotos') {
+    const allUploaded = fotos.fotoPersonal.url && fotos.fotoCedula.url && fotos.fotoConCedula.url
+    const anyLoading  = fotos.fotoPersonal.loading || fotos.fotoCedula.loading || fotos.fotoConCedula.loading
+
+    const FOTO_CONFIG = [
+      {
+        tipo:     'fotoPersonal'  as const,
+        label:    'Tu foto',
+        desc:     'Selfie clara de tu rostro',
+        icon:     '🤳',
+        ref:      inputPersonal,
+      },
+      {
+        tipo:     'fotoCedula'    as const,
+        label:    'Tu cédula',
+        desc:     'Foto nítida del frente de tu cédula',
+        icon:     '🪪',
+        ref:      inputCedula,
+      },
+      {
+        tipo:     'fotoConCedula' as const,
+        label:    'Tú con tu cédula',
+        desc:     'Sosteniendo tu cédula junto a tu rostro',
+        icon:     '📸',
+        ref:      inputConCedula,
+      },
+    ]
+
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-10">
+        <div className="card p-8 max-w-lg w-full">
+          <h2 className="text-xl font-bold text-gray-900 mb-1">Verificación de identidad</h2>
+          <p className="text-gray-500 text-sm mb-6">
+            Sube las siguientes fotos para verificar tu identidad. Las fotos se guardan de forma segura.
+          </p>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl px-4 py-3 mb-4 text-sm">{error}</div>
+          )}
+
+          <div className="space-y-4 mb-6">
+            {FOTO_CONFIG.map(({ tipo, label, desc, icon, ref }) => {
+              const estado = fotos[tipo]
+              return (
+                <div key={tipo}>
+                  <input
+                    ref={ref}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={e => e.target.files?.[0] && handleFotoSelect(tipo, e.target.files[0])}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => ref.current?.click()}
+                    disabled={estado.loading}
+                    className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 transition-all text-left ${
+                      estado.url
+                        ? 'border-green-400 bg-green-50'
+                        : 'border-gray-200 bg-white hover:border-gray-400'
+                    }`}
+                  >
+                    {estado.preview ? (
+                      <img src={estado.preview} alt={label} className="w-16 h-16 rounded-xl object-cover shrink-0 border border-gray-200" />
+                    ) : (
+                      <div className="w-16 h-16 rounded-xl bg-gray-100 flex items-center justify-center text-2xl shrink-0">
+                        {icon}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-gray-900">{label}</p>
+                      <p className="text-gray-400 text-xs mt-0.5">{desc}</p>
+                    </div>
+                    <span className="shrink-0 text-sm font-medium">
+                      {estado.loading ? '⏳' : estado.url ? '✅' : '📷'}
+                    </span>
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+
+          {!allUploaded && (
+            <p className="text-amber-600 text-xs mb-4 text-center">
+              Las 3 fotos son necesarias para continuar
+            </p>
+          )}
+
+          <div className="flex gap-3">
+            <button onClick={() => setStep('form')} className="btn-ghost flex-1">Atrás</button>
+            <button
+              onClick={() => setStep('terms')}
+              disabled={!allUploaded || anyLoading}
+              className="btn-primary flex-1"
+            >
+              {anyLoading ? 'Subiendo fotos...' : 'Continuar →'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  /* ─── FORM ─── */
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-lg">
@@ -146,7 +325,7 @@ export default function RegistroAplicantePage() {
         </div>
 
         <div className="card p-8">
-          <h2 className="text-lg font-semibold text-gray-900 mb-6">Completa tu información</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-6">Registro de Personal Eventual</h2>
 
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl px-4 py-3 mb-4 text-sm">{error}</div>
@@ -176,14 +355,33 @@ export default function RegistroAplicantePage() {
             <div>
               <label className="label">Cuenta bancaria (IBAN) *</label>
               <input name="cuentaBancaria" value={form.cuentaBancaria} onChange={handleChange}
-                className="input" placeholder="Ej: CR21015200009123456789" required />
+                className="input" placeholder="Ej: PA21001200009123456789" required />
             </div>
+
+            <div className="border-t border-gray-100 pt-4">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Crea tu contraseña</p>
+              <div className="space-y-3">
+                <div>
+                  <label className="label">Contraseña * (mínimo 6 caracteres)</label>
+                  <input name="password" type="password" value={form.password} onChange={handleChange}
+                    className="input" placeholder="••••••••" required autoComplete="new-password" />
+                </div>
+                <div>
+                  <label className="label">Confirmar contraseña *</label>
+                  <input name="confirmPassword" type="password" value={form.confirmPassword} onChange={handleChange}
+                    className="input" placeholder="••••••••" required autoComplete="new-password" />
+                </div>
+              </div>
+            </div>
+
             <button type="submit" className="btn-primary w-full mt-2">Continuar →</button>
           </form>
 
           <p className="text-center text-gray-400 text-xs mt-6">
             ¿Ya tienes cuenta?{' '}
-            <a href="/login" className="text-gray-900 hover:text-black font-semibold underline">Iniciar sesión</a>
+            <Link href="/aplicante/login" className="text-gray-900 font-semibold hover:underline">
+              Iniciar sesión
+            </Link>
           </p>
         </div>
       </div>

@@ -117,6 +117,10 @@ model Aplicante {
   terminosAceptadosAt DateTime?
   qrSecret            String    @default(cuid())
   activo              Boolean   @default(true)
+  passwordHash        String?
+  fotoPersonal        String?
+  fotoCedula          String?
+  fotoConCedula       String?
   createdAt           DateTime  @default(now())
 
   asignaciones AsignacionAplicante[]
