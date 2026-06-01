@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import { formatDateTime } from '@/lib/utils'
 
@@ -24,7 +24,9 @@ interface Aplicante {
 
 export default function AplicantePage() {
   const { id } = useParams<{ id: string }>()
-  const [aplicante, setAplicante]       = useState<Aplicante | null>(null)
+  const searchParams = useSearchParams()
+  const eventoParam  = searchParams.get('evento')
+  const [aplicante, setAplicante]           = useState<Aplicante | null>(null)
   const [selectedEvento, setSelectedEvento] = useState<string | null>(null)
   const [qrData, setQrData]             = useState<{ qr: string; ttl: number } | null>(null)
   const [countdown, setCountdown]       = useState(30)
@@ -35,8 +37,13 @@ export default function AplicantePage() {
       .then(r => r.json())
       .then(data => {
         setAplicante(data)
-        const active = data.asignaciones?.find((a: Asignacion) => a.estado === 'ACTIVA')
-        if (active) setSelectedEvento(active.eventoId)
+        // Priorizar evento de la URL, luego el primero activo
+        if (eventoParam) {
+          setSelectedEvento(eventoParam)
+        } else {
+          const active = data.asignaciones?.find((a: Asignacion) => a.estado === 'ACTIVA')
+          if (active) setSelectedEvento(active.eventoId)
+        }
         setLoading(false)
       })
   }, [id])

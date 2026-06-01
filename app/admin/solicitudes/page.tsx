@@ -4,6 +4,14 @@ import { useEffect, useState } from 'react'
 import { formatDate, formatCurrency, TARIFA_LABELS, ESTADO_COLORS, ESTADO_SOLICITUD_LABELS } from '@/lib/utils'
 
 interface Tarifa   { id: string; tipo: string; precioPorDia: number }
+interface Registro  { id: string; tipo: string; timestamp: string }
+interface Asignacion {
+  id:        string
+  eventoId:  string
+  funcion:   string
+  aplicante: { id: string; nombreCompleto: string; cedula: string }
+  registros: Registro[]
+}
 interface Solicitud {
   id: string
   numPersonas: number
@@ -15,6 +23,7 @@ interface Solicitud {
   evento: { id: string; nombre: string; fechaInicio: string; fechaFin: string }
   solicitante: { name: string; email: string }
   tarifa: Tarifa | null
+  asignaciones: Asignacion[]
 }
 
 export default function SolicitudesAdminPage() {
@@ -25,7 +34,15 @@ export default function SolicitudesAdminPage() {
   const [nota,        setNota]        = useState('')
   const [tipoTarifa,  setTipoTarifa]  = useState('')
   const [loading,     setLoading]     = useState(false)
+  const [copiedId,    setCopiedId]    = useState<string | null>(null)
   const [filter, setFilter] = useState<'TODAS' | 'PENDIENTE' | 'APROBADA' | 'RECHAZADA'>('PENDIENTE')
+
+  function copiarLinkEvento(aplicanteId: string, eventoId: string) {
+    const url = `${window.location.origin}/aplicante/${aplicanteId}?evento=${eventoId}`
+    navigator.clipboard.writeText(url)
+    setCopiedId(aplicanteId)
+    setTimeout(() => setCopiedId(null), 2000)
+  }
 
   useEffect(() => {
     Promise.all([
@@ -204,6 +221,51 @@ export default function SolicitudesAdminPage() {
                 {selected.tarifa && <p className="text-sm mt-1">Tarifa: {TARIFA_LABELS[selected.tarifa.tipo]}</p>}
                 {selected.costoTotal && <p className="text-sm mt-1">Costo total: {formatCurrency(selected.costoTotal)}</p>}
                 {selected.notaAdmin && <p className="text-sm mt-1 opacity-80">{selected.notaAdmin}</p>}
+              </div>
+            )}
+
+            {/* Asignaciones y asistencias */}
+            {(selected.asignaciones ?? []).length > 0 && (
+              <div className="pt-2 border-t border-gray-100">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                  Personal asignado ({selected.asignaciones.length}/{selected.numPersonas})
+                </p>
+                <div className="space-y-2">
+                  {selected.asignaciones.map(a => {
+                    const entrada = a.registros?.find(r => r.tipo === 'ENTRADA')
+                    const salida  = a.registros?.find(r => r.tipo === 'SALIDA')
+                    return (
+                      <div key={a.id} className="rounded-xl border border-gray-200 overflow-hidden">
+                        <div className="flex items-center justify-between px-3 py-2 bg-white">
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{a.aplicante.nombreCompleto}</p>
+                            <p className="text-xs text-gray-400">{a.aplicante.cedula}</p>
+                          </div>
+                          <button
+                            onClick={() => copiarLinkEvento(a.aplicante.id, selected.evento.id)}
+                            className={`text-xs px-2 py-1 rounded-lg border font-medium transition-all ${
+                              copiedId === a.aplicante.id
+                                ? 'border-green-300 bg-green-50 text-green-600'
+                                : 'border-gray-200 text-gray-600 hover:border-gray-400'
+                            }`}
+                          >
+                            {copiedId === a.aplicante.id ? '✓ Copiado' : '🔗 Link QR'}
+                          </button>
+                        </div>
+                        <div className="flex gap-4 px-3 py-1.5 bg-gray-50 border-t border-gray-100 text-xs">
+                          {entrada
+                            ? <span className="text-green-600 font-medium">↓ {new Date(entrada.timestamp).toLocaleTimeString('es-PA', { hour: '2-digit', minute: '2-digit' })}</span>
+                            : <span className="text-gray-300">Sin entrada</span>
+                          }
+                          {salida
+                            ? <span className="text-blue-600 font-medium">↑ {new Date(salida.timestamp).toLocaleTimeString('es-PA', { hour: '2-digit', minute: '2-digit' })}</span>
+                            : <span className="text-gray-300">Sin salida</span>
+                          }
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
             )}
           </div>

@@ -18,7 +18,10 @@ export async function GET() {
       solicitante: { select: { name: true, email: true } },
       tarifa: true,
       asignaciones: {
-        include: { aplicante: { select: { id: true, nombreCompleto: true, cedula: true, telefono: true } } },
+        include: {
+          aplicante: { select: { id: true, nombreCompleto: true, cedula: true, telefono: true } },
+          registros: { orderBy: { timestamp: 'asc' } },
+        },
         where: { estado: 'ACTIVA' },
       },
     },

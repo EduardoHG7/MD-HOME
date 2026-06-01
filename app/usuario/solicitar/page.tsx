@@ -13,10 +13,17 @@ interface Aplicante {
   telefono:       string
   asignaciones?:  { id: string }[]
 }
+interface Registro {
+  id:        string
+  tipo:      string
+  timestamp: string
+}
 interface Asignacion {
   id:        string
   funcion:   string
+  eventoId:  string
   aplicante: { id: string; nombreCompleto: string; cedula: string; telefono: string }
+  registros: Registro[]
 }
 interface Solicitud {
   id:          string
@@ -46,6 +53,14 @@ export default function SolicitarPage() {
   const [busqueda,      setBusqueda]      = useState('')
   const [buscando,      setBuscando]      = useState(false)
   const [asignando,     setAsignando]     = useState<string | null>(null)
+  const [copiedId,      setCopiedId]      = useState<string | null>(null)
+
+  function copiarLinkEvento(aplicanteId: string, eventoId: string) {
+    const url = `${window.location.origin}/aplicante/${aplicanteId}?evento=${eventoId}`
+    navigator.clipboard.writeText(url)
+    setCopiedId(aplicanteId)
+    setTimeout(() => setCopiedId(null), 2000)
+  }
 
   const [form, setForm] = useState({ eventoId: '', numPersonas: 1, funcion: '', funcionCustom: '' })
 
@@ -329,20 +344,51 @@ export default function SolicitarPage() {
                       <div>
                         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Asignados</p>
                         <div className="space-y-2">
-                          {(s.asignaciones ?? []).map(a => (
-                            <div key={a.id} className="flex items-center justify-between bg-white rounded-xl px-4 py-2.5 border border-gray-200">
-                              <div>
-                                <p className="font-medium text-gray-900 text-sm">{a.aplicante.nombreCompleto}</p>
-                                <p className="text-gray-400 text-xs">Cédula: {a.aplicante.cedula} · Tel: {a.aplicante.telefono}</p>
+                          {(s.asignaciones ?? []).map(a => {
+                            const entrada = a.registros?.find(r => r.tipo === 'ENTRADA')
+                            const salida  = a.registros?.find(r => r.tipo === 'SALIDA')
+                            return (
+                              <div key={a.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                                <div className="flex items-center justify-between px-4 py-2.5">
+                                  <div>
+                                    <p className="font-medium text-gray-900 text-sm">{a.aplicante.nombreCompleto}</p>
+                                    <p className="text-gray-400 text-xs">Cédula: {a.aplicante.cedula} · Tel: {a.aplicante.telefono}</p>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      onClick={() => copiarLinkEvento(a.aplicante.id, s.evento.id)}
+                                      className={`text-xs px-2 py-1 rounded-lg border font-medium transition-all ${
+                                        copiedId === a.aplicante.id
+                                          ? 'border-green-300 bg-green-50 text-green-600'
+                                          : 'border-gray-200 text-gray-600 hover:border-gray-400'
+                                      }`}
+                                    >
+                                      {copiedId === a.aplicante.id ? '✓ Copiado' : '🔗 Link QR'}
+                                    </button>
+                                    <button
+                                      onClick={() => desasignar(s.id, a.id)}
+                                      className="text-red-400 hover:text-red-600 text-xs px-2 py-1 rounded-lg hover:bg-red-50 transition-all"
+                                    >
+                                      Remover
+                                    </button>
+                                  </div>
+                                </div>
+                                {/* Registros de asistencia */}
+                                {(entrada || salida) && (
+                                  <div className="flex gap-4 px-4 py-2 bg-gray-50 border-t border-gray-100 text-xs">
+                                    {entrada
+                                      ? <span className="text-green-600 font-medium">↓ Entrada: {new Date(entrada.timestamp).toLocaleTimeString('es-PA', { hour: '2-digit', minute: '2-digit' })}</span>
+                                      : <span className="text-gray-300">Sin entrada</span>
+                                    }
+                                    {salida
+                                      ? <span className="text-blue-600 font-medium">↑ Salida: {new Date(salida.timestamp).toLocaleTimeString('es-PA', { hour: '2-digit', minute: '2-digit' })}</span>
+                                      : <span className="text-gray-300">Sin salida</span>
+                                    }
+                                  </div>
+                                )}
                               </div>
-                              <button
-                                onClick={() => desasignar(s.id, a.id)}
-                                className="text-red-400 hover:text-red-600 text-xs px-2 py-1 rounded-lg hover:bg-red-50 transition-all"
-                              >
-                                Remover
-                              </button>
-                            </div>
-                          ))}
+                            )
+                          })}
                         </div>
                       </div>
                     )}
