@@ -31,6 +31,17 @@ function fmtTime(ts: string) {
   })
 }
 
+function agruparPorDia(registros: Registro[]) {
+  const dias: Record<string, { entrada?: Registro; salida?: Registro }> = {}
+  for (const r of registros) {
+    const dia = new Date(r.timestamp).toLocaleDateString('es-PA', { day: '2-digit', month: 'short', year: 'numeric' })
+    if (!dias[dia]) dias[dia] = {}
+    if (r.tipo === 'ENTRADA' && !dias[dia].entrada) dias[dia].entrada = r
+    if (r.tipo === 'SALIDA'  && !dias[dia].salida)  dias[dia].salida  = r
+  }
+  return Object.entries(dias)
+}
+
 export default function SolicitarPage() {
   const [eventos,     setEventos]     = useState<Evento[]>([])
   const [puestos,     setPuestos]     = useState<Puesto[]>([])
@@ -367,10 +378,10 @@ export default function SolicitarPage() {
                           {asigs.length > 0 ? (
                             <div className="space-y-2">
                               {asigs.map(a => {
-                                const entrada = a.registros?.find(r => r.tipo === 'ENTRADA')
-                                const salida  = a.registros?.find(r => r.tipo === 'SALIDA')
+                                const dias = agruparPorDia(a.registros ?? [])
                                 return (
                                   <div key={a.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                                    {/* Cabecera */}
                                     <div className="flex items-center justify-between px-4 py-3">
                                       <div>
                                         <p className="font-medium text-gray-900 text-sm">{a.aplicante.nombreCompleto}</p>
@@ -387,31 +398,30 @@ export default function SolicitarPage() {
                                         >
                                           {copiedId === a.aplicante.id ? '✓' : '🔗'}
                                         </button>
-                                        <button
-                                          onClick={() => desasignar(s.id, a.id)}
-                                          className="text-red-400 hover:text-red-600 text-xs px-2 py-1 rounded-lg hover:bg-red-50 transition-all"
-                                        >
-                                          ✕
-                                        </button>
+                                        <button onClick={reloadSolicitudes} className="text-gray-400 hover:text-gray-600 text-xs px-2 py-1 rounded-lg hover:bg-gray-100" title="Actualizar">↻</button>
+                                        <button onClick={() => desasignar(s.id, a.id)} className="text-red-400 hover:text-red-600 text-xs px-2 py-1 rounded-lg hover:bg-red-50">✕</button>
                                       </div>
                                     </div>
-                                    {/* Registros de asistencia */}
-                                    <div className="flex items-center gap-4 px-4 py-2 bg-gray-50 border-t border-gray-100">
-                                      <span className={entrada ? 'text-green-600 text-xs font-medium' : 'text-gray-300 text-xs'}>
-                                        {entrada ? `↓ Entrada: ${fmtTime(entrada.timestamp)}` : '↓ Sin entrada'}
-                                      </span>
-                                      <span className={salida ? 'text-blue-600 text-xs font-medium' : 'text-gray-300 text-xs'}>
-                                        {salida ? `↑ Salida: ${fmtTime(salida.timestamp)}` : '↑ Sin salida'}
-                                      </span>
-                                      {(entrada || salida) && (
-                                        <button
-                                          onClick={reloadSolicitudes}
-                                          className="ml-auto text-gray-400 hover:text-gray-600 text-xs"
-                                        >
-                                          ↻ Actualizar
-                                        </button>
-                                      )}
-                                    </div>
+                                    {/* Registros por día */}
+                                    {dias.length === 0 ? (
+                                      <div className="px-4 py-2 bg-gray-50 border-t border-gray-100">
+                                        <span className="text-gray-300 text-xs">Sin registros aún</span>
+                                      </div>
+                                    ) : (
+                                      <div className="border-t border-gray-100 divide-y divide-gray-100">
+                                        {dias.map(([dia, rec]) => (
+                                          <div key={dia} className="flex items-center gap-3 px-4 py-1.5 bg-gray-50 text-xs">
+                                            <span className="text-gray-500 font-semibold w-20 shrink-0">{dia}</span>
+                                            <span className={rec.entrada ? 'text-green-600 font-medium' : 'text-gray-300'}>
+                                              ↓ {rec.entrada ? new Date(rec.entrada.timestamp).toLocaleTimeString('es-PA',{hour:'2-digit',minute:'2-digit'}) : '—'}
+                                            </span>
+                                            <span className={rec.salida ? 'text-blue-600 font-medium' : 'text-gray-300'}>
+                                              ↑ {rec.salida ? new Date(rec.salida.timestamp).toLocaleTimeString('es-PA',{hour:'2-digit',minute:'2-digit'}) : '—'}
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
                                   </div>
                                 )
                               })}
