@@ -17,6 +17,7 @@ model User {
   createdAt DateTime @default(now())
 
   solicitudes Solicitud[]
+  facturas    Factura[]
 
   @@map("users")
 }
@@ -45,6 +46,7 @@ model Evento {
 
   solicitudes  Solicitud[]
   asignaciones AsignacionAplicante[]
+  facturas     Factura[]
 
   @@map("eventos")
 }
@@ -70,6 +72,29 @@ model Solicitud {
   asignaciones AsignacionAplicante[]
 
   @@map("solicitudes")
+}
+
+model Factura {
+  id            String   @id @default(cuid())
+  eventoId      String?
+  creadoPorId   String
+  responsable   String
+  numeroFactura String?
+  proveedor     String?
+  rucDv         String?
+  descripcion   String?
+  fechaEmision  String?
+  fechaPago     String?
+  subtotal      Float    @default(0)
+  itbms         Float    @default(0)
+  total         Float    @default(0)
+  archivoNombre String?
+  createdAt     DateTime @default(now())
+
+  evento    Evento? @relation(fields: [eventoId], references: [id])
+  creadoPor User    @relation(fields: [creadoPorId], references: [id])
+
+  @@map("facturas")
 }
 
 model Puesto {
