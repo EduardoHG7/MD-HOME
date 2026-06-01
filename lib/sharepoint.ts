@@ -73,7 +73,7 @@ export async function uploadToSharePoint(
       Authorization:  `Bearer ${token}`,
       'Content-Type': mimeType,
     },
-    body: buffer,
+    body: new Uint8Array(buffer),
   })
 
   if (!res.ok) {
