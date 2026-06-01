@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import dynamic from 'next/dynamic'
 import { formatDate, formatCurrency, TARIFA_LABELS, ESTADO_COLORS, ESTADO_SOLICITUD_LABELS } from '@/lib/utils'
 
-const QrScanner = lazy(() => import('@/components/QrScanner'))
+const QrScanner = dynamic(() => import('@/components/QrScanner'), { ssr: false })
 
 interface Evento   { id: string; nombre: string; fechaInicio: string; fechaFin: string }
 interface Puesto   { id: string; nombre: string }
@@ -173,9 +174,7 @@ export default function SolicitarPage() {
     <div className="space-y-6">
       {/* Scanner modal */}
       {scanning && (
-        <Suspense fallback={null}>
-          <QrScanner onResult={handleQrResult} onClose={() => setScanning(false)} />
-        </Suspense>
+        <QrScanner onResult={handleQrResult} onClose={() => setScanning(false)} />
       )}
 
       {/* Resultado escaneo */}
