@@ -152,7 +152,7 @@ export default function FacturasPage() {
   })
 
   // Responsables únicos para el filtro
-  const responsablesUnicos = [...new Set(facturas.map(f => f.responsable))].sort()
+  const responsablesUnicos = Array.from(new Set(facturas.map(f => f.responsable))).sort()
 
   // Totales de facturas filtradas
   const totalFiltrado  = facturasFiltradas.reduce((s, f) => s + f.total, 0)
