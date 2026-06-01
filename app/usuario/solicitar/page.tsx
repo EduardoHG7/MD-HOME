@@ -26,7 +26,9 @@ interface Solicitud {
 }
 
 function fmtTime(ts: string) {
-  return new Date(ts).toLocaleTimeString('es-PA', { hour: '2-digit', minute: '2-digit' })
+  return new Date(ts).toLocaleString('es-PA', {
+    day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+  })
 }
 
 export default function SolicitarPage() {

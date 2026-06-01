@@ -254,11 +254,11 @@ export default function SolicitudesAdminPage() {
                         </div>
                         <div className="flex gap-4 px-3 py-1.5 bg-gray-50 border-t border-gray-100 text-xs">
                           {entrada
-                            ? <span className="text-green-600 font-medium">↓ {new Date(entrada.timestamp).toLocaleTimeString('es-PA', { hour: '2-digit', minute: '2-digit' })}</span>
+                            ? <span className="text-green-600 font-medium">↓ {new Date(entrada.timestamp).toLocaleString('es-PA', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
                             : <span className="text-gray-300">Sin entrada</span>
                           }
                           {salida
-                            ? <span className="text-blue-600 font-medium">↑ {new Date(salida.timestamp).toLocaleTimeString('es-PA', { hour: '2-digit', minute: '2-digit' })}</span>
+                            ? <span className="text-blue-600 font-medium">↑ {new Date(salida.timestamp).toLocaleString('es-PA', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
                             : <span className="text-gray-300">Sin salida</span>
                           }
                         </div>
