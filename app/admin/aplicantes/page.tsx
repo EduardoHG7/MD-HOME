@@ -29,6 +29,14 @@ export default function AplicantesAdminPage() {
   const [aplicantes, setAplicantes] = useState<Aplicante[]>([])
   const [selected, setSelected] = useState<Aplicante | null>(null)
   const [search, setSearch] = useState('')
+  const [copied, setCopied] = useState(false)
+
+  function copyLink(id: string) {
+    const url = `${window.location.origin}/aplicante/${id}`
+    navigator.clipboard.writeText(url)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
 
   useEffect(() => {
     fetch('/api/aplicantes').then(r => r.json()).then(setAplicantes)
@@ -101,12 +109,32 @@ export default function AplicantesAdminPage() {
                 <div className="w-14 h-14 rounded-full bg-gray-900 flex items-center justify-center text-2xl font-bold text-white">
                   {selected.nombreCompleto[0]}
                 </div>
-                <div>
+                <div className="flex-1 min-w-0">
                   <h3 className="text-lg font-bold text-gray-900">{selected.nombreCompleto}</h3>
                   <p className="text-gray-500 text-sm">Registrado: {formatDate(selected.createdAt)}</p>
                   {selected.terminosAceptadosAt && (
                     <p className="text-green-600 text-xs mt-0.5">✓ T&C aceptados: {formatDate(selected.terminosAceptadosAt)}</p>
                   )}
+                </div>
+                <div className="flex flex-col gap-2 shrink-0">
+                  <button
+                    onClick={() => copyLink(selected.id)}
+                    className={`text-xs px-3 py-1.5 rounded-xl border-2 font-medium transition-all ${
+                      copied
+                        ? 'border-green-400 bg-green-50 text-green-600'
+                        : 'border-gray-200 text-gray-600 hover:border-gray-400'
+                    }`}
+                  >
+                    {copied ? '✓ ¡Copiado!' : '🔗 Copiar link'}
+                  </button>
+                  <a
+                    href={`/aplicante/${selected.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs px-3 py-1.5 rounded-xl border-2 border-gray-200 text-gray-600 hover:border-gray-400 text-center transition-all"
+                  >
+                    👁 Ver perfil
+                  </a>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3 text-sm">
