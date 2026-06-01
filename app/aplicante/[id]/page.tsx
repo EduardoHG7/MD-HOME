@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { Suspense, useEffect, useState, useCallback } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import { formatDateTime } from '@/lib/utils'
@@ -22,22 +22,23 @@ interface Aplicante {
   asignaciones: Asignacion[]
 }
 
-export default function AplicantePage() {
+// Componente interno que usa useSearchParams (debe estar dentro de Suspense)
+function AplicanteContent() {
   const { id } = useParams<{ id: string }>()
-  const searchParams = useSearchParams()
-  const eventoParam  = searchParams.get('evento')
-  const [aplicante, setAplicante]           = useState<Aplicante | null>(null)
+  const searchParams  = useSearchParams()
+  const eventoParam   = searchParams.get('evento')
+
+  const [aplicante,      setAplicante]      = useState<Aplicante | null>(null)
   const [selectedEvento, setSelectedEvento] = useState<string | null>(null)
-  const [qrData, setQrData]             = useState<{ qr: string; ttl: number } | null>(null)
-  const [countdown, setCountdown]       = useState(30)
-  const [loading, setLoading]           = useState(true)
+  const [qrData,         setQrData]         = useState<{ qr: string; ttl: number } | null>(null)
+  const [countdown,      setCountdown]      = useState(30)
+  const [loading,        setLoading]        = useState(true)
 
   useEffect(() => {
     fetch(`/api/aplicantes/${id}`)
       .then(r => r.json())
       .then(data => {
         setAplicante(data)
-        // Priorizar evento de la URL, luego el primero activo
         if (eventoParam) {
           setSelectedEvento(eventoParam)
         } else {
@@ -46,7 +47,7 @@ export default function AplicantePage() {
         }
         setLoading(false)
       })
-  }, [id])
+  }, [id, eventoParam])
 
   const fetchQR = useCallback(async () => {
     if (!selectedEvento) return
@@ -77,7 +78,7 @@ export default function AplicantePage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-gray-400 animate-pulse">Cargando...</div>
+        <div className="text-gray-400 animate-pulse text-sm">Cargando perfil...</div>
       </div>
     )
   }
@@ -95,7 +96,7 @@ export default function AplicantePage() {
   )
 
   const urgentColor = countdown <= 5 ? 'text-red-600' : countdown <= 10 ? 'text-amber-500' : 'text-green-600'
-  const barColor    = countdown <= 5 ? 'bg-red-500' : countdown <= 10 ? 'bg-amber-400' : 'bg-green-500'
+  const barColor    = countdown <= 5 ? 'bg-red-500'  : countdown <= 10 ? 'bg-amber-400'   : 'bg-green-500'
 
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-8 max-w-lg mx-auto">
@@ -149,11 +150,9 @@ export default function AplicantePage() {
             </div>
           )}
 
-          {/* Countdown */}
           <div className={`text-4xl font-bold mb-1 ${urgentColor}`}>{countdown}s</div>
           <p className="text-gray-400 text-xs">El código se renueva automáticamente</p>
 
-          {/* Progress bar */}
           <div className="mt-3 h-2 bg-gray-100 rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full transition-all duration-1000 ${barColor}`}
@@ -161,7 +160,6 @@ export default function AplicantePage() {
             />
           </div>
 
-          {/* Anti-fraud warning */}
           <div className="mt-4 bg-red-50 border border-red-200 rounded-xl p-3">
             <p className="text-red-600 text-xs font-bold">⚠ CÓDIGO PERSONAL E INTRANSFERIBLE</p>
             <p className="text-red-400 text-xs mt-0.5">
@@ -179,7 +177,7 @@ export default function AplicantePage() {
         </div>
       )}
 
-      {/* Attendance History */}
+      {/* Historial */}
       {asignacionActiva && asignacionActiva.registros.length > 0 && (
         <div className="card p-5">
           <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-3">
@@ -200,5 +198,18 @@ export default function AplicantePage() {
         </div>
       )}
     </div>
+  )
+}
+
+// Página exportada con Suspense boundary (requerido por useSearchParams en Next.js 14)
+export default function AplicantePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-gray-400 animate-pulse text-sm">Cargando...</div>
+      </div>
+    }>
+      <AplicanteContent />
+    </Suspense>
   )
 }
