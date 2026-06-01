@@ -5,13 +5,12 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
-// Retorna aplicantes activos para que usuarios puedan asignarlos a sus solicitudes aprobadas
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const { searchParams } = new URL(req.url)
-  const q       = searchParams.get('q')?.toLowerCase() ?? ''
+  const q        = searchParams.get('q')?.trim() ?? ''
   const eventoId = searchParams.get('eventoId') ?? ''
 
   const aplicantes = await prisma.aplicante.findMany({
@@ -29,10 +28,10 @@ export async function GET(req: Request) {
       nombreCompleto: true,
       cedula:         true,
       telefono:       true,
-      // Verificar si ya está asignado al evento
-      asignaciones: eventoId
-        ? { where: { eventoId }, select: { id: true } }
-        : false,
+      asignaciones: {
+        where: { eventoId: eventoId || '__ninguno__' },
+        select: { id: true },
+      },
     },
     orderBy: { nombreCompleto: 'asc' },
     take: 50,
