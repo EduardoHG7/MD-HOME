@@ -289,10 +289,10 @@ export default function SolicitarPage() {
                       <div>
                         <p className="text-xs text-gray-400">Personal asignado</p>
                         <p className="text-sm font-semibold text-gray-700">
-                          {s.asignaciones.length} / {s.numPersonas}
-                          {s.asignaciones.length >= s.numPersonas
+                          {(s.asignaciones ?? []).length} / {s.numPersonas}
+                          {(s.asignaciones ?? []).length >= s.numPersonas
                             ? <span className="text-green-600 ml-1">✓ Completo</span>
-                            : <span className="text-amber-500 ml-1">({s.numPersonas - s.asignaciones.length} pendiente{s.numPersonas - s.asignaciones.length !== 1 ? 's' : ''})</span>
+                            : <span className="text-amber-500 ml-1">({s.numPersonas - (s.asignaciones ?? []).length} pendiente{s.numPersonas - (s.asignaciones ?? []).length !== 1 ? 's' : ''})</span>
                           }
                         </p>
                       </div>
@@ -325,11 +325,11 @@ export default function SolicitarPage() {
                 {expandedId === s.id && (
                   <div className="border-t border-gray-100 bg-gray-50 p-5 space-y-4">
                     {/* Personas ya asignadas */}
-                    {s.asignaciones.length > 0 && (
+                    {(s.asignaciones ?? []).length > 0 && (
                       <div>
                         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Asignados</p>
                         <div className="space-y-2">
-                          {s.asignaciones.map(a => (
+                          {(s.asignaciones ?? []).map(a => (
                             <div key={a.id} className="flex items-center justify-between bg-white rounded-xl px-4 py-2.5 border border-gray-200">
                               <div>
                                 <p className="font-medium text-gray-900 text-sm">{a.aplicante.nombreCompleto}</p>
@@ -348,10 +348,10 @@ export default function SolicitarPage() {
                     )}
 
                     {/* Buscar y agregar */}
-                    {s.asignaciones.length < s.numPersonas && (
+                    {(s.asignaciones ?? []).length < s.numPersonas && (
                       <div>
                         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                          Agregar aplicante ({s.numPersonas - s.asignaciones.length} disponible{s.numPersonas - s.asignaciones.length !== 1 ? 's' : ''})
+                          Agregar aplicante ({s.numPersonas - (s.asignaciones ?? []).length} disponible{s.numPersonas - (s.asignaciones ?? []).length !== 1 ? 's' : ''})
                         </p>
                         <input
                           className="input mb-3"
@@ -394,7 +394,7 @@ export default function SolicitarPage() {
                       </div>
                     )}
 
-                    {s.asignaciones.length >= s.numPersonas && (
+                    {(s.asignaciones ?? []).length >= s.numPersonas && (
                       <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-700 text-center">
                         ✅ Ya tienes el personal completo para esta solicitud
                       </div>
