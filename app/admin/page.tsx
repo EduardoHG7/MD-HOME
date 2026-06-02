@@ -105,14 +105,25 @@ export default async function AdminDashboard() {
             <div className="card p-6 text-center text-gray-400 text-sm">No hay eventos registrados</div>
           ) : (
             eventosData.map(ev => {
-              const asignados  = ev._count.asignaciones
-              const solicitado = ev.solicitudes.reduce((a, s) => a + s.numPersonas, 0)
-              const pct        = solicitado > 0 ? Math.min(100, Math.round((asignados / solicitado) * 100)) : 0
-              const esHoy      = new Date(ev.fechaInicio) <= hoy && new Date(ev.fechaFin) >= hoy
+              const esHoy   = new Date(ev.fechaInicio) <= hoy && new Date(ev.fechaFin) >= hoy
+              const personas = ev.solicitudes.reduce((a, s) => a + s.numPersonas, 0)
+
+              // Costo total del evento: suma costoTotal explícito o estima desde tarifa
+              const costoEvento = solicitudes
+                .filter(s => s.estado === 'APROBADA' && s.eventoId === ev.id)
+                .reduce((acc, s) => {
+                  if (s.costoTotal != null) return acc + s.costoTotal
+                  if (s.tarifa) {
+                    const ms   = new Date(ev.fechaFin).getTime() - new Date(ev.fechaInicio).getTime()
+                    const dias = Math.max(1, Math.ceil(ms / (1000 * 60 * 60 * 24)) + 1)
+                    return acc + s.tarifa.precioPorDia * s.numPersonas * dias
+                  }
+                  return acc
+                }, 0)
 
               return (
                 <div key={ev.id} className={`card p-4 ${esHoy ? 'border-l-4 border-l-green-400' : ''}`}>
-                  <div className="flex items-start justify-between mb-2">
+                  <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="font-semibold text-gray-900 text-sm truncate">{ev.nombre}</p>
@@ -122,19 +133,19 @@ export default async function AdminDashboard() {
                         {formatDate(ev.fechaInicio.toISOString())} – {formatDate(ev.fechaFin.toISOString())}
                       </p>
                     </div>
-                    <div className="text-right shrink-0 ml-3">
-                      <p className="text-2xl font-bold text-gray-900">{asignados}</p>
-                      <p className="text-xs text-gray-400">/ {solicitado} solicitados</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 mt-3">
+                    <div className="bg-gray-50 rounded-xl p-3">
+                      <p className="text-gray-400 text-xs mb-0.5">Personal</p>
+                      <p className="text-2xl font-bold text-gray-900">{personas}</p>
+                      <p className="text-gray-400 text-xs">personas</p>
+                    </div>
+                    <div className="bg-amber-50 rounded-xl p-3">
+                      <p className="text-gray-400 text-xs mb-0.5">Costo total</p>
+                      <p className="text-xl font-bold text-amber-600">{formatCurrency(costoEvento)}</p>
+                      <p className="text-gray-400 text-xs">{costoEvento === 0 ? 'sin costo asignado' : 'aprobado'}</p>
                     </div>
                   </div>
-                  {/* Barra de progreso */}
-                  <div className="w-full bg-gray-100 rounded-full h-1.5">
-                    <div
-                      className={`h-1.5 rounded-full transition-all ${pct === 100 ? 'bg-green-400' : 'bg-amber-400'}`}
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                  <p className="text-xs text-gray-400 mt-1">{pct}% del personal asignado</p>
                 </div>
               )
             })
