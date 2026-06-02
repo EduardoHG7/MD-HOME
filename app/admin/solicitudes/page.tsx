@@ -69,6 +69,19 @@ export default function SolicitudesAdminPage() {
     ? selectedTarifa.precioPorDia * selected.numPersonas
     : 0
 
+  // Al cambiar tarifa, auto-rellenar el costo total si está vacío
+  function handleTarifaChange(tipo: string) {
+    setTipoTarifa(tipo)
+    if (!costo && selected) {
+      const tarifa = tarifas.find(t => t.tipo === tipo)
+      if (tarifa) {
+        const ms   = new Date(selected.evento.fechaFin).getTime() - new Date(selected.evento.fechaInicio).getTime()
+        const dias = Math.max(1, Math.ceil(ms / (1000 * 60 * 60 * 24)) + 1)
+        setCosto((tarifa.precioPorDia * selected.numPersonas * dias).toFixed(2))
+      }
+    }
+  }
+
   async function handleDecision(estado: 'APROBADA' | 'RECHAZADA') {
     if (!selected) return
     setLoading(true)
@@ -163,7 +176,7 @@ export default function SolicitudesAdminPage() {
                   <div className="grid grid-cols-3 gap-2">
                     {tarifas.map(t => (
                       <button key={t.tipo} type="button"
-                        onClick={() => setTipoTarifa(t.tipo)}
+                        onClick={() => handleTarifaChange(t.tipo)}
                         className={`p-2 rounded-xl border-2 text-center transition-all ${
                           tipoTarifa === t.tipo
                             ? 'border-gray-900 bg-gray-50'

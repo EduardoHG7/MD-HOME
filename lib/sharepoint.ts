@@ -8,7 +8,7 @@ const SP_SITE_PATH = process.env.SHAREPOINT_SITE_PATH!  // /sites/RegistrodeFact
 
 let cachedToken: { value: string; expiresAt: number } | null = null
 
-async function getAppToken(): Promise<string> {
+export async function getAppToken(): Promise<string> {
   if (cachedToken && cachedToken.expiresAt > Date.now() + 60_000) {
     return cachedToken.value
   }
@@ -40,7 +40,7 @@ async function getAppToken(): Promise<string> {
   return cachedToken.value
 }
 
-async function getSiteId(): Promise<string> {
+export async function getSiteId(): Promise<string> {
   const token = await getAppToken()
   const url   = `https://graph.microsoft.com/v1.0/sites/${SP_HOST}:${SP_SITE_PATH}`
   const res   = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
@@ -82,6 +82,25 @@ export async function uploadToSharePoint(
   }
 
   const data = await res.json()
-  // Retornar URL de descarga directa (funciona con token de Graph)
-  return data['@microsoft.graph.downloadUrl'] ?? data.webUrl
+  // Retornar solo la ruta dentro del drive (para usar con el proxy interno)
+  return folderPath
+}
+
+/**
+ * Descarga el contenido de un archivo de SharePoint usando token de app
+ */
+export async function downloadFromSharePoint(filePath: string): Promise<{ buffer: ArrayBuffer; contentType: string }> {
+  const token  = await getAppToken()
+  const siteId = await getSiteId()
+
+  const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:/${filePath}:/content`
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+
+  if (!res.ok) {
+    throw new Error(`Error descargando de SharePoint (${res.status})`)
+  }
+
+  const buffer      = await res.arrayBuffer()
+  const contentType = res.headers.get('content-type') ?? 'image/jpeg'
+  return { buffer, contentType }
 }

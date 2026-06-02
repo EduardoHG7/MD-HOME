@@ -5,14 +5,26 @@ import { formatCurrency } from '@/lib/utils'
 
 export default async function AdminDashboard() {
   const [solicitudes, aplicantes, eventos] = await Promise.all([
-    prisma.solicitud.findMany({ include: { tarifa: true } }),
+    prisma.solicitud.findMany({ include: { tarifa: true, evento: true } }),
     prisma.aplicante.count(),
     prisma.evento.count({ where: { estado: 'ACTIVO' } }),
   ])
 
   const pendientes = solicitudes.filter(s => s.estado === 'PENDIENTE').length
   const aprobadas  = solicitudes.filter(s => s.estado === 'APROBADA').length
-  const costoTotal = solicitudes.filter(s => s.costoTotal).reduce((acc, s) => acc + (s.costoTotal ?? 0), 0)
+
+  // Sumar costoTotal explícito; si no tiene, estimar desde tarifa × personas × días
+  const costoTotal = solicitudes
+    .filter(s => s.estado === 'APROBADA')
+    .reduce((acc, s) => {
+      if (s.costoTotal != null) return acc + s.costoTotal
+      if (s.tarifa && s.evento) {
+        const ms   = new Date(s.evento.fechaFin).getTime() - new Date(s.evento.fechaInicio).getTime()
+        const dias = Math.max(1, Math.ceil(ms / (1000 * 60 * 60 * 24)) + 1)
+        return acc + s.tarifa.precioPorDia * s.numPersonas * dias
+      }
+      return acc
+    }, 0)
 
   const stats = [
     { label: 'Solicitudes Pendientes', value: pendientes, icon: '⏳', border: 'border-l-yellow-400', text: 'text-yellow-600' },
@@ -47,7 +59,7 @@ export default async function AdminDashboard() {
       <div className="card-gold p-6">
         <p className="text-gray-500 text-sm mb-1">Costo total aprobado acumulado</p>
         <p className="text-4xl font-bold text-amber-600">{formatCurrency(costoTotal)}</p>
-        <p className="text-gray-400 text-xs mt-2">Suma de todas las solicitudes aprobadas con costo asignado</p>
+        <p className="text-gray-400 text-xs mt-2">Suma de solicitudes aprobadas (estimado desde tarifa si no tiene costo fijo)</p>
       </div>
 
       {/* Quick links */}

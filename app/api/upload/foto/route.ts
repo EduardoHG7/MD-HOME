@@ -30,7 +30,9 @@ export async function POST(req: Request) {
     const filename = `${tipo}.${ext}`
     const path     = `AplicanteFotos/${cedula}/${filename}`
 
-    const url = await uploadToSharePoint(path, buffer, mimeType)
+    await uploadToSharePoint(path, buffer, mimeType)
+    // Devolver URL del proxy interno (no expira, sirve la imagen con token fresco)
+    const url = `/api/fotos?path=${encodeURIComponent(path)}`
     return NextResponse.json({ url })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Error al subir foto'
