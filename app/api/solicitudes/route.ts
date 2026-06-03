@@ -53,28 +53,30 @@ export async function POST(req: Request) {
     include: { evento: true, tarifa: true },
   })
 
-  // Notificar a todos los admins por correo (sin bloquear la respuesta)
-  prisma.user.findMany({ where: { role: 'ADMIN' }, select: { email: true } })
-    .then(admins => {
-      const adminEmails = admins.map(a => a.email)
-      const fromEmail   = session.user.email
-      if (!adminEmails.length || !fromEmail) return
-      return sendMail({
+  // Notificar a admins — await para que Vercel no corte la función antes de enviar
+  try {
+    const admins      = await prisma.user.findMany({ where: { role: 'ADMIN' }, select: { email: true } })
+    const adminEmails = admins.map(a => a.email)
+    const fromEmail   = session.user.email
+    if (adminEmails.length && fromEmail) {
+      await sendMail({
         fromEmail,
-        toEmails:  adminEmails,
-        subject:   `Nueva solicitud de personal — ${solicitud.evento.nombre}`,
+        toEmails: adminEmails,
+        subject:  `Nueva solicitud de personal — ${solicitud.evento.nombre}`,
         html: templateNuevaSolicitud({
-          solicitanteNombre: session.user.name ?? session.user.email ?? '',
-          solicitanteEmail:  session.user.email ?? '',
+          solicitanteNombre: session.user.name ?? fromEmail,
+          solicitanteEmail:  fromEmail,
           eventoNombre:      solicitud.evento.nombre,
           funcion:           solicitud.funcion,
           numPersonas:       solicitud.numPersonas,
-          fechaInicioLabor:  fechaInicioLabor,
-          fechaFinLabor:     fechaFinLabor,
+          fechaInicioLabor,
+          fechaFinLabor,
         }),
       })
-    })
-    .catch(err => console.error('[solicitudes] Error enviando email:', err))
+    }
+  } catch (err) {
+    console.error('[solicitudes] Error enviando email a admins:', err)
+  }
 
   return NextResponse.json(solicitud, { status: 201 })
 }
