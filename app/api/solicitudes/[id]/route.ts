@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { sendMail, templateRespuestaSolicitud } from '@/lib/mail'
+import { sendMail, templateRespuestaSolicitud, templateNuevaSolicitud } from '@/lib/mail'
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
@@ -35,7 +35,6 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     },
   })
 
-  // Notificar al solicitante — await para que Vercel no corte la función
   if ((estado === 'APROBADA' || estado === 'RECHAZADA') && session.user.email && solicitud.solicitante.email) {
     try {
       await sendMail({
@@ -59,4 +58,72 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   }
 
   return NextResponse.json(solicitud)
+}
+
+// Eliminar solicitud (solo el solicitante dueño y solo si está PENDIENTE)
+export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+  const session = await getServerSession(authOptions)
+  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+  const solicitud = await prisma.solicitud.findUnique({
+    where: { id: params.id },
+    select: { solicitanteId: true, estado: true },
+  })
+
+  if (!solicitud) return NextResponse.json({ error: 'No encontrada' }, { status: 404 })
+  if (solicitud.solicitanteId !== session.user.id && session.user.role !== 'ADMIN') {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  }
+  if (solicitud.estado !== 'PENDIENTE') {
+    return NextResponse.json({ error: 'Solo se pueden eliminar solicitudes pendientes' }, { status: 400 })
+  }
+
+  await prisma.solicitud.delete({ where: { id: params.id } })
+  return NextResponse.json({ ok: true })
+}
+
+// Reenviar notificación a admins (solicitante reenvía su solicitud pendiente)
+export async function POST(req: Request, { params }: { params: { id: string } }) {
+  const session = await getServerSession(authOptions)
+  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+  const solicitud = await prisma.solicitud.findUnique({
+    where: { id: params.id },
+    include: { evento: true },
+  })
+
+  if (!solicitud) return NextResponse.json({ error: 'No encontrada' }, { status: 404 })
+  if (solicitud.solicitanteId !== session.user.id) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  }
+  if (solicitud.estado !== 'PENDIENTE') {
+    return NextResponse.json({ error: 'Solo se pueden reenviar solicitudes pendientes' }, { status: 400 })
+  }
+
+  try {
+    const admins      = await prisma.user.findMany({ where: { role: 'ADMIN' }, select: { email: true } })
+    const adminEmails = admins.map(a => a.email)
+    const fromEmail   = session.user.email
+    if (adminEmails.length && fromEmail) {
+      await sendMail({
+        fromEmail,
+        toEmails: adminEmails,
+        subject:  `[Reenvío] Solicitud de personal — ${solicitud.evento.nombre}`,
+        html: templateNuevaSolicitud({
+          solicitanteNombre: session.user.name ?? fromEmail,
+          solicitanteEmail:  fromEmail,
+          eventoNombre:      solicitud.evento.nombre,
+          funcion:           solicitud.funcion,
+          numPersonas:       solicitud.numPersonas,
+          fechaInicioLabor:  solicitud.fechaInicioLabor?.toISOString() ?? '',
+          fechaFinLabor:     solicitud.fechaFinLabor?.toISOString()    ?? '',
+        }),
+      })
+    }
+  } catch (err) {
+    console.error('[solicitudes/id] Error reenviando email:', err)
+    return NextResponse.json({ error: 'Error al reenviar' }, { status: 500 })
+  }
+
+  return NextResponse.json({ ok: true })
 }

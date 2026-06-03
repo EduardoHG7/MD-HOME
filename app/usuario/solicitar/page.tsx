@@ -65,6 +65,8 @@ export default function SolicitarPage() {
   const [copiedId,   setCopiedId]   = useState<string | null>(null)
   const [scanning,   setScanning]   = useState(false)
   const [scanResult, setScanResult] = useState<{ ok: boolean; msg: string } | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [reenvioId,  setReenvioId]  = useState<string | null>(null)
 
   const [form, setForm] = useState({ eventoId: '', numPersonas: 1, funcion: '', funcionCustom: '', fechaInicioLabor: '', fechaFinLabor: '' })
 
@@ -158,6 +160,27 @@ export default function SolicitarPage() {
       setScanResult({ ok: false, msg: '❌ QR inválido — no corresponde a este sistema' })
     }
     setTimeout(() => setScanResult(null), 5000)
+  }
+
+  async function eliminarSolicitud(id: string) {
+    if (!confirm('¿Seguro que quieres eliminar esta solicitud?')) return
+    setDeletingId(id)
+    const res = await fetch(`/api/solicitudes/${id}`, { method: 'DELETE' })
+    if (res.ok) {
+      setSolicitudes(prev => prev.filter(s => s.id !== id))
+      if (expandedId === id) setExpandedId(null)
+    }
+    setDeletingId(null)
+  }
+
+  async function reenviarSolicitud(id: string) {
+    setReenvioId(id)
+    const res = await fetch(`/api/solicitudes/${id}`, { method: 'POST' })
+    if (res.ok) {
+      setScanResult({ ok: true, msg: '✅ Solicitud reenviada a los administradores' })
+      setTimeout(() => setScanResult(null), 4000)
+    }
+    setReenvioId(null)
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -343,6 +366,26 @@ export default function SolicitarPage() {
                         <span className={`badge ${ESTADO_COLORS[s.estado]}`}>
                           {ESTADO_SOLICITUD_LABELS[s.estado]}
                         </span>
+                        {s.estado === 'PENDIENTE' && (
+                          <>
+                            <button
+                              onClick={e => { e.stopPropagation(); reenviarSolicitud(s.id) }}
+                              disabled={reenvioId === s.id}
+                              title="Reenviar a administradores"
+                              className="text-xs px-2 py-1 rounded-lg border border-blue-200 text-blue-500 hover:bg-blue-50 transition-all"
+                            >
+                              {reenvioId === s.id ? '...' : '↩ Reenviar'}
+                            </button>
+                            <button
+                              onClick={e => { e.stopPropagation(); eliminarSolicitud(s.id) }}
+                              disabled={deletingId === s.id}
+                              title="Eliminar solicitud"
+                              className="text-xs px-2 py-1 rounded-lg border border-red-200 text-red-400 hover:bg-red-50 transition-all"
+                            >
+                              {deletingId === s.id ? '...' : '🗑'}
+                            </button>
+                          </>
+                        )}
                         <span className="text-gray-400 text-sm">{isExpanded ? '▲' : '▼'}</span>
                       </div>
                     </div>
