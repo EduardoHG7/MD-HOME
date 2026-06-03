@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { sendMail, templateNuevaSolicitud } from '@/lib/mail'
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -51,5 +52,28 @@ export async function POST(req: Request) {
     },
     include: { evento: true, tarifa: true },
   })
+
+  // Notificar a todos los admins por correo (sin bloquear la respuesta)
+  prisma.user.findMany({ where: { role: 'ADMIN' }, select: { email: true } })
+    .then(admins => {
+      const adminEmails = admins.map(a => a.email)
+      if (!adminEmails.length || !session.user.email) return
+      return sendMail({
+        fromEmail: session.user.email,
+        toEmails:  adminEmails,
+        subject:   `Nueva solicitud de personal — ${solicitud.evento.nombre}`,
+        html: templateNuevaSolicitud({
+          solicitanteNombre: session.user.name ?? session.user.email,
+          solicitanteEmail:  session.user.email,
+          eventoNombre:      solicitud.evento.nombre,
+          funcion:           solicitud.funcion,
+          numPersonas:       solicitud.numPersonas,
+          fechaInicioLabor:  fechaInicioLabor,
+          fechaFinLabor:     fechaFinLabor,
+        }),
+      })
+    })
+    .catch(err => console.error('[solicitudes] Error enviando email:', err))
+
   return NextResponse.json(solicitud, { status: 201 })
 }
