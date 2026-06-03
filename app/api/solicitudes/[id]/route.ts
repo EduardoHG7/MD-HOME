@@ -51,7 +51,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         numPersonas:       solicitud.numPersonas,
         costoTotal:        costoTotal ?? null,
         notaAdmin:         notaAdmin ?? null,
-        adminNombre:       session.user.name ?? session.user.email,
+        adminNombre:       session.user.name ?? session.user.email ?? '',
       }),
     }).catch(err => console.error('[solicitudes/id] Error enviando email:', err))
   }
