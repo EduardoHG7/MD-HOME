@@ -9,5 +9,5 @@ export default async function Home() {
 
   if (!session) redirect('/login')
   if (session.user.role === 'ADMIN') redirect('/admin')
-  redirect('/usuario/solicitar')
+  redirect('/usuario')
 }

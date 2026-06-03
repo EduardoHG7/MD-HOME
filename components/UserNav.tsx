@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 const NAV_ITEMS = [
+  { href: '/usuario',          label: '🏠 Inicio' },
   { href: '/usuario/solicitar', label: '📋 Solicitudes' },
   { href: '/usuario/facturas',  label: '🧾 Facturas' },
 ]
@@ -33,7 +34,7 @@ export function UserNav({ session }: { session: Session }) {
               key={item.href}
               href={item.href}
               className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                pathname.startsWith(item.href)
+                (item.href === '/usuario' ? pathname === '/usuario' : pathname.startsWith(item.href))
                   ? 'bg-gray-900 text-white'
                   : 'text-gray-600 hover:bg-gray-100'
               }`}
