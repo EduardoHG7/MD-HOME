@@ -57,14 +57,15 @@ export async function POST(req: Request) {
   prisma.user.findMany({ where: { role: 'ADMIN' }, select: { email: true } })
     .then(admins => {
       const adminEmails = admins.map(a => a.email)
-      if (!adminEmails.length || !session.user.email) return
+      const fromEmail   = session.user.email
+      if (!adminEmails.length || !fromEmail) return
       return sendMail({
-        fromEmail: session.user.email,
+        fromEmail,
         toEmails:  adminEmails,
         subject:   `Nueva solicitud de personal — ${solicitud.evento.nombre}`,
         html: templateNuevaSolicitud({
-          solicitanteNombre: session.user.name ?? session.user.email,
-          solicitanteEmail:  session.user.email,
+          solicitanteNombre: session.user.name ?? session.user.email ?? '',
+          solicitanteEmail:  session.user.email ?? '',
           eventoNombre:      solicitud.evento.nombre,
           funcion:           solicitud.funcion,
           numPersonas:       solicitud.numPersonas,

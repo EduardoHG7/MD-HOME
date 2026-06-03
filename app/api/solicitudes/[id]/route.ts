@@ -36,9 +36,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   })
 
   // Notificar al solicitante si la solicitud fue aprobada o rechazada
-  if ((estado === 'APROBADA' || estado === 'RECHAZADA') && session.user.email && solicitud.solicitante.email) {
+  // Se usa siempre el ADMIN_EMAIL como remitente (garantiza mailbox válido)
+  const fromEmail = process.env.ADMIN_EMAIL
+  if ((estado === 'APROBADA' || estado === 'RECHAZADA') && fromEmail && solicitud.solicitante.email) {
     sendMail({
-      fromEmail: session.user.email,
+      fromEmail,
       toEmails:  [solicitud.solicitante.email],
       subject:   `Tu solicitud fue ${estado === 'APROBADA' ? 'aprobada ✅' : 'rechazada ❌'} — ${solicitud.evento.nombre}`,
       html: templateRespuestaSolicitud({

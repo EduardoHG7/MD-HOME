@@ -37,8 +37,8 @@ export async function sendMail({
 
   if (!res.ok) {
     const err = await res.text()
-    // No lanzar error para no bloquear la operación principal
     console.error(`[mail] Error enviando correo (${res.status}):`, err)
+    throw new Error(`Graph Mail error ${res.status}: ${err}`)
   }
 }
 
