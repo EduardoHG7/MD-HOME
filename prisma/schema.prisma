@@ -60,6 +60,8 @@ model Solicitud {
   numPersonas   Int
   funcion       String
   estado        String   @default("PENDIENTE")
+  fechaInicioLabor DateTime?
+  fechaFinLabor    DateTime?
   costoTotal    Float?
   notaAdmin     String?
   createdAt     DateTime @default(now())
@@ -118,6 +120,8 @@ model Aplicante {
   qrSecret            String    @default(cuid())
   activo              Boolean   @default(true)
   passwordHash        String?
+  noApto              Boolean   @default(false)
+  motivoNoApto        String?
   fotoPersonal        String?
   fotoCedula          String?
   fotoConCedula       String?

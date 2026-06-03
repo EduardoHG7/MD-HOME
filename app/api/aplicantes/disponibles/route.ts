@@ -16,6 +16,7 @@ export async function GET(req: Request) {
   const aplicantes = await prisma.aplicante.findMany({
     where: {
       activo: true,
+      noApto: false,
       ...(q ? {
         OR: [
           { nombreCompleto: { contains: q, mode: 'insensitive' } },

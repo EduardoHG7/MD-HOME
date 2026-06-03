@@ -20,6 +20,8 @@ interface Solicitud {
   costoTotal: number | null
   notaAdmin: string | null
   createdAt: string
+  fechaInicioLabor: string | null
+  fechaFinLabor: string | null
   evento: { id: string; nombre: string; fechaInicio: string; fechaFin: string }
   solicitante: { name: string; email: string }
   tarifa: Tarifa | null
@@ -70,13 +72,18 @@ export default function SolicitudesAdminPage() {
     : 0
 
   // Al cambiar tarifa, auto-rellenar el costo total si está vacío
+  function getDiasLabor(s: Solicitud) {
+    const ini = s.fechaInicioLabor ?? s.evento.fechaInicio
+    const fin = s.fechaFinLabor    ?? s.evento.fechaFin
+    return Math.max(1, Math.ceil((new Date(fin).getTime() - new Date(ini).getTime()) / (1000 * 60 * 60 * 24)) + 1)
+  }
+
   function handleTarifaChange(tipo: string) {
     setTipoTarifa(tipo)
     if (!costo && selected) {
       const tarifa = tarifas.find(t => t.tipo === tipo)
       if (tarifa) {
-        const ms   = new Date(selected.evento.fechaFin).getTime() - new Date(selected.evento.fechaInicio).getTime()
-        const dias = Math.max(1, Math.ceil(ms / (1000 * 60 * 60 * 24)) + 1)
+        const dias = getDiasLabor(selected)
         setCosto((tarifa.precioPorDia * selected.numPersonas * dias).toFixed(2))
       }
     }
@@ -166,6 +173,12 @@ export default function SolicitudesAdminPage() {
               <Row label="Solicitante" value={selected.solicitante.name ?? selected.solicitante.email} />
               <Row label="Función"     value={selected.funcion} />
               <Row label="Personas"    value={`${selected.numPersonas}`} />
+              {selected.fechaInicioLabor && selected.fechaFinLabor && (
+                <Row
+                  label="Fechas de labor"
+                  value={`${formatDate(selected.fechaInicioLabor)} – ${formatDate(selected.fechaFinLabor)} (${getDiasLabor(selected)} día(s))`}
+                />
+              )}
             </div>
 
             {selected.estado === 'PENDIENTE' && (
@@ -191,9 +204,15 @@ export default function SolicitudesAdminPage() {
 
                 {/* Estimado */}
                 {estimadoPorDia > 0 && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 flex justify-between text-sm">
-                    <span className="text-amber-700">Est. por día ({selected.numPersonas} × {formatCurrency(selectedTarifa!.precioPorDia)})</span>
-                    <span className="text-amber-600 font-bold">{formatCurrency(estimadoPorDia)}</span>
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-sm space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-amber-700">Por día ({selected.numPersonas} × {formatCurrency(selectedTarifa!.precioPorDia)})</span>
+                      <span className="text-amber-600 font-bold">{formatCurrency(estimadoPorDia)}</span>
+                    </div>
+                    <div className="flex justify-between font-semibold">
+                      <span className="text-amber-700">Total estimado ({getDiasLabor(selected)} día(s))</span>
+                      <span className="text-amber-600">{formatCurrency(estimadoPorDia * getDiasLabor(selected))}</span>
+                    </div>
                   </div>
                 )}
 

@@ -22,14 +22,37 @@ interface Aplicante {
   terminosAceptadosAt: string | null
   createdAt: string
   activo: boolean
+  noApto: boolean
+  motivoNoApto: string | null
   asignaciones: Asignacion[]
 }
 
 export default function AplicantesAdminPage() {
-  const [aplicantes, setAplicantes] = useState<Aplicante[]>([])
-  const [selected, setSelected] = useState<Aplicante | null>(null)
-  const [search, setSearch] = useState('')
-  const [copied, setCopied] = useState(false)
+  const [aplicantes,    setAplicantes]    = useState<Aplicante[]>([])
+  const [selected,      setSelected]      = useState<Aplicante | null>(null)
+  const [search,        setSearch]        = useState('')
+  const [copied,        setCopied]        = useState(false)
+  const [showBanForm,   setShowBanForm]   = useState(false)
+  const [motivoBan,     setMotivoBan]     = useState('')
+  const [savingBan,     setSavingBan]     = useState(false)
+
+  async function toggleNoApto(aplicante: Aplicante, motivo?: string) {
+    setSavingBan(true)
+    const noApto = !aplicante.noApto
+    const res = await fetch(`/api/aplicantes/${aplicante.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ noApto, motivoNoApto: noApto ? (motivo ?? '') : null }),
+    })
+    if (res.ok) {
+      const updated = { ...aplicante, noApto, motivoNoApto: noApto ? (motivo ?? '') : null }
+      setAplicantes(prev => prev.map(a => a.id === aplicante.id ? updated : a))
+      setSelected(updated)
+      setShowBanForm(false)
+      setMotivoBan('')
+    }
+    setSavingBan(false)
+  }
 
   function copyLink(id: string) {
     const url = `${window.location.origin}/aplicante/${id}`
@@ -88,7 +111,10 @@ export default function AplicantesAdminPage() {
                   {a.nombreCompleto[0]}
                 </div>
                 <div className="min-w-0">
-                  <p className="font-semibold text-gray-900 text-sm truncate">{a.nombreCompleto}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-semibold text-gray-900 text-sm truncate">{a.nombreCompleto}</p>
+                    {a.noApto && <span className="shrink-0 text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-medium">No apto</span>}
+                  </div>
                   <p className="text-gray-500 text-xs truncate">{a.cedula}</p>
                   <p className="text-gray-400 text-xs">{a.asignaciones.length} evento(s)</p>
                 </div>
@@ -144,6 +170,58 @@ export default function AplicantesAdminPage() {
                 <Field label="Cuenta Bancaria" value={selected.cuentaBancaria} />
               </div>
             </div>
+
+            {/* Lista negra */}
+            {selected.noApto ? (
+              <div className="card p-4 border-l-4 border-l-red-400 bg-red-50 space-y-3">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-red-700 font-semibold text-sm">🚫 Persona no apta para laborar</p>
+                    {selected.motivoNoApto && (
+                      <p className="text-red-600 text-xs mt-1 italic">"{selected.motivoNoApto}"</p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => toggleNoApto(selected)}
+                    disabled={savingBan}
+                    className="text-xs px-3 py-1.5 rounded-xl border-2 border-red-300 text-red-600 hover:bg-red-100 font-medium transition-all shrink-0 ml-3"
+                  >
+                    {savingBan ? '...' : 'Quitar restricción'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                {!showBanForm ? (
+                  <button
+                    onClick={() => setShowBanForm(true)}
+                    className="w-full text-left px-4 py-3 rounded-xl border-2 border-dashed border-red-200 text-red-500 hover:border-red-400 hover:bg-red-50 text-sm font-medium transition-all"
+                  >
+                    🚫 Marcar como persona no apta
+                  </button>
+                ) : (
+                  <div className="card p-4 border-l-4 border-l-red-300 space-y-3">
+                    <p className="text-sm font-semibold text-gray-900">Marcar como no apto</p>
+                    <textarea
+                      className="input resize-none h-20 text-sm"
+                      placeholder="Motivo o comentario (requerido)..."
+                      value={motivoBan}
+                      onChange={e => setMotivoBan(e.target.value)}
+                    />
+                    <div className="flex gap-2">
+                      <button onClick={() => { setShowBanForm(false); setMotivoBan('') }} className="btn-ghost flex-1 text-sm">Cancelar</button>
+                      <button
+                        onClick={() => toggleNoApto(selected, motivoBan)}
+                        disabled={savingBan || !motivoBan.trim()}
+                        className="flex-1 px-4 py-2 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 disabled:opacity-40 transition-all"
+                      >
+                        {savingBan ? 'Guardando...' : 'Confirmar'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Stats */}
             <div className="grid grid-cols-2 gap-3">

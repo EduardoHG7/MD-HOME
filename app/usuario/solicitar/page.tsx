@@ -66,7 +66,7 @@ export default function SolicitarPage() {
   const [scanning,   setScanning]   = useState(false)
   const [scanResult, setScanResult] = useState<{ ok: boolean; msg: string } | null>(null)
 
-  const [form, setForm] = useState({ eventoId: '', numPersonas: 1, funcion: '', funcionCustom: '' })
+  const [form, setForm] = useState({ eventoId: '', numPersonas: 1, funcion: '', funcionCustom: '', fechaInicioLabor: '', fechaFinLabor: '' })
 
   useEffect(() => {
     Promise.all([
@@ -165,16 +165,22 @@ export default function SolicitarPage() {
     if (!form.eventoId) { setError('Selecciona un evento.'); return }
     const funcion = form.funcion === 'OTRO' ? form.funcionCustom.trim() : form.funcion
     if (!funcion) { setError('Indica la función.'); return }
+    if (!form.fechaInicioLabor || !form.fechaFinLabor) { setError('Indica las fechas de labor.'); return }
+    if (form.fechaFinLabor < form.fechaInicioLabor) { setError('La fecha de fin no puede ser antes de la de inicio.'); return }
     setLoading(true)
     try {
       const res = await fetch('/api/solicitudes', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eventoId: form.eventoId, numPersonas: form.numPersonas, funcion }),
+        body: JSON.stringify({
+          eventoId: form.eventoId, numPersonas: form.numPersonas, funcion,
+          fechaInicioLabor: form.fechaInicioLabor,
+          fechaFinLabor:    form.fechaFinLabor,
+        }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Error al enviar.'); return }
       setSolicitudes(prev => [{ ...data, asignaciones: [] }, ...prev])
-      setSuccess(true); setForm({ eventoId: '', numPersonas: 1, funcion: '', funcionCustom: '' }); setShowForm(false)
+      setSuccess(true); setForm({ eventoId: '', numPersonas: 1, funcion: '', funcionCustom: '', fechaInicioLabor: '', fechaFinLabor: '' }); setShowForm(false)
       setTimeout(() => setSuccess(false), 4000)
     } catch { setError('Error de conexión.') }
     finally { setLoading(false) }
@@ -246,6 +252,27 @@ export default function SolicitarPage() {
                   value={form.funcionCustom} onChange={e => setForm(f => ({ ...f, funcionCustom: e.target.value }))} />
               )}
             </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="label">Fecha inicio de labor *</label>
+                <input type="date" className="input" required
+                  value={form.fechaInicioLabor}
+                  onChange={e => setForm(f => ({ ...f, fechaInicioLabor: e.target.value }))} />
+              </div>
+              <div>
+                <label className="label">Fecha fin de labor *</label>
+                <input type="date" className="input" required
+                  value={form.fechaFinLabor}
+                  onChange={e => setForm(f => ({ ...f, fechaFinLabor: e.target.value }))} />
+              </div>
+            </div>
+            {form.fechaInicioLabor && form.fechaFinLabor && form.fechaFinLabor >= form.fechaInicioLabor && (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-700">
+                📅 Días de labor: <strong>
+                  {Math.ceil((new Date(form.fechaFinLabor).getTime() - new Date(form.fechaInicioLabor).getTime()) / (1000*60*60*24)) + 1}
+                </strong> día(s) · {form.numPersonas} persona(s)
+              </div>
+            )}
             <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700">
               💡 El administrador asignará la tarifa al revisar tu solicitud.
             </div>
