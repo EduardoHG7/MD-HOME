@@ -27,9 +27,9 @@ export async function POST(req: Request) {
   if (!session || session.user.role !== 'ADMIN') {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
-  const { nombre } = await req.json()
+  const { nombre, categoria } = await req.json()
   if (!nombre?.trim()) return NextResponse.json({ error: 'Nombre requerido' }, { status: 400 })
 
-  const p = await prisma.patrocinador.create({ data: { nombre: nombre.trim() } })
+  const p = await prisma.patrocinador.create({ data: { nombre: nombre.trim(), categoria: categoria || null } })
   return NextResponse.json(p, { status: 201 })
 }

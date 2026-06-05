@@ -140,6 +140,7 @@ model TicketZona {
 model Patrocinador {
   id        String   @id @default(cuid())
   nombre    String   @unique
+  categoria String?  // ALCOHOL | BANCO | COMIDA_RAPIDA | AEROLINEA | HOTEL | MODA | RENTAL_CAR
   activo    Boolean  @default(true)
   createdAt DateTime @default(now())
 

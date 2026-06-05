@@ -10,8 +10,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!session || session.user.role !== 'ADMIN') {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
-  const { nombre } = await req.json()
-  const p = await prisma.patrocinador.update({ where: { id: params.id }, data: { nombre } })
+  const { nombre, categoria } = await req.json()
+  const p = await prisma.patrocinador.update({ where: { id: params.id }, data: { nombre, categoria: categoria ?? null } })
   return NextResponse.json(p)
 }
 
