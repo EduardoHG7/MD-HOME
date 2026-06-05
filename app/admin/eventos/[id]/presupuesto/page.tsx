@@ -214,7 +214,7 @@ export default function PresupuestoPage() {
       }
       if (data.artistGuarantee) setArtistG(data.artistGuarantee)
       if (data.categorias?.length)  setCategorias(data.categorias.map((c: Categoria) => ({ ...c, lineas: c.lineas ?? [] })))
-      if (data.ticketZonas?.length) setTicketZonas(data.ticketZonas.map((z: TicketZona) => ({ scaling: '', ...z })))
+      if (data.ticketZonas?.length) setTicketZonas(data.ticketZonas.map((z: TicketZona) => ({ ...z, scaling: z.scaling ?? '' })))
     } catch (e) {
       setExtractError(String(e))
     } finally {
