@@ -5,6 +5,18 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
+export async function GET(_req: Request, { params }: { params: { id: string } }) {
+  const session = await getServerSession(authOptions)
+  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+  const evento = await prisma.evento.findUnique({
+    where: { id: params.id },
+    select: { id: true, nombre: true, tipoEvento: true, estado: true },
+  })
+  if (!evento) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
+  return NextResponse.json(evento)
+}
+
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
   if (!session || session.user.role !== 'ADMIN') {
@@ -45,3 +57,4 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
 
   return NextResponse.json({ ok: true })
 }
+
