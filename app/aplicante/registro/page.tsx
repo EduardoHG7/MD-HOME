@@ -60,6 +60,7 @@ export default function RegistroAplicantePage() {
   const [form, setForm] = useState({
     nombreCompleto: '', cedula: '', telefono: '',
     email: '', cuentaBancaria: '',
+    banco: '', tipoCuenta: '',
     password: '', confirmPassword: '',
   })
 
@@ -84,7 +85,7 @@ export default function RegistroAplicantePage() {
 
   function handleFormSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.nombreCompleto || !form.cedula || !form.telefono || !form.email || !form.cuentaBancaria) {
+    if (!form.nombreCompleto || !form.cedula || !form.telefono || !form.email || !form.cuentaBancaria || !form.banco || !form.tipoCuenta) {
       setError('Por favor completa todos los campos.'); return
     }
     if (!form.password || form.password.length < 6) {
@@ -134,6 +135,8 @@ export default function RegistroAplicantePage() {
           telefono:       form.telefono,
           email:          form.email,
           cuentaBancaria: form.cuentaBancaria,
+          banco:          form.banco,
+          tipoCuenta:     form.tipoCuenta,
           password:       form.password,
           fotoPersonal:   fotos.fotoPersonal.url,
           fotoCedula:     fotos.fotoCedula.url,
@@ -356,6 +359,21 @@ export default function RegistroAplicantePage() {
               <label className="label">Cuenta bancaria (IBAN) *</label>
               <input name="cuentaBancaria" value={form.cuentaBancaria} onChange={handleChange}
                 className="input" placeholder="Ej: PA21001200009123456789" required />
+            </div>
+            <div>
+              <label className="label">Banco *</label>
+              <input name="banco" value={form.banco} onChange={handleChange}
+                className="input" placeholder="Ej: Banco General, Banistmo, BAC..." required />
+            </div>
+            <div>
+              <label className="label">Tipo de cuenta *</label>
+              <select name="tipoCuenta" value={form.tipoCuenta}
+                onChange={e => { setForm(prev => ({ ...prev, tipoCuenta: e.target.value })); setError('') }}
+                className="input" required>
+                <option value="">Selecciona el tipo de cuenta</option>
+                <option value="AHORRO">Cuenta de Ahorro</option>
+                <option value="CORRIENTE">Cuenta Corriente</option>
+              </select>
             </div>
 
             <div className="border-t border-gray-100 pt-4">
