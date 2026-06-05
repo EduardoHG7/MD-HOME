@@ -7,9 +7,10 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 const NAV_ITEMS = [
-  { href: '/usuario',          label: '🏠 Inicio' },
-  { href: '/usuario/solicitar', label: '📋 Solicitudes' },
-  { href: '/usuario/facturas',  label: '🧾 Facturas' },
+  { href: '/usuario',              label: '🏠 Inicio' },
+  { href: '/usuario/solicitar',    label: '📋 Solicitudes' },
+  { href: '/usuario/cotizaciones', label: '💰 Cotizaciones' },
+  { href: '/usuario/facturas',     label: '🧾 Facturas' },
 ]
 
 export function UserNav({ session }: { session: Session }) {

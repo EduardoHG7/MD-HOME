@@ -16,8 +16,10 @@ model User {
   role      String   @default("USER")
   createdAt DateTime @default(now())
 
-  solicitudes Solicitud[]
-  facturas    Factura[]
+  solicitudes        Solicitud[]
+  facturas           Factura[]
+  lineasAsignadas    PresupuestoLinea[]
+  cotizaciones       Cotizacion[]
 
   @@map("users")
 }
@@ -85,9 +87,10 @@ model Presupuesto {
   createdAt       DateTime @default(now())
 
   evento       Evento                @relation(fields: [eventoId], references: [id])
-  categorias   PresupuestoCategoria[]
-  ticketZonas  TicketZona[]
-  patrocinios  Patrocinio[]
+  categorias          PresupuestoCategoria[]
+  ticketZonas         TicketZona[]
+  patrocinios         Patrocinio[]
+  boletosVendidosReal BoletosVendidosReal[]
 
   @@map("presupuestos")
 }
@@ -106,18 +109,66 @@ model PresupuestoCategoria {
 }
 
 model PresupuestoLinea {
-  id          String   @id @default(cuid())
-  categoriaId String
-  descripcion String
-  nota        String?
-  montoLocal  Float    @default(0)
-  montoUsd    Float    @default(0)
-  orden       Int      @default(0)
-  confianza   String?  // HIGH | LOW (marcado por IA)
+  id             String   @id @default(cuid())
+  categoriaId    String
+  descripcion    String
+  nota           String?
+  montoLocal     Float    @default(0)
+  montoUsd       Float    @default(0)
+  orden          Int      @default(0)
+  confianza      String?  // HIGH | LOW
+  asignadoAId    String?  // userId responsable de cargar cotizaciones
 
-  categoria PresupuestoCategoria @relation(fields: [categoriaId], references: [id], onDelete: Cascade)
+  categoria   PresupuestoCategoria @relation(fields: [categoriaId], references: [id], onDelete: Cascade)
+  asignadoA   User?                @relation(fields: [asignadoAId], references: [id])
+  cotizaciones Cotizacion[]
 
   @@map("presupuesto_lineas")
+}
+
+// Estado: PENDIENTE | APROBADA | RECHAZADA
+model Cotizacion {
+  id          String   @id @default(cuid())
+  lineaId     String
+  creadoPorId String
+  descripcion String?
+  estado      String   @default("PENDIENTE")
+  notaAdmin   String?
+  montoTotal  Float    @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  linea     PresupuestoLinea   @relation(fields: [lineaId], references: [id], onDelete: Cascade)
+  creadoPor User               @relation(fields: [creadoPorId], references: [id])
+  facturas  CotizacionFactura[]
+
+  @@map("cotizaciones")
+}
+
+model CotizacionFactura {
+  id           String @id @default(cuid())
+  cotizacionId String
+  descripcion  String
+  proveedor    String?
+  monto        Float  @default(0)
+  archivoNombre String?
+
+  cotizacion Cotizacion @relation(fields: [cotizacionId], references: [id], onDelete: Cascade)
+
+  @@map("cotizacion_facturas")
+}
+
+model BoletosVendidosReal {
+  id            String @id @default(cuid())
+  presupuestoId String
+  zona          String
+  vendidos      Int    @default(0)
+  precio        Float  @default(0)
+  orden         Int    @default(0)
+
+  presupuesto Presupuesto @relation(fields: [presupuestoId], references: [id], onDelete: Cascade)
+
+  @@map("boletos_vendidos_real")
 }
 
 model TicketZona {
@@ -159,6 +210,7 @@ model Patrocinio {
   montoLocal      Float    @default(0)
   montoUsd        Float    @default(0)
   notas           String?
+  esReal          Boolean  @default(false) // false=presupuestado, true=real cobrado
 
   presupuesto  Presupuesto   @relation(fields: [presupuestoId], references: [id], onDelete: Cascade)
   patrocinador Patrocinador? @relation(fields: [patrocinadorId], references: [id])

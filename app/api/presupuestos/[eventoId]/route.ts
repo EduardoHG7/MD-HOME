@@ -12,9 +12,24 @@ export async function GET(_req: Request, { params }: { params: { eventoId: strin
   const presupuesto = await prisma.presupuesto.findUnique({
     where: { eventoId: params.eventoId },
     include: {
-      categorias: { include: { lineas: { orderBy: { orden: 'asc' } } }, orderBy: { orden: 'asc' } },
-      ticketZonas:  { orderBy: { orden: 'asc' } },
-      patrocinios:  true,
+      categorias: {
+        include: {
+          lineas: {
+            orderBy: { orden: 'asc' },
+            include: {
+              asignadoA:   { select: { id: true, name: true, email: true } },
+              cotizaciones: {
+                include: { facturas: true, creadoPor: { select: { name: true, email: true } } },
+                orderBy: { createdAt: 'desc' },
+              },
+            },
+          },
+        },
+        orderBy: { orden: 'asc' },
+      },
+      ticketZonas:         { orderBy: { orden: 'asc' } },
+      patrocinios:         true,
+      boletosVendidosReal: { orderBy: { orden: 'asc' } },
     },
   })
 
@@ -47,13 +62,14 @@ export async function PUT(req: Request, { params }: { params: { eventoId: string
       })
       if (cat.lineas?.length) {
         await prisma.presupuestoLinea.createMany({
-          data: cat.lineas.map((l: { descripcion: string; nota?: string; montoLocal: number; montoUsd: number; confianza?: string }, j: number) => ({
+          data: cat.lineas.map((l: { descripcion: string; nota?: string; montoLocal: number; montoUsd: number; confianza?: string; asignadoAId?: string }, j: number) => ({
             categoriaId: created.id,
             descripcion: l.descripcion,
             nota:        l.nota        ?? null,
             montoLocal:  l.montoLocal  ?? 0,
             montoUsd:    l.montoUsd    ?? 0,
             confianza:   l.confianza   ?? null,
+            asignadoAId: l.asignadoAId ?? null,
             orden: j,
           })),
         })
@@ -81,9 +97,9 @@ export async function PUT(req: Request, { params }: { params: { eventoId: string
     }
   }
 
-  // Reemplazar patrocinios
+  // Reemplazar patrocinios (presupuestados: esReal=false)
   if (patrocinios !== undefined) {
-    await prisma.patrocinio.deleteMany({ where: { presupuestoId: presupuesto.id } })
+    await prisma.patrocinio.deleteMany({ where: { presupuestoId: presupuesto.id, esReal: false } })
     if (patrocinios.length) {
       await prisma.patrocinio.createMany({
         data: patrocinios.map((p: { patrocinadorId?: string; nombre: string; tipo?: string; tipoPago?: string; montoLocal: number; montoUsd: number; notas?: string }) => ({
@@ -95,6 +111,45 @@ export async function PUT(req: Request, { params }: { params: { eventoId: string
           montoLocal:     p.montoLocal ?? 0,
           montoUsd:       p.montoUsd   ?? 0,
           notas:          p.notas ?? null,
+          esReal:         false,
+        })),
+      })
+    }
+  }
+
+  // Boletos vendidos reales
+  const { boletosVendidosReal } = body
+  if (boletosVendidosReal !== undefined) {
+    await prisma.boletosVendidosReal.deleteMany({ where: { presupuestoId: presupuesto.id } })
+    if (boletosVendidosReal.length) {
+      await prisma.boletosVendidosReal.createMany({
+        data: boletosVendidosReal.map((b: { zona: string; vendidos: number; precio: number }, i: number) => ({
+          presupuestoId: presupuesto.id,
+          zona:      b.zona,
+          vendidos:  b.vendidos ?? 0,
+          precio:    b.precio   ?? 0,
+          orden: i,
+        })),
+      })
+    }
+  }
+
+  // Patrocinios reales
+  const { patrociniosReales } = body
+  if (patrociniosReales !== undefined) {
+    await prisma.patrocinio.deleteMany({ where: { presupuestoId: presupuesto.id, esReal: true } })
+    if (patrociniosReales.length) {
+      await prisma.patrocinio.createMany({
+        data: patrociniosReales.map((p: { patrocinadorId?: string; nombre: string; tipo?: string; tipoPago?: string; montoLocal: number; montoUsd: number; notas?: string }) => ({
+          presupuestoId:  presupuesto.id,
+          patrocinadorId: p.patrocinadorId || null,
+          nombre:         p.nombre,
+          tipo:           p.tipo     || null,
+          tipoPago:       p.tipoPago || null,
+          montoLocal:     p.montoLocal ?? 0,
+          montoUsd:       p.montoUsd   ?? 0,
+          notas:          p.notas ?? null,
+          esReal:         true,
         })),
       })
     }
@@ -103,9 +158,21 @@ export async function PUT(req: Request, { params }: { params: { eventoId: string
   const result = await prisma.presupuesto.findUnique({
     where: { id: presupuesto.id },
     include: {
-      categorias:  { include: { lineas: { orderBy: { orden: 'asc' } } }, orderBy: { orden: 'asc' } },
-      ticketZonas: { orderBy: { orden: 'asc' } },
-      patrocinios: true,
+      categorias: {
+        include: {
+          lineas: {
+            orderBy: { orden: 'asc' },
+            include: {
+              asignadoA:    { select: { id: true, name: true, email: true } },
+              cotizaciones: { include: { facturas: true, creadoPor: { select: { name: true, email: true } } }, orderBy: { createdAt: 'desc' } },
+            },
+          },
+        },
+        orderBy: { orden: 'asc' },
+      },
+      ticketZonas:         { orderBy: { orden: 'asc' } },
+      patrocinios:         true,
+      boletosVendidosReal: { orderBy: { orden: 'asc' } },
     },
   })
 
