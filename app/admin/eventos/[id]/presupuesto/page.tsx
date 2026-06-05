@@ -259,11 +259,22 @@ export default function PresupuestoPage() {
       if (!ok) return
     }
     setSaving(true)
-    await fetch(`/api/presupuestos/${eventoId}`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...header, artistGuarantee: artistG, categorias, ticketZonas, patrocinios, boletosVendidosReal: boletosReal, patrociniosReales: patroReal }),
-    })
-    setSaving(false)
+    try {
+      const res = await fetch(`/api/presupuestos/${eventoId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...header, artistGuarantee: artistG, categorias, ticketZonas, patrocinios, boletosVendidosReal: boletosReal, patrociniosReales: patroReal }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        alert(`Error al guardar: ${err.error ?? res.status}`)
+      } else {
+        await loadPresupuesto() // recargar desde BD para confirmar que guardó
+      }
+    } catch (e) {
+      alert(`Error de conexión al guardar: ${e}`)
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function handleFileUpload(file: File) {
@@ -793,5 +804,6 @@ function PatrociniosSection({ title, patrocinios, patrocinadores, onChange }: {
     </div>
   )
 }
+
 
 
