@@ -4,8 +4,8 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { sendMail, templateNuevaCotizacion } from '@/lib/mail'
 
-// GET: cotizaciones del usuario o todas si es admin
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
@@ -35,7 +35,6 @@ export async function GET(req: Request) {
   return NextResponse.json(cotizaciones)
 }
 
-// POST: crear cotización
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
@@ -62,7 +61,44 @@ export async function POST(req: Request) {
         })),
       },
     },
-    include: { facturas: true, creadoPor: { select: { name: true, email: true } } },
+    include: {
+      facturas: true,
+      creadoPor: { select: { name: true, email: true } },
+      linea: {
+        include: {
+          categoria: {
+            include: { presupuesto: { include: { evento: { select: { nombre: true } } } } }
+          }
+        }
+      },
+    },
   })
+
+  // Notificar a todos los admins
+  try {
+    const admins      = await prisma.user.findMany({ where: { role: 'ADMIN' }, select: { email: true } })
+    const adminEmails = admins.map(a => a.email)
+    const fromEmail   = session.user.email
+    if (adminEmails.length && fromEmail) {
+      await sendMail({
+        fromEmail,
+        toEmails: adminEmails,
+        subject:  `Nueva cotización — ${cot.linea.categoria.presupuesto.evento.nombre} · ${cot.linea.descripcion}`,
+        html: templateNuevaCotizacion({
+          usuarioNombre:      session.user.name ?? fromEmail,
+          usuarioEmail:       fromEmail,
+          eventoNombre:       cot.linea.categoria.presupuesto.evento.nombre,
+          categoriaNombre:    cot.linea.categoria.nombre,
+          subcategoriaNombre: cot.linea.descripcion,
+          descripcion:        descripcion ?? null,
+          montoTotal,
+          numFacturas:        facturas.length,
+        }),
+      })
+    }
+  } catch (err) {
+    console.error('[cotizaciones] Error enviando email a admins:', err)
+  }
+
   return NextResponse.json(cot, { status: 201 })
 }

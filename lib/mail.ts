@@ -139,3 +139,99 @@ export function templateRespuestaSolicitud({
     </div>
   </div>`
 }
+
+export function templateNuevaCotizacion({
+  usuarioNombre,
+  usuarioEmail,
+  eventoNombre,
+  categoriaNombre,
+  subcategoriaNombre,
+  descripcion,
+  montoTotal,
+  numFacturas,
+}: {
+  usuarioNombre:      string
+  usuarioEmail:       string
+  eventoNombre:       string
+  categoriaNombre:    string
+  subcategoriaNombre: string
+  descripcion:        string | null
+  montoTotal:         number
+  numFacturas:        number
+}) {
+  return `
+  <div style="font-family:sans-serif;max-width:560px;margin:0 auto;color:#111">
+    <div style="background:#111;padding:24px 32px;border-radius:12px 12px 0 0">
+      <h2 style="color:#fff;margin:0;font-size:18px">Magic Dreams Productions</h2>
+    </div>
+    <div style="border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;padding:32px">
+      <h3 style="margin:0 0 16px;font-size:16px">💰 Nueva cotización / costo real para aprobación</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:14px">
+        <tr><td style="padding:8px 0;color:#6b7280;width:160px">Solicitante</td><td style="padding:8px 0;font-weight:600">${usuarioNombre}</td></tr>
+        <tr><td style="padding:8px 0;color:#6b7280">Correo</td><td style="padding:8px 0">${usuarioEmail}</td></tr>
+        <tr><td style="padding:8px 0;color:#6b7280">Evento</td><td style="padding:8px 0;font-weight:600">${eventoNombre}</td></tr>
+        <tr><td style="padding:8px 0;color:#6b7280">Categoría</td><td style="padding:8px 0">${categoriaNombre}</td></tr>
+        <tr><td style="padding:8px 0;color:#6b7280">Subcategoría</td><td style="padding:8px 0">${subcategoriaNombre}</td></tr>
+        ${descripcion ? `<tr><td style="padding:8px 0;color:#6b7280">Descripción</td><td style="padding:8px 0;font-style:italic">"${descripcion}"</td></tr>` : ''}
+        <tr><td style="padding:8px 0;color:#6b7280">N° facturas</td><td style="padding:8px 0">${numFacturas}</td></tr>
+        <tr><td style="padding:8px 0;color:#6b7280">Monto total</td><td style="padding:8px 0;font-weight:600;color:#d97706;font-size:16px">$${montoTotal.toFixed(2)}</td></tr>
+      </table>
+      <div style="margin-top:24px">
+        <a href="${process.env.NEXTAUTH_URL}/admin/eventos" style="background:#111;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">
+          Revisar cotización →
+        </a>
+      </div>
+    </div>
+  </div>`
+}
+
+export function templateRespuestaCotizacion({
+  usuarioNombre,
+  eventoNombre,
+  categoriaNombre,
+  subcategoriaNombre,
+  estado,
+  montoTotal,
+  notaAdmin,
+  adminNombre,
+}: {
+  usuarioNombre:      string
+  eventoNombre:       string
+  categoriaNombre:    string
+  subcategoriaNombre: string
+  estado:             'APROBADA' | 'RECHAZADA'
+  montoTotal:         number
+  notaAdmin:          string | null
+  adminNombre:        string
+}) {
+  const aprobada    = estado === 'APROBADA'
+  const colorBorde  = aprobada ? '#22c55e' : '#ef4444'
+  const emoji       = aprobada ? '✅' : '❌'
+  const textoEstado = aprobada ? 'aprobada' : 'rechazada'
+
+  return `
+  <div style="font-family:sans-serif;max-width:560px;margin:0 auto;color:#111">
+    <div style="background:#111;padding:24px 32px;border-radius:12px 12px 0 0">
+      <h2 style="color:#fff;margin:0;font-size:18px">Magic Dreams Productions</h2>
+    </div>
+    <div style="border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;padding:32px">
+      <div style="border-left:4px solid ${colorBorde};padding-left:16px;margin-bottom:24px">
+        <h3 style="margin:0 0 4px;font-size:16px">${emoji} Tu cotización fue ${textoEstado}</h3>
+        <p style="margin:0;color:#6b7280;font-size:14px">Hola ${usuarioNombre}, aquí el detalle:</p>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:14px">
+        <tr><td style="padding:8px 0;color:#6b7280;width:160px">Evento</td><td style="padding:8px 0;font-weight:600">${eventoNombre}</td></tr>
+        <tr><td style="padding:8px 0;color:#6b7280">Categoría</td><td style="padding:8px 0">${categoriaNombre}</td></tr>
+        <tr><td style="padding:8px 0;color:#6b7280">Subcategoría</td><td style="padding:8px 0">${subcategoriaNombre}</td></tr>
+        <tr><td style="padding:8px 0;color:#6b7280">Monto</td><td style="padding:8px 0;font-weight:600;color:#d97706">$${montoTotal.toFixed(2)}</td></tr>
+        ${notaAdmin ? `<tr><td style="padding:8px 0;color:#6b7280;vertical-align:top">Nota del admin</td><td style="padding:8px 0;font-style:italic">"${notaAdmin}"</td></tr>` : ''}
+        <tr><td style="padding:8px 0;color:#6b7280">Revisado por</td><td style="padding:8px 0">${adminNombre}</td></tr>
+      </table>
+      <div style="margin-top:24px">
+        <a href="${process.env.NEXTAUTH_URL}/usuario/cotizaciones" style="background:#111;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">
+          Ver mis cotizaciones →
+        </a>
+      </div>
+    </div>
+  </div>`
+}
