@@ -7,7 +7,8 @@ import { useParams, useRouter } from 'next/navigation'
 interface Linea      { id?: string; descripcion: string; nota: string; montoLocal: number; montoUsd: number; confianza?: string }
 interface Categoria  { id?: string; nombre: string; lineas: Linea[] }
 interface TicketZona { id?: string; scaling: string; zona: string; capacity: number; killsBlocks: number; comps: number; ticketPriceLocal: number; ticketPriceUsd: number }
-interface Patrocinio { id?: string; nombre: string; montoLocal: number; montoUsd: number; notas: string }
+interface Patrocinio    { id?: string; patrocinadorId: string; nombre: string; tipo: string; tipoPago: string; montoLocal: number; montoUsd: number; notas: string }
+interface Patrocinador  { id: string; nombre: string }
 interface Header     { artista: string; pais: string; ciudad: string; promotor: string; moneda: string; exchangeRate: number; numShows: number }
 
 const emptyHeader: Header = { artista: '', pais: '', ciudad: '', promotor: '', moneda: 'USD', exchangeRate: 1, numShows: 1 }
@@ -150,6 +151,7 @@ export default function PresupuestoPage() {
   const [ticketZonas, setTicketZonas] = useState<TicketZona[]>([])
   const [patrocinios, setPatrocinios] = useState<Patrocinio[]>([])
 
+  const [patrocinadores, setPatrocinadores] = useState<Patrocinador[]>([])
   const [loading,     setLoading]     = useState(true)
   const [saving,      setSaving]      = useState(false)
   const [extracting,  setExtracting]  = useState(false)
@@ -166,13 +168,16 @@ export default function PresupuestoPage() {
         setArtistG(data.artistGuarantee ?? 0)
         setCategorias(data.categorias?.map((c: Categoria & { lineas: Linea[] }) => ({ ...c, lineas: c.lineas ?? [] })) ?? [])
         setTicketZonas(data.ticketZonas ?? [])
-        setPatrocinios(data.patrocinios?.map((p: Patrocinio) => ({ ...p, notas: p.notas ?? '' })) ?? [])
+        setPatrocinios(data.patrocinios?.map((p: Patrocinio) => ({ ...p, notas: p.notas ?? '', tipo: p.tipo ?? '', tipoPago: p.tipoPago ?? '', patrocinadorId: p.patrocinadorId ?? '' })) ?? [])
       }
     }
     setLoading(false)
   }, [eventoId])
 
-  useEffect(() => { loadPresupuesto() }, [loadPresupuesto])
+  useEffect(() => {
+    loadPresupuesto()
+    fetch('/api/patrocinadores').then(r => r.json()).then(d => setPatrocinadores(Array.isArray(d) ? d : []))
+  }, [loadPresupuesto])
 
   async function handleSave() {
     setSaving(true)
@@ -412,27 +417,93 @@ export default function PresupuestoPage() {
       <div className="card p-5">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-semibold text-gray-900">🤝 Sponsorship Income</h2>
-          <button type="button" onClick={() => setPatrocinios(prev => [...prev, { nombre: '', montoLocal: 0, montoUsd: 0, notas: '' }])}
+          <button type="button"
+            onClick={() => setPatrocinios(prev => [...prev, { patrocinadorId: '', nombre: '', tipo: '', tipoPago: '', montoLocal: 0, montoUsd: 0, notas: '' }])}
             className="text-sm text-blue-500 hover:underline">+ Agregar patrocinio</button>
         </div>
         {patrocinios.length === 0 ? (
           <p className="text-gray-400 text-sm text-center py-4">Sin patrocinios registrados</p>
         ) : (
-          <div className="space-y-2">
-            {patrocinios.map((p, pi) => (
-              <div key={pi} className="flex gap-3 items-center">
-                <input className="input flex-1" placeholder="Nombre del patrocinio" value={p.nombre}
-                  onChange={e => setPatrocinios(prev => prev.map((x,xi) => xi===pi ? {...x, nombre: e.target.value} : x))} />
-                <input type="number" className="input w-32" placeholder="Monto Local" value={p.montoLocal}
-                  onChange={e => setPatrocinios(prev => prev.map((x,xi) => xi===pi ? {...x, montoLocal: parseFloat(e.target.value)||0} : x))} />
-                <input type="number" className="input w-32" placeholder="Monto USD" value={p.montoUsd}
-                  onChange={e => setPatrocinios(prev => prev.map((x,xi) => xi===pi ? {...x, montoUsd: parseFloat(e.target.value)||0} : x))} />
-                <input className="input flex-1" placeholder="Notas" value={p.notas}
-                  onChange={e => setPatrocinios(prev => prev.map((x,xi) => xi===pi ? {...x, notas: e.target.value} : x))} />
-                <button type="button" onClick={() => setPatrocinios(prev => prev.filter((_,xi) => xi!==pi))}
-                  className="text-red-300 hover:text-red-500">✕</button>
-              </div>
-            ))}
+          <div className="space-y-3">
+            {patrocinios.map((p, pi) => {
+              function upd(field: keyof Patrocinio, val: string | number) {
+                setPatrocinios(prev => prev.map((x, xi) => {
+                  if (xi !== pi) return x
+                  const updated = { ...x, [field]: val }
+                  // Al seleccionar patrocinador, rellenar nombre
+                  if (field === 'patrocinadorId') {
+                    const found = patrocinadores.find(pd => pd.id === val)
+                    updated.nombre = found?.nombre ?? ''
+                  }
+                  return updated
+                }))
+              }
+              return (
+                <div key={pi} className="card p-4 space-y-3 border border-gray-100">
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Patrocinador */}
+                    <div>
+                      <label className="label">Patrocinador *</label>
+                      <select className="input" value={p.patrocinadorId}
+                        onChange={e => upd('patrocinadorId', e.target.value)}>
+                        <option value="">Seleccionar...</option>
+                        {patrocinadores.map(pd => <option key={pd.id} value={pd.id}>{pd.nombre}</option>)}
+                      </select>
+                    </div>
+                    {/* Tipo */}
+                    <div>
+                      <label className="label">Tipo de patrocinio</label>
+                      <div className="flex gap-2">
+                        {[['ACTIVACION','Activación'],['BTL','BTL'],['BRANDING','Branding']].map(([val, lbl]) => (
+                          <button key={val} type="button"
+                            onClick={() => upd('tipo', val)}
+                            className={`flex-1 py-2 rounded-xl border-2 text-xs font-medium transition-all ${p.tipo === val ? 'border-gray-900 bg-gray-50 text-gray-900' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
+                            {lbl}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 gap-3">
+                    {/* Tipo pago */}
+                    <div>
+                      <label className="label">Tipo de pago</label>
+                      <div className="flex gap-2">
+                        {[['EFECTIVO','💵 Efectivo'],['CANJE','🔄 Canje']].map(([val, lbl]) => (
+                          <button key={val} type="button"
+                            onClick={() => upd('tipoPago', val)}
+                            className={`flex-1 py-2 rounded-xl border-2 text-xs font-medium transition-all ${p.tipoPago === val ? 'border-gray-900 bg-gray-50 text-gray-900' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
+                            {lbl}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {/* Monto local */}
+                    <div>
+                      <label className="label">Monto Local</label>
+                      <input type="number" className="input" value={p.montoLocal}
+                        onChange={e => upd('montoLocal', parseFloat(e.target.value)||0)} />
+                    </div>
+                    {/* Monto USD */}
+                    <div>
+                      <label className="label">Monto USD</label>
+                      <input type="number" className="input" value={p.montoUsd}
+                        onChange={e => upd('montoUsd', parseFloat(e.target.value)||0)} />
+                    </div>
+                    {/* Notas */}
+                    <div>
+                      <label className="label">Notas</label>
+                      <input className="input" placeholder="Opcional..." value={p.notas}
+                        onChange={e => upd('notas', e.target.value)} />
+                    </div>
+                  </div>
+                  <div className="flex justify-end">
+                    <button type="button" onClick={() => setPatrocinios(prev => prev.filter((_,xi) => xi!==pi))}
+                      className="text-xs text-red-400 hover:text-red-600">✕ Eliminar</button>
+                  </div>
+                </div>
+              )
+            })}
             <div className="flex justify-end pt-2">
               <span className="text-sm font-semibold text-gray-700">Total patrocinios: {fmt(sponsorIncome)}</span>
             </div>

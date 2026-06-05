@@ -137,15 +137,30 @@ model TicketZona {
   @@map("ticket_zonas")
 }
 
-model Patrocinio {
-  id            String   @id @default(cuid())
-  presupuestoId String
-  nombre        String
-  montoLocal    Float    @default(0)
-  montoUsd      Float    @default(0)
-  notas         String?
+model Patrocinador {
+  id        String   @id @default(cuid())
+  nombre    String   @unique
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
 
-  presupuesto Presupuesto @relation(fields: [presupuestoId], references: [id], onDelete: Cascade)
+  patrocinios Patrocinio[]
+
+  @@map("patrocinadores")
+}
+
+model Patrocinio {
+  id              String   @id @default(cuid())
+  presupuestoId   String
+  patrocinadorId  String?
+  nombre          String
+  tipo            String?  // ACTIVACION | BTL | BRANDING
+  tipoPago        String?  // CANJE | EFECTIVO
+  montoLocal      Float    @default(0)
+  montoUsd        Float    @default(0)
+  notas           String?
+
+  presupuesto  Presupuesto   @relation(fields: [presupuestoId], references: [id], onDelete: Cascade)
+  patrocinador Patrocinador? @relation(fields: [patrocinadorId], references: [id])
 
   @@map("patrocinios")
 }

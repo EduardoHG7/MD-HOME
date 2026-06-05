@@ -86,12 +86,15 @@ export async function PUT(req: Request, { params }: { params: { eventoId: string
     await prisma.patrocinio.deleteMany({ where: { presupuestoId: presupuesto.id } })
     if (patrocinios.length) {
       await prisma.patrocinio.createMany({
-        data: patrocinios.map((p: { nombre: string; montoLocal: number; montoUsd: number; notas?: string }) => ({
-          presupuestoId: presupuesto.id,
-          nombre:    p.nombre,
-          montoLocal: p.montoLocal ?? 0,
-          montoUsd:   p.montoUsd   ?? 0,
-          notas:     p.notas ?? null,
+        data: patrocinios.map((p: { patrocinadorId?: string; nombre: string; tipo?: string; tipoPago?: string; montoLocal: number; montoUsd: number; notas?: string }) => ({
+          presupuestoId:  presupuesto.id,
+          patrocinadorId: p.patrocinadorId || null,
+          nombre:         p.nombre,
+          tipo:           p.tipo     || null,
+          tipoPago:       p.tipoPago || null,
+          montoLocal:     p.montoLocal ?? 0,
+          montoUsd:       p.montoUsd   ?? 0,
+          notas:          p.notas ?? null,
         })),
       })
     }
