@@ -249,8 +249,8 @@ export default function PresupuestoPage() {
         </div>
         <div className="flex gap-2">
           <label className={`btn-ghost text-sm cursor-pointer ${extracting ? 'opacity-50' : ''}`}>
-            {extracting ? '⏳ Procesando...' : '📄 Importar PDF/Imagen'}
-            <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" className="hidden"
+            {extracting ? '⏳ Procesando...' : '📄 Importar PDF / Imagen / Excel'}
+            <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.xlsx,.xls" className="hidden"
               onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f) }} />
           </label>
           <button onClick={handleSave} disabled={saving} className="btn-primary text-sm">

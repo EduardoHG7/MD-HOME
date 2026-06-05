@@ -4,6 +4,7 @@ export const maxDuration = 60
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import * as XLSX from 'xlsx'
 
 const SYSTEM_PROMPT = `Eres un experto en análisis de presupuestos de eventos de entretenimiento (conciertos, festivales, shows).
 Tu tarea es analizar un documento de presupuesto de evento y extraer toda la información estructurada.
@@ -59,6 +60,21 @@ Reglas importantes:
 - Las categorías comunes son: ADVERTISING, TALENT, PRODUCTION, VENUE, OTHERS, VARIABLE EXPENSES — pero detecta cualquier otra
 - Si no encuentras algún campo, usa null o 0 según corresponda`
 
+function excelToText(buffer: Buffer): string {
+  const workbook = XLSX.read(buffer, { type: 'buffer' })
+  const parts: string[] = []
+
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName]
+    const csv   = XLSX.utils.sheet_to_csv(sheet, { blankrows: false })
+    if (csv.trim()) {
+      parts.push(`=== HOJA: ${sheetName} ===\n${csv}`)
+    }
+  }
+
+  return parts.join('\n\n')
+}
+
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session || session.user.role !== 'ADMIN') {
@@ -71,24 +87,41 @@ export async function POST(req: Request) {
   const { base64, mimeType, fileName } = await req.json()
   if (!base64 || !mimeType) return NextResponse.json({ error: 'Faltan datos del archivo' }, { status: 400 })
 
-  const isPdf = mimeType === 'application/pdf'
-  const isExcel = mimeType.includes('spreadsheet') || mimeType.includes('excel') || fileName?.endsWith('.xlsx') || fileName?.endsWith('.xls')
+  const isPdf    = mimeType === 'application/pdf'
+  const isExcel  = mimeType.includes('spreadsheet') || mimeType.includes('excel') ||
+                   fileName?.toLowerCase().endsWith('.xlsx') || fileName?.toLowerCase().endsWith('.xls')
+  const isImage  = mimeType.startsWith('image/')
 
-  let contentBlock: object
+  let messages: object[]
 
   if (isPdf) {
-    contentBlock = { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
+    messages = [{
+      role: 'user',
+      content: [
+        { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
+        { type: 'text', text: 'Analiza este presupuesto de evento y extrae toda la información en el formato JSON especificado.' },
+      ],
+    }]
+  } else if (isImage) {
+    messages = [{
+      role: 'user',
+      content: [
+        { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } },
+        { type: 'text', text: 'Analiza este presupuesto de evento y extrae toda la información en el formato JSON especificado.' },
+      ],
+    }]
   } else if (isExcel) {
-    // Para Excel enviamos como documento con instrucción especial
-    contentBlock = {
-      type: 'text',
-      text: `El usuario subió un archivo Excel llamado "${fileName}". Lamentablemente no puedo leer Excel directamente. Por favor indica al usuario que exporte el archivo a PDF o imagen para poder procesarlo.`
-    }
-    return NextResponse.json({
-      error: 'Excel no soportado directamente. Por favor exporta el archivo a PDF o captura como imagen (PNG/JPG) y sube esa versión.',
-    }, { status: 422 })
+    // Convertir Excel a texto CSV usando xlsx
+    const buffer  = Buffer.from(base64, 'base64')
+    const excelText = excelToText(buffer)
+    messages = [{
+      role: 'user',
+      content: [
+        { type: 'text', text: `Analiza este presupuesto de evento en formato Excel (convertido a CSV) y extrae toda la información en el formato JSON especificado.\n\nContenido del archivo "${fileName}":\n\n${excelText}` },
+      ],
+    }]
   } else {
-    contentBlock = { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } }
+    return NextResponse.json({ error: 'Formato no soportado. Usa PDF, imagen o Excel (.xlsx/.xls)' }, { status: 400 })
   }
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -102,7 +135,7 @@ export async function POST(req: Request) {
       model:      'claude-opus-4-5',
       max_tokens: 4096,
       system:     SYSTEM_PROMPT,
-      messages:   [{ role: 'user', content: [contentBlock, { type: 'text', text: 'Analiza este presupuesto de evento y extrae toda la información en el formato JSON especificado.' }] }],
+      messages,
     }),
   })
 
