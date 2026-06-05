@@ -209,6 +209,7 @@ export default function PresupuestoPage() {
   const [patrocinadores, setPatrocinadores] = useState<Patrocinador[]>([])
   const [usuarios,    setUsuarios]    = useState<Usuario[]>([])
   const [loading,     setLoading]     = useState(true)
+  const [tipoEvento,  setTipoEvento]  = useState<string | null>(null)
   const [saving,          setSaving]          = useState(false)
   const [extracting,      setExtracting]      = useState(false)
   const [extractError,    setExtractError]    = useState('')
@@ -218,6 +219,7 @@ export default function PresupuestoPage() {
   const boletoRef  = useRef<HTMLInputElement>(null)
 
   const isAdmin = true // página solo accesible para admins
+  const isContratado = ['CONTRATADO', 'LICITACION'].includes(tipoEvento ?? '')
 
   const loadPresupuesto = useCallback(async () => {
     setLoading(true)
@@ -225,6 +227,7 @@ export default function PresupuestoPage() {
     if (res.ok) {
       const data = await res.json()
       if (data) {
+        setTipoEvento(data.evento?.tipoEvento ?? null)
         setHeader({ artista: data.artista ?? '', pais: data.pais ?? '', ciudad: data.ciudad ?? '', promotor: data.promotor ?? '', moneda: data.moneda ?? 'USD', exchangeRate: data.exchangeRate ?? 1, numShows: data.numShows ?? 1 })
         setArtistG(data.artistGuarantee ?? 0)
         setCategorias(data.categorias?.map((c: Categoria) => ({ ...c, lineas: (c.lineas ?? []).map((l: Linea) => ({ ...l, nota: l.nota ?? '', asignadoAId: l.asignadoAId ?? '' })) })) ?? [])
@@ -277,6 +280,11 @@ export default function PresupuestoPage() {
   const sponsorIncome  = patrocinios.reduce((s, p) => s + num(p.montoUsd), 0)
   const totalIncome    = ticketIncome + sponsorIncome
   const profitLoss     = totalIncome - presupTotal
+
+  /* ─── Cálculos contratado ─── */
+  const costoProveedores  = categorias.reduce((s, c) => s + c.lineas.reduce((ss, l) => ss + num(l.montoLocal), 0), 0)
+  const precioCliente     = totalProd + totalVar + artistG
+  const margenBruto       = precioCliente - costoProveedores
 
   /* ─── Cálculos reales ─── */
   const costoRealCot    = categorias.reduce((s, c) => s + c.lineas.reduce((ss, l) => ss + (l.cotizaciones ?? []).filter(x => x.estado === 'APROBADA').reduce((sss, x) => sss + x.montoTotal, 0), 0), 0)
@@ -354,22 +362,34 @@ export default function PresupuestoPage() {
       {tab === 'presupuesto' && (
         <div className="space-y-6">
           {/* KPIs */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <KpiCard label="Artist Guarantee"         value={fmt(artistG)}       color="purple" />
-            <KpiCard label="Production Expenses"      value={fmt(totalProd)}     color="amber" />
-            <KpiCard label="Variable Expenses"        value={fmt(totalVar)}      color="amber" />
-            <KpiCard label="Presupuesto Total"        value={fmt(presupTotal)}   color="amber" />
-            <KpiCard label="Ingreso Boletos (est.)"   value={fmt(ticketIncome)}  color="blue" />
-            <KpiCard label="Ingreso Patrocinios"      value={fmt(sponsorIncome)} color="blue" />
-            <KpiCard label="Ingreso Total Estimado"   value={fmt(totalIncome)}   color="green" />
-            <KpiCard label="Utilidad / Pérdida"       value={fmt(profitLoss)} color={profitLoss >= 0 ? 'green' : 'red'} sub={profitLoss >= 0 ? '✅ Rentable' : '⚠️ Pérdida'} />
-          </div>
+          {isContratado ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <KpiCard label="Fee de Coordinación"   value={fmt(artistG)}          color="purple" />
+              <KpiCard label="Costos (Proveedores)"  value={fmt(costoProveedores)} color="amber" />
+              <KpiCard label="Precio al Cliente"     value={fmt(precioCliente)}    color="blue" />
+              <KpiCard label="Margen Bruto"          value={fmt(margenBruto)} color={margenBruto >= 0 ? 'green' : 'red'} sub={margenBruto >= 0 ? '✅ Rentable' : '⚠️ Pérdida'} />
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <KpiCard label="Artist Guarantee"         value={fmt(artistG)}       color="purple" />
+              <KpiCard label="Production Expenses"      value={fmt(totalProd)}     color="amber" />
+              <KpiCard label="Variable Expenses"        value={fmt(totalVar)}      color="amber" />
+              <KpiCard label="Presupuesto Total"        value={fmt(presupTotal)}   color="amber" />
+              <KpiCard label="Ingreso Boletos (est.)"   value={fmt(ticketIncome)}  color="blue" />
+              <KpiCard label="Ingreso Patrocinios"      value={fmt(sponsorIncome)} color="blue" />
+              <KpiCard label="Ingreso Total Estimado"   value={fmt(totalIncome)}   color="green" />
+              <KpiCard label="Utilidad / Pérdida"       value={fmt(profitLoss)} color={profitLoss >= 0 ? 'green' : 'red'} sub={profitLoss >= 0 ? '✅ Rentable' : '⚠️ Pérdida'} />
+            </div>
+          )}
 
           {/* Info evento */}
           <div className="card p-5">
             <h2 className="font-semibold text-gray-900 mb-4">Información del Evento</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              {([['Artista','artista'],['País','pais'],['Ciudad','ciudad'],['Promotor','promotor'],['Moneda','moneda'],['Exchange rate','exchangeRate'],['N° shows','numShows']] as [string, keyof Header][]).map(([label, key]) => (
+              {(isContratado
+                ? [['Cliente','artista'],['Locación','ciudad'],['Fecha','promotor'],['Moneda','moneda']] as [string, keyof Header][]
+                : [['Artista','artista'],['País','pais'],['Ciudad','ciudad'],['Promotor','promotor'],['Moneda','moneda'],['Exchange rate','exchangeRate'],['N° shows','numShows']] as [string, keyof Header][]
+              ).map(([label, key]) => (
                 <div key={key}>
                   <label className="label">{label}</label>
                   <input className="input" value={String(header[key] ?? '')} type={typeof header[key] === 'number' ? 'number' : 'text'}
@@ -379,11 +399,11 @@ export default function PresupuestoPage() {
             </div>
           </div>
 
-          {/* Artist Guarantee */}
+          {/* Artist Guarantee / Fee */}
           <div className="card p-5 border-l-4 border-l-purple-400">
-            <h2 className="font-semibold text-gray-900 mb-3">🎤 Artist Guarantee</h2>
+            <h2 className="font-semibold text-gray-900 mb-3">{isContratado ? '🏷️ Fee de Coordinación / Producción' : '🎤 Artist Guarantee'}</h2>
             <div className="flex items-center gap-4">
-              <div className="flex-1"><label className="label">Monto (USD)</label>
+              <div className="flex-1"><label className="label">{isContratado ? 'Fee (B/.)' : 'Monto (USD)'}</label>
                 <input type="number" className="input" value={artistG} onChange={e => setArtistG(parseFloat(e.target.value)||0)} /></div>
               <div className="text-right"><p className="text-gray-400 text-xs">Total</p><p className="text-2xl font-bold text-purple-600">{fmt(artistG)}</p></div>
             </div>
@@ -398,7 +418,8 @@ export default function PresupuestoPage() {
             {/* Header tabla */}
             <div className="hidden md:grid grid-cols-12 gap-2 px-4 text-xs text-gray-400 font-medium uppercase tracking-wide">
               <span className="col-span-3">Subcategoría</span><span className="col-span-2">Nota</span>
-              <span className="col-span-2 text-right">Local</span><span className="col-span-2 text-right">USD</span>
+              <span className="col-span-2 text-right">{isContratado ? 'Costo Proveedor' : 'Local'}</span>
+              <span className="col-span-2 text-right">{isContratado ? 'Precio Cliente' : 'USD'}</span>
               <span className="col-span-2">Asignado a</span><span className="col-span-1" />
             </div>
             {categorias.length === 0 && <div className="card p-8 text-center text-gray-400 text-sm"><p className="text-3xl mb-2">📋</p>Importa un archivo o agrega categorías manualmente</div>}
@@ -414,8 +435,8 @@ export default function PresupuestoPage() {
             )}
           </div>
 
-          {/* Ticket Scaling */}
-          <div className="card p-5">
+          {/* Ticket Scaling — solo eventos propios */}
+          {!isContratado && <div className="card p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-gray-900">🎟️ Ticket Scaling (Presupuesto)</h2>
               <button type="button" onClick={() => setTicketZonas(prev => [...prev, { scaling:'', zona:'', capacity:0, killsBlocks:0, comps:0, ticketPriceLocal:0, ticketPriceUsd:0 }])} className="text-sm text-blue-500 hover:underline">+ Zona</button>
@@ -456,20 +477,30 @@ export default function PresupuestoPage() {
             </div>
           </div>
 
-          {/* Patrocinios presupuestados */}
-          <PatrociniosSection title="🤝 Sponsorship Income (Presupuesto)" patrocinios={patrocinios} patrocinadores={patrocinadores} onChange={setPatrocinios} />
+          }
+
+          {/* Patrocinios presupuestados — solo eventos propios */}
+          {!isContratado && <PatrociniosSection title="🤝 Sponsorship Income (Presupuesto)" patrocinios={patrocinios} patrocinadores={patrocinadores} onChange={setPatrocinios} />}
         </div>
       )}
 
       {/* ════ TAB: COSTOS REALES ════ */}
       {tab === 'reales' && (
         <div className="space-y-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <KpiCard label="Costos aprobados"     value={fmt(costoRealCot)}    color="amber" />
-            <KpiCard label="Boletos vendidos $"    value={fmt(ticketRealIncome)} color="blue" />
-            <KpiCard label="Patrocinios reales $"  value={fmt(patroRealIncome)}  color="blue" />
-            <KpiCard label="Utilidad / Pérdida Real" value={fmt(profitRealLoss)} color={profitRealLoss >= 0 ? 'green' : 'red'} sub={profitRealLoss >= 0 ? '✅ Ganancia' : '⚠️ Pérdida'} />
-          </div>
+          {isContratado ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <KpiCard label="Costos aprobados"       value={fmt(costoRealCot)}                  color="amber" />
+              <KpiCard label="Precio al Cliente"      value={fmt(precioCliente)}                 color="blue" />
+              <KpiCard label="Margen Real"            value={fmt(precioCliente - costoRealCot)} color={precioCliente - costoRealCot >= 0 ? 'green' : 'red'} sub={precioCliente - costoRealCot >= 0 ? '✅ Ganancia' : '⚠️ Pérdida'} />
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <KpiCard label="Costos aprobados"     value={fmt(costoRealCot)}    color="amber" />
+              <KpiCard label="Boletos vendidos $"    value={fmt(ticketRealIncome)} color="blue" />
+              <KpiCard label="Patrocinios reales $"  value={fmt(patroRealIncome)}  color="blue" />
+              <KpiCard label="Utilidad / Pérdida Real" value={fmt(profitRealLoss)} color={profitRealLoss >= 0 ? 'green' : 'red'} sub={profitRealLoss >= 0 ? '✅ Ganancia' : '⚠️ Pérdida'} />
+            </div>
+          )}
 
           {/* Cotizaciones aprobadas por categoría */}
           <div className="card p-5">
@@ -508,8 +539,8 @@ export default function PresupuestoPage() {
             )}
           </div>
 
-          {/* Boletos reales */}
-          <div className="card p-5">
+          {/* Boletos reales — solo eventos propios */}
+          {!isContratado && <div className="card p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-gray-900">🎟️ Boletos Vendidos Reales</h2>
               <div className="flex items-center gap-3">
@@ -557,8 +588,10 @@ export default function PresupuestoPage() {
             </table>
           </div>
 
-          {/* Patrocinios reales */}
-          <PatrociniosSection title="🤝 Patrocinios Reales Cobrados" patrocinios={patroReal} patrocinadores={patrocinadores} onChange={setPatroReal} />
+          }
+
+          {/* Patrocinios reales — solo eventos propios */}
+          {!isContratado && <PatrociniosSection title="🤝 Patrocinios Reales Cobrados" patrocinios={patroReal} patrocinadores={patrocinadores} onChange={setPatroReal} />}
         </div>
       )}
 
@@ -639,8 +672,8 @@ export default function PresupuestoPage() {
             </table>
           </div>
 
-          {/* Comparativa ingresos */}
-          <div className="card p-5">
+          {/* Comparativa ingresos — solo eventos propios */}
+          {!isContratado && <div className="card p-5">
             <h2 className="font-semibold text-gray-900 mb-4">Comparativa de Ingresos</h2>
             <table className="w-full text-sm">
               <thead><tr className="bg-gray-50 text-gray-400 text-xs">
@@ -666,7 +699,7 @@ export default function PresupuestoPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </div>}
         </div>
       )}
     </div>
@@ -750,3 +783,4 @@ function PatrociniosSection({ title, patrocinios, patrocinadores, onChange }: {
     </div>
   )
 }
+
