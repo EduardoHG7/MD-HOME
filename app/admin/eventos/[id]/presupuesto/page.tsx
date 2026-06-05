@@ -223,8 +223,10 @@ export default function PresupuestoPage() {
   }
 
   /* ─── Cálculos ─── */
-  const totalProduccion  = categorias.reduce((s, c) => s + c.lineas.reduce((ss, l) => ss + num(l.montoUsd), 0), 0)
-  const estimatedBudget  = artistG + totalProduccion
+  const isVariableExp    = (c: Categoria) => c.nombre.toUpperCase().includes('VARIABLE')
+  const totalProduccion  = categorias.filter(c => !isVariableExp(c)).reduce((s, c) => s + c.lineas.reduce((ss, l) => ss + num(l.montoUsd), 0), 0)
+  const totalVariable    = categorias.filter(c =>  isVariableExp(c)).reduce((s, c) => s + c.lineas.reduce((ss, l) => ss + num(l.montoUsd), 0), 0)
+  const estimatedBudget  = artistG + totalProduccion + totalVariable
 
   const ticketIncome = ticketZonas.reduce((s, z) => {
     const avail = Math.max(0, num(z.capacity) - num(z.killsBlocks) - num(z.comps))
@@ -265,13 +267,14 @@ export default function PresupuestoPage() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <KpiCard label="Artist Guarantee"         value={fmt(artistG)}          color="purple" />
-        <KpiCard label="Total Gastos de Producción" value={fmt(totalProduccion)} color="amber"  />
-        <KpiCard label="Presupuesto Total Estimado" value={fmt(estimatedBudget)} color="amber"  />
-        <KpiCard label="Ingreso por Boletos"      value={fmt(ticketIncome)}      color="blue"   />
-        <KpiCard label="Ingreso por Patrocinios"  value={fmt(sponsorIncome)}     color="blue"   />
-        <KpiCard label="Ingreso Total Estimado"   value={fmt(totalIncome)}       color="green"  />
-        <KpiCard label="Utilidad / Pérdida Estimada" value={fmt(profitLoss)}
+        <KpiCard label="Artist Guarantee"              value={fmt(artistG)}          color="purple" />
+        <KpiCard label="Total Production Expenses"     value={fmt(totalProduccion)}  color="amber"  />
+        <KpiCard label="Total Variable Expenses"       value={fmt(totalVariable)}    color="amber"  />
+        <KpiCard label="Presupuesto Total Estimado"    value={fmt(estimatedBudget)}  color="amber"  />
+        <KpiCard label="Ingreso por Boletos"           value={fmt(ticketIncome)}     color="blue"   />
+        <KpiCard label="Ingreso por Patrocinios"       value={fmt(sponsorIncome)}    color="blue"   />
+        <KpiCard label="Ingreso Total Estimado"        value={fmt(totalIncome)}      color="green"  />
+        <KpiCard label="Utilidad / Pérdida Estimada"   value={fmt(profitLoss)}
           color={profitLoss >= 0 ? 'green' : 'red'}
           sub={profitLoss >= 0 ? '✅ Rentable' : '⚠️ Pérdida estimada'} />
       </div>
