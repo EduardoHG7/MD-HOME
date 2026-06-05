@@ -297,6 +297,8 @@ model Aplicante {
   telefono            String
   email               String    @unique
   cuentaBancaria      String
+  banco               String?
+  tipoCuenta          String?
   terminosAceptados   Boolean   @default(false)
   terminosAceptadosAt DateTime?
   qrSecret            String    @default(cuid())
