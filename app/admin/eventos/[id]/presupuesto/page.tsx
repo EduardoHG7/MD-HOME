@@ -745,7 +745,7 @@ function PatrociniosSection({ title, patrocinios, patrocinadores, onChange }: {
                   <div>
                     <label className="label">Tipo</label>
                     <div className="flex gap-2">
-                      {[['ACTIVACION','Activación'],['BTL','BTL'],['BRANDING','Branding']].map(([val, lbl]) => (
+                      {[['PATROCINIO','Patrocinio'],['BTL','BTL'],['BRANDING','Branding']].map(([val, lbl]) => (
                         <button key={val} type="button" onClick={() => upd('tipo', val)}
                           className={`flex-1 py-2 rounded-xl border-2 text-xs font-medium transition-all ${p.tipo===val ? 'border-gray-900 bg-gray-50' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
                           {lbl}
