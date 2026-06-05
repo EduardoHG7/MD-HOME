@@ -243,9 +243,10 @@ export default function PresupuestoPage() {
 
   useEffect(() => {
     loadPresupuesto()
+    fetch(`/api/eventos/${eventoId}`).then(r => r.json()).then(d => { if (d?.tipoEvento) setTipoEvento(d.tipoEvento) })
     fetch('/api/patrocinadores').then(r => r.json()).then(d => setPatrocinadores(Array.isArray(d) ? d : []))
     fetch('/api/usuarios/lista').then(r => r.json()).then(d => setUsuarios(Array.isArray(d) ? d : []))
-  }, [loadPresupuesto])
+  }, [loadPresupuesto, eventoId])
 
   async function handleSave() {
     setSaving(true)
