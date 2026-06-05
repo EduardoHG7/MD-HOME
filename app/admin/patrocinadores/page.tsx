@@ -12,13 +12,13 @@ const TIPO_LABELS: Record<string, string> = { ACTIVACION: 'Activación', BTL: 'B
 const PAGO_LABELS: Record<string, string> = { CANJE: 'Canje', EFECTIVO: 'Efectivo' }
 
 const CATEGORIAS = [
-  { value: 'ALCOHOL',      label: '🍺 Alcohol' },
-  { value: 'BANCO',        label: '🏦 Banco' },
-  { value: 'COMIDA_RAPIDA',label: '🍔 Comida Rápida' },
-  { value: 'AEROLINEA',    label: '✈️ Aerolínea' },
-  { value: 'HOTEL',        label: '🏨 Hotel' },
-  { value: 'MODA',         label: '👗 Moda/Maquillaje' },
-  { value: 'RENTAL_CAR',   label: '🚗 Rental Car' },
+  { value: 'ALCOHOL',       label: '🍺 Alcohol' },
+  { value: 'BANCO',         label: '🏦 Banco' },
+  { value: 'COMIDA_RAPIDA', label: '🍔 Comida Rápida' },
+  { value: 'AEROLINEA',     label: '✈️ Aerolínea' },
+  { value: 'HOTEL',         label: '🏨 Hotel' },
+  { value: 'MODA',          label: '👗 Moda/Maquillaje' },
+  { value: 'RENTAL_CAR',    label: '🚗 Rental Car' },
 ]
 const CAT_LABELS: Record<string, string> = Object.fromEntries(CATEGORIAS.map(c => [c.value, c.label]))
 
@@ -26,13 +26,58 @@ function fmt(n: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(n)
 }
 
+/* ── Formulario de creación — componente separado para evitar re-mount ── */
+function CreateForm({ onCreated }: { onCreated: (p: Patrocinador) => void }) {
+  const [nombre,    setNombre]    = useState('')
+  const [categoria, setCategoria] = useState('')
+  const [loading,   setLoading]   = useState(false)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    const res = await fetch('/api/patrocinadores', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nombre, categoria: categoria || null }),
+    })
+    if (res.ok) {
+      const p = await res.json()
+      onCreated({ ...p, patrocinios: [] })
+      setNombre(''); setCategoria('')
+    }
+    setLoading(false)
+  }
+
+  return (
+    <div className="card p-5">
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="label">Nombre del patrocinador *</label>
+            <input className="input" placeholder="Ej: Balboa, Copa Airlines..." required
+              value={nombre} onChange={e => setNombre(e.target.value)} autoFocus />
+          </div>
+          <div>
+            <label className="label">Categoría (opcional)</label>
+            <select className="input" value={categoria} onChange={e => setCategoria(e.target.value)}>
+              <option value="">Sin categoría</option>
+              {CATEGORIAS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+            </select>
+          </div>
+        </div>
+        <button type="submit" disabled={loading} className="btn-primary">
+          {loading ? 'Guardando...' : 'Crear Patrocinador'}
+        </button>
+      </form>
+    </div>
+  )
+}
+
+/* ── Página principal ── */
 export default function PatrocinadoresPage() {
   const [patrocinadores, setPatrocinadores] = useState<Patrocinador[]>([])
   const [selected,       setSelected]       = useState<Patrocinador | null>(null)
   const [showForm,       setShowForm]       = useState(false)
   const [editing,        setEditing]        = useState<Patrocinador | null>(null)
-  const [nombre,         setNombre]         = useState('')
-  const [categoria,      setCategoria]      = useState('')
   const [editNombre,     setEditNombre]     = useState('')
   const [editCategoria,  setEditCategoria]  = useState('')
   const [loading,        setLoading]        = useState(false)
@@ -42,19 +87,9 @@ export default function PatrocinadoresPage() {
     fetch('/api/patrocinadores').then(r => r.json()).then(d => setPatrocinadores(Array.isArray(d) ? d : []))
   }, [])
 
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault()
-    setLoading(true)
-    const res = await fetch('/api/patrocinadores', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nombre, categoria: categoria || null }),
-    })
-    if (res.ok) {
-      const p = await res.json()
-      setPatrocinadores(prev => [...prev, { ...p, patrocinios: [] }].sort((a, b) => a.nombre.localeCompare(b.nombre)))
-      setNombre(''); setCategoria(''); setShowForm(false)
-    }
-    setLoading(false)
+  function handleCreated(p: Patrocinador) {
+    setPatrocinadores(prev => [...prev, p].sort((a, b) => a.nombre.localeCompare(b.nombre)))
+    setShowForm(false)
   }
 
   async function handleEdit(e: React.FormEvent) {
@@ -84,7 +119,6 @@ export default function PatrocinadoresPage() {
   }
 
   const filtered = patrocinadores.filter(p => p.nombre.toLowerCase().includes(search.toLowerCase()))
-
   const selectedTotal = selected?.patrocinios.reduce((s, p) => s + (p.montoUsd ?? 0), 0) ?? 0
 
   return (
@@ -99,23 +133,7 @@ export default function PatrocinadoresPage() {
         </button>
       </div>
 
-      {showForm && (
-        <div className="card p-5">
-          <form onSubmit={handleCreate} className="space-y-3">
-            <div className="flex gap-3">
-              <input className="input flex-1" placeholder="Nombre del patrocinador..." required
-                value={nombre} onChange={e => setNombre(e.target.value)} />
-              <select className="input w-56" value={categoria} onChange={e => setCategoria(e.target.value)}>
-                <option value="">Categoría (opcional)</option>
-                {CATEGORIAS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-              </select>
-              <button type="submit" disabled={loading} className="btn-primary shrink-0">
-                {loading ? 'Guardando...' : 'Crear'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+      {showForm && <CreateForm onCreated={handleCreated} />}
 
       <input className="input max-w-sm" placeholder="Buscar patrocinador..."
         value={search} onChange={e => setSearch(e.target.value)} />
@@ -128,13 +146,13 @@ export default function PatrocinadoresPage() {
               className={`card w-full text-left p-4 hover:border-gray-400 hover:shadow-md transition-all ${selected?.id === p.id ? 'border-gray-400 shadow-md' : ''}`}>
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-semibold text-gray-900">{p.nombre}</p>
                     {p.categoria && <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">{CAT_LABELS[p.categoria] ?? p.categoria}</span>}
                   </div>
                   <p className="text-gray-400 text-xs mt-0.5">{p.patrocinios.length} evento(s) · {fmt(p.patrocinios.reduce((s, x) => s + (x.montoUsd ?? 0), 0))}</p>
                 </div>
-                <div className="flex gap-1">
+                <div className="flex gap-1 shrink-0 ml-2">
                   <button onClick={e => { e.stopPropagation(); setEditing(p); setEditNombre(p.nombre); setEditCategoria(p.categoria ?? '') }}
                     className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition-all">✏️</button>
                   <button onClick={e => { e.stopPropagation(); handleDelete(p.id) }}
@@ -156,7 +174,10 @@ export default function PatrocinadoresPage() {
           <div className="col-span-3 space-y-4">
             <div className="card p-5">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-gray-900">{selected.nombre}</h3>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">{selected.nombre}</h3>
+                  {selected.categoria && <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full mt-1 inline-block">{CAT_LABELS[selected.categoria] ?? selected.categoria}</span>}
+                </div>
                 <div className="text-right">
                   <p className="text-xs text-gray-400">Monto total acumulado</p>
                   <p className="text-2xl font-bold text-amber-600">{fmt(selectedTotal)}</p>
@@ -198,7 +219,7 @@ export default function PatrocinadoresPage() {
         )}
       </div>
 
-      {/* Modal edición nombre */}
+      {/* Modal edición */}
       {editing && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="card p-6 w-full max-w-sm shadow-2xl">
