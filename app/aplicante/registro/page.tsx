@@ -362,8 +362,15 @@ export default function RegistroAplicantePage() {
             </div>
             <div>
               <label className="label">Banco *</label>
-              <input name="banco" value={form.banco} onChange={handleChange}
-                className="input" placeholder="Ej: Banco General, Banistmo, BAC..." required />
+              <select name="banco" value={form.banco}
+                onChange={e => { setForm(prev => ({ ...prev, banco: e.target.value })); setError('') }}
+                className="input" required>
+                <option value="">Selecciona tu banco</option>
+                <option value="Banco General">Banco General</option>
+                <option value="Banistmo">Banistmo</option>
+                <option value="BAC">BAC</option>
+                <option value="Banisi">Banisi</option>
+              </select>
             </div>
             <div>
               <label className="label">Tipo de cuenta *</label>
@@ -406,3 +413,4 @@ export default function RegistroAplicantePage() {
     </div>
   )
 }
+
