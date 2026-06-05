@@ -34,19 +34,37 @@ model Tarifa {
   @@map("tarifas")
 }
 
+model Venue {
+  id        String   @id @default(cuid())
+  nombre    String   @unique
+  direccion String?
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  eventos Evento[]
+
+  @@map("venues")
+}
+
+// TipoEvento: PROPIO | CONTRATADO | COPRODUCCION
 // EstadoEvento: ACTIVO | COMPLETADO | CANCELADO
 model Evento {
-  id          String   @id @default(cuid())
-  nombre      String
-  descripcion String?
-  fechaInicio DateTime
-  fechaFin    DateTime
-  estado      String   @default("ACTIVO")
-  createdAt   DateTime @default(now())
+  id               String   @id @default(cuid())
+  nombre           String
+  descripcion      String?
+  fechaInicio      DateTime
+  fechaFin         DateTime
+  estado           String   @default("ACTIVO")
+  tipoEvento       String?  // PROPIO | CONTRATADO | COPRODUCCION
+  venueId          String?
+  tieneSocio       Boolean  @default(false)
+  nombreSocio      String?
+  createdAt        DateTime @default(now())
 
   solicitudes  Solicitud[]
   asignaciones AsignacionAplicante[]
   facturas     Factura[]
+  venue        Venue?   @relation(fields: [venueId], references: [id])
 
   @@map("eventos")
 }

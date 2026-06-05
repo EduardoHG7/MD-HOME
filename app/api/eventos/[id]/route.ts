@@ -11,7 +11,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
 
-  const { nombre, descripcion, fechaInicio, fechaFin, estado } = await req.json()
+  const { nombre, descripcion, fechaInicio, fechaFin, estado, tipoEvento, venueId, tieneSocio, nombreSocio } = await req.json()
 
   const evento = await prisma.evento.update({
     where: { id: params.id },
@@ -21,8 +21,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       ...(fechaInicio !== undefined && { fechaInicio: new Date(fechaInicio) }),
       ...(fechaFin    !== undefined && { fechaFin:    new Date(fechaFin) }),
       ...(estado      !== undefined && { estado }),
+      ...(tipoEvento  !== undefined && { tipoEvento: tipoEvento || null }),
+      ...(venueId     !== undefined && { venueId: venueId || null }),
+      ...(tieneSocio  !== undefined && { tieneSocio }),
+      ...(nombreSocio !== undefined && { nombreSocio: tieneSocio ? (nombreSocio || null) : null }),
     },
-    include: { _count: { select: { asignaciones: true } } },
+    include: { _count: { select: { asignaciones: true } }, venue: true },
   })
 
   return NextResponse.json(evento)
