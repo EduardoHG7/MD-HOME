@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { formatDate } from '@/lib/utils'
 
 interface Venue  { id: string; nombre: string; direccion: string | null }
@@ -154,6 +155,7 @@ function EventoForm({ values, venues, onChange, showEstado = false }: {
 
 // ── Página principal ──
 export default function EventosPage() {
+  const router = useRouter()
   const [eventos,  setEventos]  = useState<Evento[]>([])
   const [venues,   setVenues]   = useState<Venue[]>([])
   const [showForm, setShowForm] = useState(false)
@@ -271,6 +273,9 @@ export default function EventosPage() {
                 <p className="text-2xl font-bold text-gray-900">{ev._count.asignaciones}</p>
                 <p className="text-gray-400 text-xs">aplicante(s)</p>
               </div>
+              <button onClick={() => router.push(`/admin/eventos/${ev.id}/presupuesto`)}
+                className="p-2 rounded-xl border border-amber-200 hover:border-amber-400 hover:bg-amber-50 transition-all text-amber-600 text-xs font-medium px-3"
+                title="Ver presupuesto">💰 Presupuesto</button>
               <button onClick={() => openEdit(ev)}
                 className="p-2 rounded-xl border border-gray-200 hover:border-gray-400 hover:bg-gray-50 transition-all text-gray-500"
                 title="Editar evento">✏️</button>

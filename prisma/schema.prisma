@@ -64,9 +64,90 @@ model Evento {
   solicitudes  Solicitud[]
   asignaciones AsignacionAplicante[]
   facturas     Factura[]
-  venue        Venue?   @relation(fields: [venueId], references: [id])
+  venue        Venue?        @relation(fields: [venueId], references: [id])
+  presupuesto  Presupuesto?
 
   @@map("eventos")
+}
+
+model Presupuesto {
+  id              String   @id @default(cuid())
+  eventoId        String   @unique
+  artista         String?
+  pais            String?
+  ciudad          String?
+  promotor        String?
+  moneda          String   @default("USD")
+  exchangeRate    Float    @default(1)
+  numShows        Int      @default(1)
+  artistGuarantee Float    @default(0)
+  updatedAt       DateTime @updatedAt
+  createdAt       DateTime @default(now())
+
+  evento       Evento                @relation(fields: [eventoId], references: [id])
+  categorias   PresupuestoCategoria[]
+  ticketZonas  TicketZona[]
+  patrocinios  Patrocinio[]
+
+  @@map("presupuestos")
+}
+
+model PresupuestoCategoria {
+  id             String   @id @default(cuid())
+  presupuestoId  String
+  nombre         String
+  orden          Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  presupuesto Presupuesto        @relation(fields: [presupuestoId], references: [id], onDelete: Cascade)
+  lineas      PresupuestoLinea[]
+
+  @@map("presupuesto_categorias")
+}
+
+model PresupuestoLinea {
+  id          String   @id @default(cuid())
+  categoriaId String
+  descripcion String
+  nota        String?
+  montoLocal  Float    @default(0)
+  montoUsd    Float    @default(0)
+  orden       Int      @default(0)
+  confianza   String?  // HIGH | LOW (marcado por IA)
+
+  categoria PresupuestoCategoria @relation(fields: [categoriaId], references: [id], onDelete: Cascade)
+
+  @@map("presupuesto_lineas")
+}
+
+model TicketZona {
+  id             String   @id @default(cuid())
+  presupuestoId  String
+  scaling        String?
+  zona           String
+  capacity       Int      @default(0)
+  killsBlocks    Int      @default(0)
+  comps          Int      @default(0)
+  ticketPriceLocal Float  @default(0)
+  ticketPriceUsd   Float  @default(0)
+  orden          Int      @default(0)
+
+  presupuesto Presupuesto @relation(fields: [presupuestoId], references: [id], onDelete: Cascade)
+
+  @@map("ticket_zonas")
+}
+
+model Patrocinio {
+  id            String   @id @default(cuid())
+  presupuestoId String
+  nombre        String
+  montoLocal    Float    @default(0)
+  montoUsd      Float    @default(0)
+  notas         String?
+
+  presupuesto Presupuesto @relation(fields: [presupuestoId], references: [id], onDelete: Cascade)
+
+  @@map("patrocinios")
 }
 
 // EstadoSolicitud: PENDIENTE | APROBADA | RECHAZADA
