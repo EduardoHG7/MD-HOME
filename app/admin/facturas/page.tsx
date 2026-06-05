@@ -21,6 +21,7 @@ interface Extracted {
 interface Factura extends Extracted {
   id:          string
   responsable: string
+  tipoPago:    string | null
   createdAt:   string
   evento:      Evento | null
 }
@@ -48,6 +49,7 @@ export default function FacturasPage() {
   // Filtros para la vista guardadas
   const [filtroEvento,      setFiltroEvento]      = useState('')
   const [filtroResponsable, setFiltroResponsable] = useState('')
+  const [filtroTipo,        setFiltroTipo]        = useState('')
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -148,7 +150,8 @@ export default function FacturasPage() {
   const facturasFiltradas = facturas.filter(f => {
     const matchEvento      = !filtroEvento      || f.evento?.id === filtroEvento
     const matchResponsable = !filtroResponsable || f.responsable === filtroResponsable
-    return matchEvento && matchResponsable
+    const matchTipo        = !filtroTipo        || f.tipoPago === filtroTipo
+    return matchEvento && matchResponsable && matchTipo
   })
 
   // Responsables únicos para el filtro
@@ -190,7 +193,7 @@ export default function FacturasPage() {
 
           {/* Filtros */}
           <div className="card p-4">
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-4 gap-4">
               <div>
                 <label className="label">Filtrar por Evento</label>
                 <select className="input" value={filtroEvento} onChange={e => setFiltroEvento(e.target.value)}>
@@ -203,6 +206,14 @@ export default function FacturasPage() {
                 <select className="input" value={filtroResponsable} onChange={e => setFiltroResponsable(e.target.value)}>
                   <option value="">Todos los usuarios</option>
                   {responsablesUnicos.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="label">Filtrar por Tipo</label>
+                <select className="input" value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)}>
+                  <option value="">Todos los tipos</option>
+                  <option value="CAJA_MENUDA">🏦 Caja Menuda</option>
+                  <option value="REEMBOLSO">↩ Reembolso</option>
                 </select>
               </div>
               <div className="flex items-end">
@@ -254,6 +265,7 @@ export default function FacturasPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
+                    <th className="px-4 py-3 text-left">Tipo</th>
                     <th className="px-4 py-3 text-left">Evento</th>
                     <th className="px-4 py-3 text-left">Usuario</th>
                     <th className="px-4 py-3 text-left">N° Factura</th>
@@ -272,6 +284,11 @@ export default function FacturasPage() {
                 <tbody className="divide-y divide-gray-100">
                   {facturasFiltradas.map(f => (
                     <tr key={f.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3">
+                        {f.tipoPago === 'CAJA_MENUDA' && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium whitespace-nowrap">🏦 Caja Menuda</span>}
+                        {f.tipoPago === 'REEMBOLSO'   && <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium whitespace-nowrap">↩ Reembolso</span>}
+                        {!f.tipoPago && <span className="text-gray-300 text-xs">—</span>}
+                      </td>
                       <td className="px-4 py-3">
                         {f.evento
                           ? <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded-lg text-xs font-medium">{f.evento.nombre}</span>

@@ -91,6 +91,7 @@ model Factura {
   itbms         Float    @default(0)
   total         Float    @default(0)
   archivoNombre String?
+  tipoPago      String?  // CAJA_MENUDA | REEMBOLSO
   createdAt     DateTime @default(now())
 
   evento    Evento? @relation(fields: [eventoId], references: [id])

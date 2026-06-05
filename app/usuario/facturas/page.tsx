@@ -21,6 +21,7 @@ interface Extracted {
 interface Factura extends Extracted {
   id:        string
   responsable: string
+  tipoPago:  string | null
   createdAt: string
   evento:    Evento | null
 }
@@ -40,6 +41,7 @@ export default function UsuarioFacturasPage() {
   const [extracted,   setExtracted]   = useState<Extracted[]>([])
   const [eventoId,    setEventoId]    = useState('')
   const [responsable, setResponsable] = useState('')
+  const [tipoPago,    setTipoPago]    = useState<'CAJA_MENUDA' | 'REEMBOLSO' | ''>('')
 
   // Auto-llenar responsable con el nombre del usuario logueado
   useEffect(() => {
@@ -106,11 +108,14 @@ export default function UsuarioFacturasPage() {
     if (!extracted.length || !responsable.trim()) {
       alert('Completa el campo Responsable'); return
     }
+    if (!tipoPago) {
+      alert('Selecciona el tipo de pago (Caja Menuda o Reembolso)'); return
+    }
     setSaving(true)
     const res = await fetch('/api/facturas', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ eventoId: eventoId || null, responsable, items: extracted }),
+      body: JSON.stringify({ eventoId: eventoId || null, responsable, tipoPago, items: extracted }),
     })
     if (res.ok) {
       setExtracted([]); setQueue([]); loadFacturas(); setTab('mis')
@@ -182,7 +187,7 @@ export default function UsuarioFacturasPage() {
         <div className="space-y-5">
           {/* Contexto */}
           <div className="card p-5">
-            <h3 className="font-semibold text-gray-900 mb-4">Información</h3>
+            <h3 className="font-semibold text-gray-900 mb-4">Contexto de las facturas</h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="label">Responsable *</label>
@@ -195,6 +200,27 @@ export default function UsuarioFacturasPage() {
                   <option value="">Sin evento específico</option>
                   {eventos.map(ev => <option key={ev.id} value={ev.id}>{ev.nombre}</option>)}
                 </select>
+              </div>
+            </div>
+            {/* Tipo de pago */}
+            <div className="mt-4">
+              <label className="label">Tipo de pago *</label>
+              <div className="grid grid-cols-2 gap-3 mt-1">
+                {([
+                  { value: 'CAJA_MENUDA', label: '🏦 Caja Menuda',  desc: 'Pagos directos desde caja' },
+                  { value: 'REEMBOLSO',   label: '↩ Reembolso',     desc: 'Gastos a reembolsar al empleado' },
+                ] as const).map(op => (
+                  <button key={op.value} type="button"
+                    onClick={() => setTipoPago(op.value)}
+                    className={`p-3 rounded-xl border-2 text-left transition-all ${
+                      tipoPago === op.value
+                        ? 'border-gray-900 bg-gray-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}>
+                    <p className="font-semibold text-gray-900 text-sm">{op.label}</p>
+                    <p className="text-gray-400 text-xs mt-0.5">{op.desc}</p>
+                  </button>
+                ))}
               </div>
             </div>
           </div>
@@ -288,6 +314,7 @@ export default function UsuarioFacturasPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
+                      <th className="px-4 py-3 text-left">Tipo</th>
                       <th className="px-4 py-3 text-left">Evento</th>
                       <th className="px-4 py-3 text-left">N° Factura</th>
                       <th className="px-4 py-3 text-left">Proveedor</th>
@@ -302,6 +329,11 @@ export default function UsuarioFacturasPage() {
                   <tbody className="divide-y divide-gray-100">
                     {facturas.map(f => (
                       <tr key={f.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3">
+                          {f.tipoPago === 'CAJA_MENUDA' && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">Caja Menuda</span>}
+                          {f.tipoPago === 'REEMBOLSO'   && <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">Reembolso</span>}
+                          {!f.tipoPago && <span className="text-gray-400 text-xs">—</span>}
+                        </td>
                         <td className="px-4 py-3 text-gray-500">{f.evento?.nombre ?? '—'}</td>
                         <td className="px-4 py-3 font-medium">{f.numeroFactura ?? '—'}</td>
                         <td className="px-4 py-3">{f.proveedor ?? '—'}</td>

@@ -24,7 +24,7 @@ export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const { eventoId, responsable, items } = await req.json()
+  const { eventoId, responsable, tipoPago, items } = await req.json()
 
   if (!items?.length) {
     return NextResponse.json({ error: 'No hay facturas para guardar' }, { status: 400 })
@@ -45,6 +45,7 @@ export async function POST(req: Request) {
       itbms:         Number(item.itbms)    || 0,
       total:         Number(item.total)    || 0,
       archivoNombre: item.archivoNombre as string || null,
+      tipoPago:      tipoPago || null,
     })),
   })
 
