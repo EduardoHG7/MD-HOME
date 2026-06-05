@@ -52,29 +52,31 @@ export async function PUT(req: Request, { params }: { params: { eventoId: string
     update: { artista, pais, ciudad, promotor, moneda, exchangeRate, numShows, artistGuarantee },
   })
 
-  // Reemplazar categorías y líneas
+  // Reemplazar categorías y líneas (dentro de transacción para evitar pérdida parcial)
   if (categorias !== undefined) {
-    await prisma.presupuestoCategoria.deleteMany({ where: { presupuestoId: presupuesto.id } })
-    for (let i = 0; i < categorias.length; i++) {
-      const cat = categorias[i]
-      const created = await prisma.presupuestoCategoria.create({
-        data: { presupuestoId: presupuesto.id, nombre: cat.nombre, orden: i },
-      })
-      if (cat.lineas?.length) {
-        await prisma.presupuestoLinea.createMany({
-          data: cat.lineas.map((l: { descripcion: string; nota?: string; montoLocal: number; montoUsd: number; confianza?: string; asignadoAId?: string }, j: number) => ({
-            categoriaId: created.id,
-            descripcion: l.descripcion,
-            nota:        l.nota        ?? null,
-            montoLocal:  l.montoLocal  ?? 0,
-            montoUsd:    l.montoUsd    ?? 0,
-            confianza:   l.confianza   ?? null,
-            asignadoAId: l.asignadoAId ?? null,
-            orden: j,
-          })),
+    await prisma.$transaction(async (tx) => {
+      await tx.presupuestoCategoria.deleteMany({ where: { presupuestoId: presupuesto.id } })
+      for (let i = 0; i < categorias.length; i++) {
+        const cat = categorias[i]
+        const created = await tx.presupuestoCategoria.create({
+          data: { presupuestoId: presupuesto.id, nombre: cat.nombre, orden: i },
         })
+        if (cat.lineas?.length) {
+          await tx.presupuestoLinea.createMany({
+            data: cat.lineas.map((l: { descripcion: string; nota?: string; montoLocal: number; montoUsd: number; confianza?: string; asignadoAId?: string }, j: number) => ({
+              categoriaId: created.id,
+              descripcion: l.descripcion,
+              nota:        l.nota   || null,
+              montoLocal:  l.montoLocal  ?? 0,
+              montoUsd:    l.montoUsd    ?? 0,
+              confianza:   l.confianza   || null,
+              asignadoAId: l.asignadoAId || null,  // fix: || null para convertir '' a null
+              orden: j,
+            })),
+          })
+        }
       }
-    }
+    })
   }
 
   // Reemplazar ticket zonas
@@ -178,5 +180,6 @@ export async function PUT(req: Request, { params }: { params: { eventoId: string
 
   return NextResponse.json(result)
 }
+
 
 
