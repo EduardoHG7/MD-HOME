@@ -68,7 +68,7 @@ export default function SolicitarPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [reenvioId,  setReenvioId]  = useState<string | null>(null)
 
-  const [form, setForm] = useState({ eventoId: '', numPersonas: 1, funcion: '', funcionCustom: '', fechaInicioLabor: '', fechaFinLabor: '' })
+  const [form, setForm] = useState({ eventoId: '', numPersonas: 1, funcion: '', funcionCustom: '', fechaInicioLabor: '', fechaFinLabor: '', presupuesto: '' })
 
   useEffect(() => {
     Promise.all([
@@ -198,12 +198,13 @@ export default function SolicitarPage() {
           eventoId: form.eventoId, numPersonas: form.numPersonas, funcion,
           fechaInicioLabor: form.fechaInicioLabor,
           fechaFinLabor:    form.fechaFinLabor,
+          presupuesto:      form.presupuesto || null,
         }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Error al enviar.'); return }
       setSolicitudes(prev => [{ ...data, asignaciones: [] }, ...prev])
-      setSuccess(true); setForm({ eventoId: '', numPersonas: 1, funcion: '', funcionCustom: '', fechaInicioLabor: '', fechaFinLabor: '' }); setShowForm(false)
+      setSuccess(true); setForm({ eventoId: '', numPersonas: 1, funcion: '', funcionCustom: '', fechaInicioLabor: '', fechaFinLabor: '', presupuesto: '' }); setShowForm(false)
       setTimeout(() => setSuccess(false), 4000)
     } catch { setError('Error de conexión.') }
     finally { setLoading(false) }
@@ -296,6 +297,14 @@ export default function SolicitarPage() {
                 </strong> día(s) · {form.numPersonas} persona(s)
               </div>
             )}
+            <div>
+              <label className="label">Presupuesto disponible (opcional) $</label>
+              <input type="number" step="0.01" min="0" className="input"
+                placeholder="Ej: 5000.00"
+                value={form.presupuesto}
+                onChange={e => setForm(f => ({ ...f, presupuesto: e.target.value }))} />
+              <p className="text-gray-400 text-xs mt-1">El admin verá la ganancia estimada contra este presupuesto.</p>
+            </div>
             <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700">
               💡 El administrador asignará la tarifa al revisar tu solicitud.
             </div>

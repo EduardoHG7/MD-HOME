@@ -27,17 +27,21 @@ export default async function AdminDashboard() {
   const pendientes = solicitudes.filter(s => s.estado === 'PENDIENTE').length
   const aprobadas  = solicitudes.filter(s => s.estado === 'APROBADA').length
 
-  const costoTotal = solicitudes
-    .filter(s => s.estado === 'APROBADA')
-    .reduce((acc, s) => {
-      if (s.costoTotal != null) return acc + s.costoTotal
-      if (s.tarifa && s.evento) {
-        const ms   = new Date(s.evento.fechaFin).getTime() - new Date(s.evento.fechaInicio).getTime()
-        const dias = Math.max(1, Math.ceil(ms / (1000 * 60 * 60 * 24)) + 1)
-        return acc + s.tarifa.precioPorDia * s.numPersonas * dias
-      }
-      return acc
-    }, 0)
+  const aprobadas_sol = solicitudes.filter(s => s.estado === 'APROBADA')
+
+  const costoTotal = aprobadas_sol.reduce((acc, s) => {
+    if (s.costoTotal != null) return acc + s.costoTotal
+    if (s.tarifa && s.evento) {
+      const ms   = new Date(s.evento.fechaFin).getTime() - new Date(s.evento.fechaInicio).getTime()
+      const dias = Math.max(1, Math.ceil(ms / (1000 * 60 * 60 * 24)) + 1)
+      return acc + s.tarifa.precioPorDia * s.numPersonas * dias
+    }
+    return acc
+  }, 0)
+
+  const presupuestoTotal = aprobadas_sol.reduce((acc, s) => acc + (s.presupuesto ?? 0), 0)
+  const gananciaTotal    = presupuestoTotal - costoTotal
+  const hayPresupuesto   = aprobadas_sol.some(s => s.presupuesto != null)
 
   const stats = [
     { label: 'Solicitudes Pendientes', value: pendientes, icon: '⏳', border: 'border-l-yellow-400', text: 'text-yellow-600' },
@@ -88,11 +92,32 @@ export default async function AdminDashboard() {
         ))}
       </div>
 
-      {/* Cost summary */}
-      <div className="card-gold p-6">
-        <p className="text-gray-500 text-sm mb-1">Costo total aprobado acumulado</p>
-        <p className="text-4xl font-bold text-amber-600">{formatCurrency(costoTotal)}</p>
-        <p className="text-gray-400 text-xs mt-2">Suma de solicitudes aprobadas (estimado desde tarifa si no tiene costo fijo)</p>
+      {/* Cost + ganancia */}
+      <div className={`grid gap-4 ${hayPresupuesto ? 'grid-cols-3' : 'grid-cols-1'}`}>
+        <div className="card-gold p-6">
+          <p className="text-gray-500 text-sm mb-1">Costo total aprobado</p>
+          <p className="text-4xl font-bold text-amber-600">{formatCurrency(costoTotal)}</p>
+          <p className="text-gray-400 text-xs mt-2">Estimado desde tarifa si no tiene costo fijo</p>
+        </div>
+        {hayPresupuesto && (
+          <>
+            <div className="card p-6 border-l-4 border-l-blue-400">
+              <p className="text-gray-500 text-sm mb-1">Presupuesto total clientes</p>
+              <p className="text-4xl font-bold text-blue-600">{formatCurrency(presupuestoTotal)}</p>
+              <p className="text-gray-400 text-xs mt-2">Suma de presupuestos de solicitudes aprobadas</p>
+            </div>
+            <div className={`card p-6 border-l-4 ${gananciaTotal >= 0 ? 'border-l-green-400' : 'border-l-red-400'}`}>
+              <p className="text-gray-500 text-sm mb-1">{gananciaTotal >= 0 ? '✅ Ganancia estimada' : '❌ Pérdida estimada'}</p>
+              <p className={`text-4xl font-bold ${gananciaTotal >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {gananciaTotal >= 0 ? '+' : ''}{formatCurrency(gananciaTotal)}
+              </p>
+              <p className="text-gray-400 text-xs mt-2">
+                Presupuesto − Costo
+                {presupuestoTotal > 0 && ` · ${Math.round((gananciaTotal / presupuestoTotal) * 100)}% margen`}
+              </p>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Personal por evento + Calendario */}

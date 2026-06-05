@@ -17,6 +17,7 @@ interface Solicitud {
   numPersonas: number
   funcion: string
   estado: string
+  presupuesto: number | null
   costoTotal: number | null
   notaAdmin: string | null
   createdAt: string
@@ -154,7 +155,17 @@ export default function SolicitudesAdminPage() {
               <p className="text-gray-500 text-xs">{s.funcion} · {s.numPersonas} persona(s)</p>
               <p className="text-gray-400 text-xs mt-1">Por: {s.solicitante.name ?? s.solicitante.email}</p>
               <p className="text-gray-400 text-xs">{formatDate(s.createdAt)}</p>
-              {s.costoTotal && <p className="text-amber-600 text-xs mt-1 font-semibold">Costo: {formatCurrency(s.costoTotal)}</p>}
+              {s.presupuesto != null && <p className="text-blue-500 text-xs mt-1">Presupuesto: {formatCurrency(s.presupuesto)}</p>}
+              {s.costoTotal  != null && (
+                <div className="flex items-center gap-2 mt-1">
+                  <p className="text-amber-600 text-xs font-semibold">Costo: {formatCurrency(s.costoTotal)}</p>
+                  {s.presupuesto != null && (
+                    <span className={`text-xs font-semibold ${s.presupuesto - s.costoTotal >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                      ({s.presupuesto - s.costoTotal >= 0 ? '+' : ''}{formatCurrency(s.presupuesto - s.costoTotal)})
+                    </span>
+                  )}
+                </div>
+              )}
             </button>
           ))}
         </div>
@@ -178,6 +189,9 @@ export default function SolicitudesAdminPage() {
                   label="Fechas de labor"
                   value={`${formatDate(selected.fechaInicioLabor)} – ${formatDate(selected.fechaFinLabor)} (${getDiasLabor(selected)} día(s))`}
                 />
+              )}
+              {selected.presupuesto != null && (
+                <Row label="Presupuesto cliente" value={formatCurrency(selected.presupuesto)} />
               )}
             </div>
 
@@ -233,6 +247,36 @@ export default function SolicitudesAdminPage() {
                     value={nota} onChange={e => setNota(e.target.value)}
                   />
                 </div>
+
+                {/* Ganancia estimada */}
+                {selected.presupuesto != null && costo && !isNaN(parseFloat(costo)) && (
+                  (() => {
+                    const costoNum  = parseFloat(costo)
+                    const ganancia  = selected.presupuesto - costoNum
+                    const pct       = selected.presupuesto > 0 ? Math.round((ganancia / selected.presupuesto) * 100) : 0
+                    const positivo  = ganancia >= 0
+                    return (
+                      <div className={`rounded-xl px-4 py-3 border ${positivo ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <p className={`text-xs font-semibold ${positivo ? 'text-green-700' : 'text-red-700'}`}>
+                              {positivo ? '✅ Ganancia estimada' : '❌ Pérdida estimada'}
+                            </p>
+                            <p className="text-gray-500 text-xs mt-0.5">
+                              Presupuesto {formatCurrency(selected.presupuesto)} − Costo {formatCurrency(costoNum)}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className={`text-xl font-bold ${positivo ? 'text-green-600' : 'text-red-600'}`}>
+                              {positivo ? '+' : ''}{formatCurrency(ganancia)}
+                            </p>
+                            <p className={`text-xs ${positivo ? 'text-green-500' : 'text-red-500'}`}>{pct}% margen</p>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })()
+                )}
 
                 <div className="flex gap-3">
                   <button onClick={() => handleDecision('RECHAZADA')} disabled={loading}

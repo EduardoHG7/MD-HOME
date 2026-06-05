@@ -35,7 +35,7 @@ export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const { eventoId, numPersonas, funcion, fechaInicioLabor, fechaFinLabor } = await req.json()
+  const { eventoId, numPersonas, funcion, fechaInicioLabor, fechaFinLabor, presupuesto } = await req.json()
 
   if (!eventoId || !numPersonas || !funcion || !fechaInicioLabor || !fechaFinLabor) {
     return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
@@ -49,6 +49,7 @@ export async function POST(req: Request) {
       funcion,
       fechaInicioLabor: new Date(fechaInicioLabor),
       fechaFinLabor:    new Date(fechaFinLabor),
+      presupuesto:      presupuesto ? parseFloat(presupuesto) : null,
     },
     include: { evento: true, tarifa: true },
   })

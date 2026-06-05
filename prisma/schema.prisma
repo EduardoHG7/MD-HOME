@@ -177,6 +177,7 @@ model Solicitud {
   estado        String   @default("PENDIENTE")
   fechaInicioLabor DateTime?
   fechaFinLabor    DateTime?
+  presupuesto   Float?
   costoTotal    Float?
   notaAdmin     String?
   createdAt     DateTime @default(now())
