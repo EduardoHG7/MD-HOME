@@ -148,9 +148,22 @@ export async function POST(req: Request) {
   const text   = result.content?.[0]?.text ?? ''
 
   try {
-    const parsed = JSON.parse(text)
+    // Extraer JSON aunque venga envuelto en backticks de markdown
+    const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/)
+    const jsonStr   = jsonMatch ? jsonMatch[1].trim() : text.trim()
+    const parsed    = JSON.parse(jsonStr)
     return NextResponse.json(parsed)
   } catch {
+    // Intento secundario: buscar el primer { hasta el último }
+    try {
+      const start = text.indexOf('{')
+      const end   = text.lastIndexOf('}')
+      if (start !== -1 && end !== -1) {
+        const parsed = JSON.parse(text.slice(start, end + 1))
+        return NextResponse.json(parsed)
+      }
+    } catch { /* continúa al error */ }
     return NextResponse.json({ error: 'Claude no devolvió JSON válido', raw: text }, { status: 422 })
   }
 }
+
