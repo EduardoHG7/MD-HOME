@@ -19,11 +19,140 @@ const TIPOS_EVENTO = [
   { value: 'COPRODUCCION', label: 'Co-producción con socio' },
 ]
 
+const TIPO_LABELS: Record<string, string> = {
+  PROPIO:       'Propio',
+  CONTRATADO:   'Contratado',
+  COPRODUCCION: 'Co-producción',
+}
+
+const ESTADO_STYLES: Record<string, string> = {
+  ACTIVO:     'bg-green-100 text-green-700',
+  COMPLETADO: 'bg-gray-100 text-gray-600',
+  CANCELADO:  'bg-red-100 text-red-600',
+}
+
 function toInputDate(iso: string) { return iso.split('T')[0] }
 
-type FormState = { nombre: string; descripcion: string; fechaInicio: string; fechaFin: string; tipoEvento: string; venueId: string; tieneSocio: boolean; nombreSocio: string }
-const emptyForm: FormState = { nombre: '', descripcion: '', fechaInicio: '', fechaFin: '', tipoEvento: '', venueId: '', tieneSocio: false, nombreSocio: '' }
+type FormState = {
+  nombre: string; descripcion: string; fechaInicio: string; fechaFin: string
+  tipoEvento: string; venueId: string; tieneSocio: boolean; nombreSocio: string
+  estado?: string
+}
 
+const emptyForm: FormState = {
+  nombre: '', descripcion: '', fechaInicio: '', fechaFin: '',
+  tipoEvento: '', venueId: '', tieneSocio: false, nombreSocio: '',
+}
+
+// ── Componente fuera del padre para evitar re-mount en cada keystroke ──
+function EventoForm({ values, venues, onChange, showEstado = false }: {
+  values: FormState
+  venues: Venue[]
+  onChange: (v: Partial<FormState>) => void
+  showEstado?: boolean
+}) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <label className="label">Nombre del evento *</label>
+        <input className="input" required value={values.nombre}
+          onChange={e => onChange({ nombre: e.target.value })} />
+      </div>
+      <div>
+        <label className="label">Descripción (opcional)</label>
+        <input className="input" placeholder="Descripción breve..."
+          value={values.descripcion} onChange={e => onChange({ descripcion: e.target.value })} />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="label">Fecha de inicio *</label>
+          <input type="date" className="input" required value={values.fechaInicio}
+            onChange={e => onChange({ fechaInicio: e.target.value })} />
+        </div>
+        <div>
+          <label className="label">Fecha de fin *</label>
+          <input type="date" className="input" required value={values.fechaFin}
+            onChange={e => onChange({ fechaFin: e.target.value })} />
+        </div>
+      </div>
+
+      {/* Tipo de evento */}
+      <div>
+        <label className="label">Tipo de evento</label>
+        <div className="grid grid-cols-3 gap-2">
+          {TIPOS_EVENTO.map(t => (
+            <button key={t.value} type="button"
+              onClick={() => onChange({ tipoEvento: t.value })}
+              className={`p-2.5 rounded-xl border-2 text-xs font-medium text-center transition-all ${
+                values.tipoEvento === t.value
+                  ? 'border-gray-900 bg-gray-50 text-gray-900'
+                  : 'border-gray-200 text-gray-500 hover:border-gray-300'
+              }`}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Venue */}
+      <div>
+        <label className="label">Venue</label>
+        <select className="input" value={values.venueId} onChange={e => onChange({ venueId: e.target.value })}>
+          <option value="">Sin venue asignado</option>
+          {venues.map(v => (
+            <option key={v.id} value={v.id}>
+              {v.nombre}{v.direccion ? ` — ${v.direccion}` : ''}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Socio externo */}
+      <div>
+        <label className="label">¿Tiene socio externo?</label>
+        <div className="flex gap-3">
+          {[{ val: true, label: '✅ Sí' }, { val: false, label: '❌ No' }].map(op => (
+            <button key={String(op.val)} type="button"
+              onClick={() => onChange({ tieneSocio: op.val, ...(!op.val && { nombreSocio: '' }) })}
+              className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
+                values.tieneSocio === op.val
+                  ? 'border-gray-900 bg-gray-50 text-gray-900'
+                  : 'border-gray-200 text-gray-500 hover:border-gray-300'
+              }`}>
+              {op.label}
+            </button>
+          ))}
+        </div>
+        {values.tieneSocio && (
+          <input className="input mt-2" placeholder="Nombre del socio externo..."
+            value={values.nombreSocio} onChange={e => onChange({ nombreSocio: e.target.value })} />
+        )}
+      </div>
+
+      {/* Estado (solo en edición) */}
+      {showEstado && (
+        <div>
+          <label className="label">Estado</label>
+          <div className="flex gap-2">
+            {['ACTIVO', 'COMPLETADO', 'CANCELADO'].map(op => (
+              <button key={op} type="button"
+                onClick={() => onChange({ estado: op })}
+                className={`flex-1 py-2 rounded-xl border-2 text-xs font-semibold transition-all ${
+                  values.estado === op
+                    ? 'border-gray-900 bg-gray-50 text-gray-900'
+                    : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                }`}>
+                {op}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Página principal ──
 export default function EventosPage() {
   const [eventos,  setEventos]  = useState<Evento[]>([])
   const [venues,   setVenues]   = useState<Venue[]>([])
@@ -31,9 +160,7 @@ export default function EventosPage() {
   const [editing,  setEditing]  = useState<Evento | null>(null)
   const [loading,  setLoading]  = useState(false)
   const [form,     setForm]     = useState<FormState>(emptyForm)
-  const [editForm, setEditForm] = useState<FormState & { estado: string }>(
-    { ...emptyForm, estado: '' }
-  )
+  const [editForm, setEditForm] = useState<FormState>({ ...emptyForm, estado: '' })
 
   useEffect(() => {
     fetch('/api/eventos').then(r => r.json()).then(setEventos)
@@ -87,114 +214,6 @@ export default function EventosPage() {
     setLoading(false)
   }
 
-  const ESTADO_STYLES: Record<string, string> = {
-    ACTIVO:     'bg-green-100 text-green-700',
-    COMPLETADO: 'bg-gray-100 text-gray-600',
-    CANCELADO:  'bg-red-100 text-red-600',
-  }
-  const TIPO_LABELS: Record<string, string> = {
-    PROPIO:       'Propio',
-    CONTRATADO:   'Contratado',
-    COPRODUCCION: 'Co-producción',
-  }
-
-  function EventoForm({ values, onChange, showEstado = false }: {
-    values: FormState & { estado?: string }
-    onChange: (v: Partial<FormState & { estado: string }>) => void
-    showEstado?: boolean
-  }) {
-    return (
-      <div className="space-y-4">
-        <div>
-          <label className="label">Nombre del evento *</label>
-          <input className="input" required value={values.nombre}
-            onChange={e => onChange({ nombre: e.target.value })} />
-        </div>
-        <div>
-          <label className="label">Descripción (opcional)</label>
-          <input className="input" placeholder="Descripción breve..."
-            value={values.descripcion} onChange={e => onChange({ descripcion: e.target.value })} />
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="label">Fecha de inicio *</label>
-            <input type="date" className="input" required value={values.fechaInicio}
-              onChange={e => onChange({ fechaInicio: e.target.value })} />
-          </div>
-          <div>
-            <label className="label">Fecha de fin *</label>
-            <input type="date" className="input" required value={values.fechaFin}
-              onChange={e => onChange({ fechaFin: e.target.value })} />
-          </div>
-        </div>
-        {/* Tipo de evento */}
-        <div>
-          <label className="label">Tipo de evento</label>
-          <div className="grid grid-cols-3 gap-2">
-            {TIPOS_EVENTO.map(t => (
-              <button key={t.value} type="button"
-                onClick={() => onChange({ tipoEvento: t.value })}
-                className={`p-2.5 rounded-xl border-2 text-xs font-medium text-center transition-all ${
-                  values.tipoEvento === t.value
-                    ? 'border-gray-900 bg-gray-50 text-gray-900'
-                    : 'border-gray-200 text-gray-500 hover:border-gray-300'
-                }`}>
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        {/* Venue */}
-        <div>
-          <label className="label">Venue</label>
-          <select className="input" value={values.venueId} onChange={e => onChange({ venueId: e.target.value })}>
-            <option value="">Sin venue asignado</option>
-            {venues.map(v => <option key={v.id} value={v.id}>{v.nombre}{v.direccion ? ` — ${v.direccion}` : ''}</option>)}
-          </select>
-        </div>
-        {/* Socio externo */}
-        <div>
-          <label className="label">¿Tiene socio externo?</label>
-          <div className="flex gap-3">
-            {[{ val: true, label: '✅ Sí' }, { val: false, label: '❌ No' }].map(op => (
-              <button key={String(op.val)} type="button"
-                onClick={() => onChange({ tieneSocio: op.val, ...(!op.val && { nombreSocio: '' }) })}
-                className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
-                  values.tieneSocio === op.val
-                    ? 'border-gray-900 bg-gray-50 text-gray-900'
-                    : 'border-gray-200 text-gray-500 hover:border-gray-300'
-                }`}>
-                {op.label}
-              </button>
-            ))}
-          </div>
-          {values.tieneSocio && (
-            <input className="input mt-2" placeholder="Nombre del socio externo..."
-              value={values.nombreSocio} onChange={e => onChange({ nombreSocio: e.target.value })} />
-          )}
-        </div>
-        {showEstado && (
-          <div>
-            <label className="label">Estado</label>
-            <div className="flex gap-2">
-              {['ACTIVO', 'COMPLETADO', 'CANCELADO'].map(op => (
-                <button key={op} type="button"
-                  onClick={() => onChange({ estado: op })}
-                  className={`flex-1 py-2 rounded-xl border-2 text-xs font-semibold transition-all ${
-                    values.estado === op
-                      ? 'border-gray-900 bg-gray-50 text-gray-900'
-                      : 'border-gray-200 text-gray-500 hover:border-gray-300'
-                  }`}>
-                  {op}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -207,11 +226,12 @@ export default function EventosPage() {
         </button>
       </div>
 
+      {/* Formulario crear */}
       {showForm && (
         <div className="card p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Crear Evento</h2>
           <form onSubmit={handleCreate} className="space-y-4">
-            <EventoForm values={form} onChange={v => setForm(f => ({ ...f, ...v }))} />
+            <EventoForm values={form} venues={venues} onChange={v => setForm(f => ({ ...f, ...v }))} />
             <button type="submit" disabled={loading} className="btn-primary">
               {loading ? 'Creando...' : 'Crear Evento'}
             </button>
@@ -219,6 +239,7 @@ export default function EventosPage() {
         </div>
       )}
 
+      {/* Lista */}
       <div className="space-y-3">
         {eventos.map(ev => (
           <div key={ev.id} className="card p-5 flex items-center justify-between hover:shadow-md transition-shadow">
@@ -274,11 +295,7 @@ export default function EventosPage() {
               <button onClick={() => setEditing(null)} className="text-gray-400 hover:text-gray-700 text-xl">✕</button>
             </div>
             <form onSubmit={handleEdit} className="space-y-4">
-              <EventoForm
-                values={editForm}
-                onChange={v => setEditForm(f => ({ ...f, ...v }))}
-                showEstado
-              />
+              <EventoForm values={editForm} venues={venues} onChange={v => setEditForm(f => ({ ...f, ...v }))} showEstado />
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setEditing(null)} className="btn-ghost flex-1">Cancelar</button>
                 <button type="submit" disabled={loading} className="btn-primary flex-1">
