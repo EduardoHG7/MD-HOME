@@ -209,6 +209,7 @@ export default function PresupuestoPage() {
   const [patrocinadores, setPatrocinadores] = useState<Patrocinador[]>([])
   const [usuarios,    setUsuarios]    = useState<Usuario[]>([])
   const [loading,     setLoading]     = useState(true)
+  const [dataLoaded,  setDataLoaded]  = useState(false)
   const [tipoEvento,  setTipoEvento]  = useState<string | null>(null)
   const [saving,          setSaving]          = useState(false)
   const [extracting,      setExtracting]      = useState(false)
@@ -226,8 +227,8 @@ export default function PresupuestoPage() {
     const res = await fetch(`/api/presupuestos/${eventoId}`)
     if (res.ok) {
       const data = await res.json()
+      setDataLoaded(true) // marcar siempre que el GET fue exitoso
       if (data) {
-        setTipoEvento(data.evento?.tipoEvento ?? null)
         setHeader({ artista: data.artista ?? '', pais: data.pais ?? '', ciudad: data.ciudad ?? '', promotor: data.promotor ?? '', moneda: data.moneda ?? 'USD', exchangeRate: data.exchangeRate ?? 1, numShows: data.numShows ?? 1 })
         setArtistG(data.artistGuarantee ?? 0)
         setCategorias(data.categorias?.map((c: Categoria) => ({ ...c, lineas: (c.lineas ?? []).map((l: Linea) => ({ ...l, nota: l.nota ?? '', asignadoAId: l.asignadoAId ?? '' })) })) ?? [])
@@ -249,6 +250,14 @@ export default function PresupuestoPage() {
   }, [loadPresupuesto, eventoId])
 
   async function handleSave() {
+    if (!dataLoaded) {
+      alert('Espera a que los datos carguen antes de guardar.')
+      return
+    }
+    if (categorias.length === 0) {
+      const ok = window.confirm('No hay categorías de costos. ¿Seguro que quieres guardar sin categorías? Esto borrará los datos existentes.')
+      if (!ok) return
+    }
     setSaving(true)
     await fetch(`/api/presupuestos/${eventoId}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -784,4 +793,5 @@ function PatrociniosSection({ title, patrocinios, patrocinadores, onChange }: {
     </div>
   )
 }
+
 
