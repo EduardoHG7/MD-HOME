@@ -301,9 +301,13 @@ export default function PresupuestoPage() {
       const data = await resp.json()
       if (!resp.ok) { setExtractBolError(data.error ?? 'Error al procesar'); return }
       if (data.zonas?.length) {
-        setBoletosReal(data.zonas.map((z: { zona: string; vendidos: number; precio: number; match?: string; nota?: string }) => ({
-          zona: z.zona, vendidos: z.vendidos, precio: z.precio, match: z.match, nota: z.nota ?? undefined,
-        })))
+        setBoletosReal(
+          data.zonas
+            .filter((z: { precio: number }) => num(z.precio) > 0)
+            .map((z: { zona: string; vendidos: number; precio: number; match?: string; nota?: string }) => ({
+              zona: z.zona, vendidos: z.vendidos, precio: z.precio, match: z.match, nota: z.nota ?? undefined,
+            }))
+        )
       }
     } catch (e) { setExtractBolError(String(e)) }
     finally { setExtractingBol(false) }

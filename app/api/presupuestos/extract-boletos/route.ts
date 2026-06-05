@@ -30,6 +30,7 @@ ${zonasDesc || '(No hay zonas definidas en el presupuesto — detecta las que en
 
 Reglas:
 - Lee todos los boletos vendidos de la imagen
+- IGNORA completamente los boletos con precio $0 (cero) — no los incluyas en el resultado
 - Agrupa por precio: si hay varios registros con el mismo precio, SUMA los boletos vendidos y el monto total
 - Relaciona cada precio con la zona del presupuesto que tenga el mismo o más cercano precio
 - Si no hay zona en el presupuesto que coincida, crea una nueva entrada con el nombre del precio
