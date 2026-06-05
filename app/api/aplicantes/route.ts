@@ -16,7 +16,8 @@ export async function GET() {
     include: {
       asignaciones: {
         include: {
-          evento: true,
+          evento:    true,
+          solicitud: { include: { tarifa: true } },
           registros: { orderBy: { timestamp: 'asc' } },
         },
       },
