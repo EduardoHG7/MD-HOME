@@ -10,7 +10,7 @@ interface Cotizacion  { id: string; descripcion: string | null; estado: string; 
 interface Linea       { id?: string; descripcion: string; nota: string; montoLocal: number; montoUsd: number; confianza?: string; asignadoAId?: string; asignadoA?: { id: string; name: string | null; email: string } | null; cotizaciones?: Cotizacion[] }
 interface Categoria   { id?: string; nombre: string; lineas: Linea[] }
 interface TicketZona  { id?: string; scaling: string; zona: string; capacity: number; killsBlocks: number; comps: number; ticketPriceLocal: number; ticketPriceUsd: number }
-interface BoletoReal  { id?: string; zona: string; vendidos: number; precio: number }
+interface BoletoReal  { id?: string; zona: string; vendidos: number; precio: number; match?: string; nota?: string }
 interface Patrocinio  { id?: string; patrocinadorId: string; nombre: string; tipo: string; tipoPago: string; montoLocal: number; montoUsd: number; notas: string; esReal?: boolean }
 interface Patrocinador { id: string; nombre: string }
 interface Header      { artista: string; pais: string; ciudad: string; promotor: string; moneda: string; exchangeRate: number; numShows: number }
@@ -209,10 +209,13 @@ export default function PresupuestoPage() {
   const [patrocinadores, setPatrocinadores] = useState<Patrocinador[]>([])
   const [usuarios,    setUsuarios]    = useState<Usuario[]>([])
   const [loading,     setLoading]     = useState(true)
-  const [saving,      setSaving]      = useState(false)
-  const [extracting,  setExtracting]  = useState(false)
-  const [extractError, setExtractError] = useState('')
-  const fileRef = useRef<HTMLInputElement>(null)
+  const [saving,          setSaving]          = useState(false)
+  const [extracting,      setExtracting]      = useState(false)
+  const [extractError,    setExtractError]    = useState('')
+  const [extractingBol,   setExtractingBol]   = useState(false)
+  const [extractBolError, setExtractBolError] = useState('')
+  const fileRef    = useRef<HTMLInputElement>(null)
+  const boletoRef  = useRef<HTMLInputElement>(null)
 
   const isAdmin = true // página solo accesible para admins
 
@@ -281,6 +284,30 @@ export default function PresupuestoPage() {
   const patroRealIncome  = patroReal.reduce((s, p) => s + num(p.montoUsd), 0)
   const totalRealIncome  = ticketRealIncome + patroRealIncome
   const profitRealLoss   = totalRealIncome - costoRealCot
+
+  async function handleBoletosUpload(file: File) {
+    setExtractingBol(true); setExtractBolError('')
+    try {
+      const base64 = await new Promise<string>((res, rej) => {
+        const r = new FileReader(); r.onload = () => res((r.result as string).split(',')[1]); r.onerror = rej; r.readAsDataURL(file)
+      })
+      const resp = await fetch('/api/presupuestos/extract-boletos', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          base64, mimeType: file.type,
+          zonasPresupuesto: ticketZonas.map(z => ({ zona: z.zona, ticketPriceUsd: z.ticketPriceUsd })),
+        }),
+      })
+      const data = await resp.json()
+      if (!resp.ok) { setExtractBolError(data.error ?? 'Error al procesar'); return }
+      if (data.zonas?.length) {
+        setBoletosReal(data.zonas.map((z: { zona: string; vendidos: number; precio: number; match?: string; nota?: string }) => ({
+          zona: z.zona, vendidos: z.vendidos, precio: z.precio, match: z.match, nota: z.nota ?? undefined,
+        })))
+      }
+    } catch (e) { setExtractBolError(String(e)) }
+    finally { setExtractingBol(false) }
+  }
 
   if (loading) return <div className="flex items-center justify-center h-64 text-gray-400 animate-pulse">Cargando presupuesto...</div>
 
@@ -481,22 +508,39 @@ export default function PresupuestoPage() {
           <div className="card p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-gray-900">🎟️ Boletos Vendidos Reales</h2>
-              <button type="button" onClick={() => setBoletosReal(prev => [...prev, { zona:'', vendidos:0, precio:0 }])} className="text-sm text-blue-500 hover:underline">+ Agregar zona</button>
+              <div className="flex items-center gap-3">
+                <label className={`text-sm cursor-pointer px-3 py-1.5 rounded-xl border-2 border-amber-300 text-amber-700 hover:bg-amber-50 font-medium transition-all ${extractingBol ? 'opacity-50 pointer-events-none' : ''}`}>
+                  {extractingBol ? '⏳ Analizando...' : '🤖 Importar con IA'}
+                  <input ref={boletoRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" className="hidden"
+                    onChange={e => { const f = e.target.files?.[0]; if (f) handleBoletosUpload(f); e.target.value = '' }} />
+                </label>
+                <button type="button" onClick={() => setBoletosReal(prev => [...prev, { zona:'', vendidos:0, precio:0 }])} className="text-sm text-blue-500 hover:underline">+ Agregar zona</button>
+              </div>
             </div>
+            {extractBolError && <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl px-4 py-3 text-sm mb-3">{extractBolError}</div>}
             <table className="w-full text-sm">
               <thead><tr className="bg-gray-50 text-gray-400 text-xs">
-                <th className="px-3 py-2 text-left">Zona</th><th className="px-3 py-2 text-right">Vendidos</th>
-                <th className="px-3 py-2 text-right">Precio USD</th><th className="px-3 py-2 text-right">Total USD</th><th className="px-2 py-2"/>
+                <th className="px-3 py-2 text-left">Zona</th>
+                <th className="px-3 py-2 text-right">Vendidos</th>
+                <th className="px-3 py-2 text-right">Precio USD</th>
+                <th className="px-3 py-2 text-right">Total USD</th>
+                <th className="px-3 py-2 text-left">Match IA</th>
+                <th className="px-2 py-2"/>
               </tr></thead>
               <tbody className="divide-y divide-gray-100">
                 {boletosReal.map((b, bi) => {
                   function upd(field: keyof BoletoReal, val: string|number) { setBoletosReal(prev => prev.map((x,xi) => xi===bi ? {...x,[field]:val} : x)) }
+                  const matchColor = b.match === 'EXACTO' ? 'text-green-600 bg-green-50' : b.match === 'APROXIMADO' ? 'text-amber-600 bg-amber-50' : b.match === 'NUEVO' ? 'text-blue-600 bg-blue-50' : ''
                   return (
                     <tr key={bi} className="hover:bg-gray-50">
-                      <td className="px-3 py-2"><input className="bg-transparent outline-none border-b border-transparent focus:border-gray-300 font-medium w-32" value={b.zona} onChange={e => upd('zona',e.target.value)} /></td>
+                      <td className="px-3 py-2"><input className="bg-transparent outline-none border-b border-transparent focus:border-gray-300 font-medium w-36" value={b.zona} onChange={e => upd('zona',e.target.value)} /></td>
                       <td className="px-3 py-2"><input type="number" className="w-20 bg-transparent outline-none border-b border-transparent focus:border-gray-300 text-right" value={b.vendidos} onChange={e => upd('vendidos',parseInt(e.target.value)||0)} /></td>
                       <td className="px-3 py-2"><input type="number" className="w-24 bg-transparent outline-none border-b border-transparent focus:border-gray-300 text-right" value={b.precio} onChange={e => upd('precio',parseFloat(e.target.value)||0)} /></td>
                       <td className="px-3 py-2 text-right font-semibold text-green-600">{fmt(num(b.vendidos)*num(b.precio))}</td>
+                      <td className="px-3 py-2">
+                        {b.match && <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${matchColor}`}>{b.match}</span>}
+                        {b.nota && <p className="text-xs text-gray-400 mt-0.5">{b.nota}</p>}
+                      </td>
                       <td className="px-2 py-2"><button type="button" onClick={() => setBoletosReal(prev => prev.filter((_,xi)=>xi!==bi))} className="text-red-300 hover:text-red-500">✕</button></td>
                     </tr>
                   )
