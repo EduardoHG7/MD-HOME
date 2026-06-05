@@ -30,6 +30,7 @@ export async function GET() {
 export async function POST(req: Request) {
   const {
     nombreCompleto, cedula, telefono, email, cuentaBancaria,
+    banco, tipoCuenta,
     password, fotoPersonal, fotoCedula, fotoConCedula,
   } = await req.json()
 
@@ -55,6 +56,8 @@ export async function POST(req: Request) {
       telefono,
       email,
       cuentaBancaria,
+      banco:         banco         || null,
+      tipoCuenta:    tipoCuenta    || null,
       passwordHash,
       fotoPersonal:    fotoPersonal    || null,
       fotoCedula:      fotoCedula      || null,
