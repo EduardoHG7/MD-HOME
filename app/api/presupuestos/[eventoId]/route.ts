@@ -12,6 +12,7 @@ export async function GET(_req: Request, { params }: { params: { eventoId: strin
   const presupuesto = await prisma.presupuesto.findUnique({
     where: { eventoId: params.eventoId },
     include: {
+      evento: { select: { tipoEvento: true } },
       categorias: {
         include: {
           lineas: {
@@ -178,3 +179,4 @@ export async function PUT(req: Request, { params }: { params: { eventoId: string
 
   return NextResponse.json(result)
 }
+
