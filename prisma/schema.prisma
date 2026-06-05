@@ -135,6 +135,19 @@ model Cotizacion {
   estado      String   @default("PENDIENTE")
   notaAdmin   String?
   montoTotal  Float    @default(0)
+  // Archivo adjunto de la cotización (PDF/imagen)
+  archivoUrl  String?
+  archivoNombreCot String?
+  // Factura real subida después de aprobación
+  facturaUrl        String?
+  facturaNumero     String?
+  facturaProveedor  String?
+  facturaFechaEmision String?
+  facturaFechaPago  String?
+  facturaSubtotal   Float?
+  facturaItbms      Float?
+  facturaTotal      Float?
+  facturaSubida     Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

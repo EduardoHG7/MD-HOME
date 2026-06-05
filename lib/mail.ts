@@ -227,9 +227,14 @@ export function templateRespuestaCotizacion({
         ${notaAdmin ? `<tr><td style="padding:8px 0;color:#6b7280;vertical-align:top">Nota del admin</td><td style="padding:8px 0;font-style:italic">"${notaAdmin}"</td></tr>` : ''}
         <tr><td style="padding:8px 0;color:#6b7280">Revisado por</td><td style="padding:8px 0">${adminNombre}</td></tr>
       </table>
+      ${aprobada ? `
+      <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:12px;padding:16px;margin-top:16px">
+        <p style="margin:0 0 8px;font-weight:600;color:#15803d;font-size:14px">📎 Próximo paso: sube tu factura</p>
+        <p style="margin:0;color:#166534;font-size:13px">Tu cotización fue aprobada. Ahora debes subir la factura real para completar el proceso.</p>
+      </div>` : ''}
       <div style="margin-top:24px">
         <a href="${process.env.NEXTAUTH_URL}/usuario/cotizaciones" style="background:#111;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">
-          Ver mis cotizaciones →
+          ${aprobada ? 'Subir factura →' : 'Ver mis cotizaciones →'}
         </a>
       </div>
     </div>
