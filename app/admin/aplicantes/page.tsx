@@ -21,7 +21,6 @@ interface Aplicante {
 }
 interface ConfigHoras { horaExtra: number; horasBase: number; limiteDia: number }
 
-/* ── Lógica de horas y pago ── */
 function redondear(n: number) {
   const floor = Math.floor(n)
   return (n - floor) <= 0.5 ? floor : Math.ceil(n)
@@ -63,6 +62,7 @@ export default function AplicantesAdminPage() {
   const [motivoBan,   setMotivoBan]   = useState('')
   const [savingBan,   setSavingBan]   = useState(false)
   const [cfg, setCfg] = useState<ConfigHoras>({ horaExtra: 3.11, horasBase: 8, limiteDia: 50 })
+  const [showQR, setShowQR] = useState(false)
 
   useEffect(() => {
     fetch('/api/aplicantes').then(r => r.json()).then(setAplicantes)
@@ -103,7 +103,6 @@ export default function AplicantesAdminPage() {
     a.cedula.includes(search) || a.email.toLowerCase().includes(search.toLowerCase())
   )
 
-  /* ── Resumen del aplicante seleccionado ── */
   const resumen = selected ? (() => {
     let totalDias = 0, totalHoras = 0, totalPago = 0
     for (const asig of selected.asignaciones) {
@@ -120,6 +119,10 @@ export default function AplicantesAdminPage() {
     return { totalDias, totalHoras: Math.round(totalHoras * 10) / 10, totalPago }
   })() : null
 
+  const registroUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/aplicante/registro`
+    : '/aplicante/registro'
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -127,14 +130,52 @@ export default function AplicantesAdminPage() {
           <h1 className="text-2xl font-bold text-gray-900">Base de Aplicantes</h1>
           <p className="text-gray-500 mt-1">{aplicantes.length} aplicante(s) registrado(s)</p>
         </div>
-        <button onClick={() => exportCSV(aplicantes)} className="btn-gold text-sm">↓ Exportar CSV</button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowQR(true)} className="text-sm flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 border-gray-200 text-gray-700 font-medium hover:border-gray-400 transition-all">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>
+              <rect x="5" y="5" width="3" height="3" fill="currentColor" stroke="none"/><rect x="16" y="5" width="3" height="3" fill="currentColor" stroke="none"/><rect x="5" y="16" width="3" height="3" fill="currentColor" stroke="none"/>
+              <path d="M14 14h3v3h-3z" fill="currentColor" stroke="none"/><path d="M17 17h3v3h-3z" fill="currentColor" stroke="none"/><path d="M14 20h3"/><path d="M20 14v3"/>
+            </svg>
+            Generar QR
+          </button>
+          <button onClick={() => exportCSV(aplicantes)} className="btn-gold text-sm">&#8595; Exportar CSV</button>
+        </div>
       </div>
 
-      <input className="input max-w-sm" placeholder="Buscar por nombre, cédula o correo..."
+      {showQR && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowQR(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-8 flex flex-col items-center gap-5 max-w-xs w-full" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-gray-900">Registro de Aplicantes</h2>
+            <p className="text-gray-500 text-sm text-center">Escanea para acceder al formulario de registro</p>
+            <div className="border-4 border-gray-900 rounded-xl overflow-hidden">
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=10&data=${encodeURIComponent(registroUrl)}`}
+                alt="QR de registro de aplicantes"
+                width={240}
+                height={240}
+              />
+            </div>
+            <p className="text-xs text-gray-400 text-center break-all">{registroUrl}</p>
+            <div className="flex gap-2 w-full">
+              <a
+                href={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&margin=20&data=${encodeURIComponent(registroUrl)}`}
+                download="qr-registro-aplicantes.png"
+                className="flex-1 px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-all text-center">
+                &#8595; Descargar
+              </a>
+              <button onClick={() => setShowQR(false)} className="flex-1 px-4 py-2 rounded-xl border-2 border-gray-200 text-gray-600 text-sm font-medium hover:border-gray-400 transition-all">
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <input className="input max-w-sm" placeholder="Buscar por nombre, cedula o correo..."
         value={search} onChange={e => setSearch(e.target.value)} />
 
       <div className="grid grid-cols-5 gap-6">
-        {/* Lista */}
         <div className="col-span-2 space-y-2">
           {filtered.map(a => (
             <button key={a.id} onClick={() => setSelected(a)}
@@ -157,10 +198,8 @@ export default function AplicantesAdminPage() {
           {filtered.length === 0 && <div className="card p-6 text-center text-gray-400">Sin resultados.</div>}
         </div>
 
-        {/* Detalle */}
         {selected && (
           <div className="col-span-3 space-y-4">
-            {/* Perfil */}
             <div className="card p-5">
               <div className="flex items-center gap-4 mb-4">
                 <div className="w-14 h-14 rounded-full bg-gray-900 flex items-center justify-center text-2xl font-bold text-white">
@@ -170,39 +209,38 @@ export default function AplicantesAdminPage() {
                   <h3 className="text-lg font-bold text-gray-900">{selected.nombreCompleto}</h3>
                   <p className="text-gray-500 text-sm">Registrado: {formatDate(selected.createdAt)}</p>
                   {selected.terminosAceptadosAt && (
-                    <p className="text-green-600 text-xs mt-0.5">✓ T&C aceptados: {formatDate(selected.terminosAceptadosAt)}</p>
+                    <p className="text-green-600 text-xs mt-0.5">T&amp;C aceptados: {formatDate(selected.terminosAceptadosAt)}</p>
                   )}
                 </div>
                 <div className="flex flex-col gap-2 shrink-0">
                   <button onClick={() => copyLink(selected.id)}
                     className={`text-xs px-3 py-1.5 rounded-xl border-2 font-medium transition-all ${copied ? 'border-green-400 bg-green-50 text-green-600' : 'border-gray-200 text-gray-600 hover:border-gray-400'}`}>
-                    {copied ? '✓ ¡Copiado!' : '🔗 Copiar link'}
+                    {copied ? 'Copiado!' : 'Copiar link'}
                   </button>
                   <a href={`/aplicante/${selected.id}`} target="_blank" rel="noopener noreferrer"
                     className="text-xs px-3 py-1.5 rounded-xl border-2 border-gray-200 text-gray-600 hover:border-gray-400 text-center transition-all">
-                    👁 Ver perfil
+                    Ver perfil
                   </a>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3 text-sm">
-                <Field label="Cédula"          value={selected.cedula} />
-                <Field label="Teléfono"        value={selected.telefono} />
+                <Field label="Cedula"          value={selected.cedula} />
+                <Field label="Telefono"        value={selected.telefono} />
                 <Field label="Correo"          value={selected.email} />
                 <Field label="Cuenta Bancaria" value={selected.cuentaBancaria} />
               </div>
             </div>
 
-            {/* Lista negra */}
             {selected.noApto ? (
               <div className="card p-4 border-l-4 border-l-red-400 bg-red-50 space-y-3">
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-red-700 font-semibold text-sm">🚫 Persona no apta para laborar</p>
+                    <p className="text-red-700 font-semibold text-sm">Persona no apta para laborar</p>
                     {selected.motivoNoApto && <p className="text-red-600 text-xs mt-1 italic">"{selected.motivoNoApto}"</p>}
                   </div>
                   <button onClick={() => toggleNoApto(selected)} disabled={savingBan}
                     className="text-xs px-3 py-1.5 rounded-xl border-2 border-red-300 text-red-600 hover:bg-red-100 font-medium transition-all shrink-0 ml-3">
-                    {savingBan ? '...' : 'Quitar restricción'}
+                    {savingBan ? '...' : 'Quitar restriccion'}
                   </button>
                 </div>
               </div>
@@ -211,7 +249,7 @@ export default function AplicantesAdminPage() {
                 {!showBanForm ? (
                   <button onClick={() => setShowBanForm(true)}
                     className="w-full text-left px-4 py-3 rounded-xl border-2 border-dashed border-red-200 text-red-500 hover:border-red-400 hover:bg-red-50 text-sm font-medium transition-all">
-                    🚫 Marcar como persona no apta
+                    Marcar como persona no apta
                   </button>
                 ) : (
                   <div className="card p-4 border-l-4 border-l-red-300 space-y-3">
@@ -230,12 +268,11 @@ export default function AplicantesAdminPage() {
               </div>
             )}
 
-            {/* Stats resumen */}
             {resumen && (
               <div className="grid grid-cols-3 gap-3">
                 <div className="card p-4 text-center border-l-4 border-l-gray-400">
                   <p className="text-2xl font-bold text-gray-900">{resumen.totalDias}</p>
-                  <p className="text-gray-500 text-xs mt-1">Días trabajados</p>
+                  <p className="text-gray-500 text-xs mt-1">Dias trabajados</p>
                 </div>
                 <div className="card p-4 text-center border-l-4 border-l-blue-400">
                   <p className="text-2xl font-bold text-blue-600">{resumen.totalHoras}h</p>
@@ -248,7 +285,6 @@ export default function AplicantesAdminPage() {
               </div>
             )}
 
-            {/* Historial por evento con horas y pago */}
             {selected.asignaciones.length > 0 && (
               <div className="card p-5">
                 <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3">Historial de Eventos</h4>
@@ -269,10 +305,10 @@ export default function AplicantesAdminPage() {
                         <div className="flex justify-between items-start px-4 py-3">
                           <div>
                             <p className="text-gray-900 text-sm font-semibold">{a.evento.nombre}</p>
-                            <p className="text-gray-500 text-xs">{a.funcion} · {formatDate(a.evento.fechaInicio)}</p>
+                            <p className="text-gray-500 text-xs">{a.funcion} - {formatDate(a.evento.fechaInicio)}</p>
                             {tarifa > 0
-                              ? <p className="text-gray-400 text-xs mt-0.5">Tarifa: ${tarifa}/día</p>
-                              : <p className="text-amber-500 text-xs mt-0.5">⚠ Sin tarifa asignada</p>}
+                              ? <p className="text-gray-400 text-xs mt-0.5">Tarifa: ${tarifa}/dia</p>
+                              : <p className="text-amber-500 text-xs mt-0.5">Sin tarifa asignada</p>}
                           </div>
                           <div className="text-right">
                             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${a.estado === 'ACTIVA' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
@@ -297,7 +333,7 @@ export default function AplicantesAdminPage() {
                                 <th className="px-3 py-1.5 text-left">Salida</th>
                                 <th className="px-3 py-1.5 text-right">Horas</th>
                                 <th className="px-3 py-1.5 text-right">H. Extra</th>
-                                <th className="px-3 py-1.5 text-right">Pago día</th>
+                                <th className="px-3 py-1.5 text-right">Pago dia</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
@@ -312,17 +348,17 @@ export default function AplicantesAdminPage() {
                                 return (
                                   <tr key={dia} className={`bg-white hover:bg-gray-50 ${horas && horas > cfg.horasBase ? 'bg-amber-50' : ''}`}>
                                     <td className="px-4 py-2 text-gray-700 font-medium">{new Date(dia).toLocaleDateString('es-PA', { day:'2-digit', month:'short' })}</td>
-                                    <td className="px-3 py-2 text-green-600">{rec.entrada ? new Date(rec.entrada.timestamp).toLocaleTimeString('es-PA',{hour:'2-digit',minute:'2-digit'}) : '—'}</td>
-                                    <td className="px-3 py-2 text-blue-600">{rec.salida  ? new Date(rec.salida.timestamp).toLocaleTimeString('es-PA',{hour:'2-digit',minute:'2-digit'}) : '—'}</td>
+                                    <td className="px-3 py-2 text-green-600">{rec.entrada ? new Date(rec.entrada.timestamp).toLocaleTimeString('es-PA',{hour:'2-digit',minute:'2-digit'}) : '-'}</td>
+                                    <td className="px-3 py-2 text-blue-600">{rec.salida  ? new Date(rec.salida.timestamp).toLocaleTimeString('es-PA',{hour:'2-digit',minute:'2-digit'}) : '-'}</td>
                                     <td className="px-3 py-2 text-right font-medium">
                                       {horas !== null ? (
                                         <span className={horas > cfg.horasBase ? 'text-amber-600' : 'text-gray-700'}>
                                           {Math.round(horas * 10) / 10}h
                                         </span>
-                                      ) : '—'}
+                                      ) : '-'}
                                     </td>
                                     <td className="px-3 py-2 text-right text-amber-600">
-                                      {pago && pago.horasExtra > 0 ? `+${Math.round(pago.horasExtra * 10)/10}h` : '—'}
+                                      {pago && pago.horasExtra > 0 ? `+${Math.round(pago.horasExtra * 10)/10}h` : '-'}
                                     </td>
                                     <td className="px-3 py-2 text-right font-bold">
                                       {pago ? (
@@ -330,7 +366,7 @@ export default function AplicantesAdminPage() {
                                           ${pago.total}
                                           {pago.horasExtra > 0 && <span className="text-amber-500 font-normal ml-1">(+${Math.round(pago.pagoExtra * 100)/100})</span>}
                                         </span>
-                                      ) : <span className="text-gray-300">—</span>}
+                                      ) : <span className="text-gray-300">-</span>}
                                     </td>
                                   </tr>
                                 )
@@ -372,10 +408,10 @@ function Field({ label, value }: { label: string; value: string }) {
 
 function exportCSV(aplicantes: Aplicante[]) {
   const rows = [
-    ['Nombre', 'Cédula', 'Teléfono', 'Correo', 'Cuenta Bancaria', 'T&C Aceptados', 'Eventos', 'Fecha Registro'],
+    ['Nombre', 'Cedula', 'Telefono', 'Correo', 'Cuenta Bancaria', 'T&C Aceptados', 'Eventos', 'Fecha Registro'],
     ...aplicantes.map(a => [
       a.nombreCompleto, a.cedula, a.telefono, a.email, a.cuentaBancaria,
-      a.terminosAceptados ? 'Sí' : 'No',
+      a.terminosAceptados ? 'Si' : 'No',
       a.asignaciones.map(x => x.evento.nombre).join(' | '),
       a.createdAt,
     ]),
