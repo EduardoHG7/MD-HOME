@@ -57,28 +57,53 @@ export async function PUT(req: Request, { params }: { params: { eventoId: string
               artistBackend: artistBackend ?? false, artistBackendPct: artistBackendPct ?? 80 },
   })
 
-  // Reemplazar categorías y líneas (dentro de transacción para evitar pérdida parcial)
+  // Upsert categorías y líneas — preserva IDs existentes para no borrar cotizaciones en cascada
   if (categorias !== undefined) {
     await prisma.$transaction(async (tx) => {
-      await tx.presupuestoCategoria.deleteMany({ where: { presupuestoId: presupuesto.id } })
+      const incomingCatIds = categorias.map((c: { id?: string }) => c.id).filter(Boolean) as string[]
+      // Eliminar solo las categorías que ya no están en la lista (preserva las que sí están)
+      await tx.presupuestoCategoria.deleteMany({
+        where: { presupuestoId: presupuesto.id, id: { notIn: incomingCatIds } },
+      })
+
       for (let i = 0; i < categorias.length; i++) {
-        const cat = categorias[i]
-        const created = await tx.presupuestoCategoria.create({
-          data: { presupuestoId: presupuesto.id, nombre: cat.nombre, orden: i },
-        })
-        if (cat.lineas?.length) {
-          await tx.presupuestoLinea.createMany({
-            data: cat.lineas.map((l: { descripcion: string; nota?: string; montoLocal: number; montoUsd: number; confianza?: string; asignadoAId?: string }, j: number) => ({
-              categoriaId: created.id,
-              descripcion: l.descripcion,
-              nota:        l.nota   || null,
-              montoLocal:  l.montoLocal  ?? 0,
-              montoUsd:    l.montoUsd    ?? 0,
-              confianza:   l.confianza   || null,
-              asignadoAId: l.asignadoAId || null,  // fix: || null para convertir '' a null
-              orden: j,
-            })),
+        const cat = categorias[i] as { id?: string; nombre: string; lineas: { id?: string; descripcion: string; nota?: string; montoLocal: number; montoUsd: number; confianza?: string; asignadoAId?: string }[] }
+        let catId: string
+
+        if (cat.id) {
+          // Actualizar categoría existente
+          await tx.presupuestoCategoria.update({ where: { id: cat.id }, data: { nombre: cat.nombre, orden: i } })
+          catId = cat.id
+        } else {
+          // Crear nueva categoría
+          const created = await tx.presupuestoCategoria.create({
+            data: { presupuestoId: presupuesto.id, nombre: cat.nombre, orden: i },
           })
+          catId = created.id
+        }
+
+        // Upsert líneas dentro de la categoría
+        const incomingLineaIds = (cat.lineas ?? []).map(l => l.id).filter(Boolean) as string[]
+        // Eliminar solo las líneas de esta categoría que ya no están
+        await tx.presupuestoLinea.deleteMany({ where: { categoriaId: catId, id: { notIn: incomingLineaIds } } })
+
+        for (let j = 0; j < (cat.lineas ?? []).length; j++) {
+          const l = cat.lineas[j]
+          const lineaData = {
+            categoriaId: catId,
+            descripcion: l.descripcion,
+            nota:        l.nota        || null,
+            montoLocal:  l.montoLocal  ?? 0,
+            montoUsd:    l.montoUsd    ?? 0,
+            confianza:   l.confianza   || null,
+            asignadoAId: l.asignadoAId || null,
+            orden:       j,
+          }
+          if (l.id) {
+            await tx.presupuestoLinea.update({ where: { id: l.id }, data: lineaData })
+          } else {
+            await tx.presupuestoLinea.create({ data: lineaData })
+          }
         }
       }
     })
