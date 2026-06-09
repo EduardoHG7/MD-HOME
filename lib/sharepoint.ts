@@ -65,7 +65,8 @@ export async function uploadToSharePoint(
   const token  = await getAppToken()
   const siteId = await getSiteId()
 
-  const uploadUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:/${folderPath}:/content`
+  // @microsoft.graph.conflictBehavior=replace → sobreescribe si ya existe el archivo
+  const uploadUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:/${folderPath}:/content?@microsoft.graph.conflictBehavior=replace`
 
   const res = await fetch(uploadUrl, {
     method:  'PUT',
@@ -104,3 +105,4 @@ export async function downloadFromSharePoint(filePath: string): Promise<{ buffer
   const contentType = res.headers.get('content-type') ?? 'image/jpeg'
   return { buffer, contentType }
 }
+
