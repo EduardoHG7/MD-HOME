@@ -1,4 +1,4 @@
-generator client {
+﻿generator client {
   provider = "prisma-client-js"
 }
 
@@ -16,10 +16,11 @@ model User {
   role      String   @default("USER")
   createdAt DateTime @default(now())
 
-  solicitudes        Solicitud[]
-  facturas           Factura[]
-  lineasAsignadas    PresupuestoLinea[]
-  cotizaciones       Cotizacion[]
+  solicitudes          Solicitud[]
+  solicitudesAprobadas Solicitud[]  @relation("SolicitudAprobador")
+  facturas             Factura[]
+  lineasAsignadas      PresupuestoLinea[]
+  cotizaciones         Cotizacion[]
 
   @@map("users")
 }
@@ -245,12 +246,15 @@ model Solicitud {
   presupuesto   Float?
   costoTotal    Float?
   notaAdmin     String?
+  aprobadoPorId String?
+  aprobadoEn    DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   evento      Evento    @relation(fields: [eventoId], references: [id])
   solicitante User      @relation(fields: [solicitanteId], references: [id])
   tarifa      Tarifa?   @relation(fields: [tarifaId], references: [id])
+  aprobadoPor User?     @relation("SolicitudAprobador", fields: [aprobadoPorId], references: [id])
 
   asignaciones AsignacionAplicante[]
 
@@ -348,3 +352,4 @@ model RegistroAsistencia {
   @@unique([asignacionId, tipo, tokenUsado])
   @@map("registros_asistencia")
 }
+
