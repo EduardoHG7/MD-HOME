@@ -83,17 +83,32 @@ model Presupuesto {
   moneda          String   @default("USD")
   exchangeRate    Float    @default(1)
   numShows        Int      @default(1)
-  artistGuarantee Float    @default(0)
-  updatedAt       DateTime @updatedAt
-  createdAt       DateTime @default(now())
+  artistGuarantee  Float    @default(0)
+  artistBackend    Boolean  @default(false)
+  artistBackendPct Float    @default(80)
+  updatedAt        DateTime @updatedAt
+  createdAt        DateTime @default(now())
 
-  evento       Evento                @relation(fields: [eventoId], references: [id])
+  evento              Evento                @relation(fields: [eventoId], references: [id])
   categorias          PresupuestoCategoria[]
   ticketZonas         TicketZona[]
   patrocinios         Patrocinio[]
   boletosVendidosReal BoletosVendidosReal[]
+  socios              SocioPresupuesto[]
 
   @@map("presupuestos")
+}
+
+model SocioPresupuesto {
+  id            String @id @default(cuid())
+  presupuestoId String
+  nombre        String
+  porcentaje    Float  @default(0)
+  orden         Int    @default(0)
+
+  presupuesto Presupuesto @relation(fields: [presupuestoId], references: [id], onDelete: Cascade)
+
+  @@map("socios_presupuesto")
 }
 
 model PresupuestoCategoria {
@@ -352,4 +367,5 @@ model RegistroAsistencia {
   @@unique([asignacionId, tipo, tokenUsado])
   @@map("registros_asistencia")
 }
+
 
