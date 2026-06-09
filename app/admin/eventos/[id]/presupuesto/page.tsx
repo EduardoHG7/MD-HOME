@@ -762,6 +762,79 @@ export default function PresupuestoPage() {
 
           {/* Patrocinios reales — solo eventos propios */}
           {!isContratado && <PatrociniosSection title="🤝 Patrocinios Reales Cobrados" patrocinios={patroReal} patrocinadores={patrocinadores} onChange={setPatroReal} />}
+
+          {/* ── Distribución de Ganancias Reales ── */}
+          {!isContratado && (() => {
+            const netAnteArtistaReal = totalRealIncome - costoRealCot
+            const backendAmountReal  = (artistBackendPct / 100) * netAnteArtistaReal
+            const backendAplicaReal  = artistBackend && backendAmountReal > artistG
+            const artistPayoutReal   = backendAplicaReal ? backendAmountReal : artistG
+            const poolReal           = netAnteArtistaReal - artistPayoutReal
+            const totalPct           = socios.reduce((s, x) => s + x.porcentaje, 0)
+            return (
+              <div className="card p-5 border-l-4 border-l-indigo-400 space-y-5">
+                <h2 className="font-semibold text-gray-900">💼 Distribución de Ganancias Reales</h2>
+
+                <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Ingresos reales</span>
+                    <span className="font-semibold">{fmt(totalRealIncome)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Costos aprobados</span>
+                    <span className="font-semibold text-red-500">− {fmt(costoRealCot)}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-gray-200 pt-2 font-semibold">
+                    <span className="text-gray-700">Ganancia neta (antes del artista)</span>
+                    <span className={netAnteArtistaReal >= 0 ? 'text-green-600' : 'text-red-600'}>{fmt(netAnteArtistaReal)}</span>
+                  </div>
+                  {artistBackend && (
+                    <div className="flex justify-between text-xs text-indigo-600">
+                      <span>{artistBackendPct}% de la ganancia neta</span>
+                      <span className="font-semibold">{fmt(backendAmountReal)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between border-t border-gray-200 pt-2">
+                    <span className="text-gray-500">
+                      Pago al artista
+                      {artistBackend && <span className={`ml-2 text-xs px-2 py-0.5 rounded-full font-medium ${backendAplicaReal ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-200 text-gray-500'}`}>
+                        {backendAplicaReal ? `Backend ${artistBackendPct}% aplica` : 'Garantía aplica'}
+                      </span>}
+                    </span>
+                    <span className="font-bold text-purple-600">− {fmt(artistPayoutReal)}</span>
+                  </div>
+                  <div className="flex justify-between border-t-2 border-gray-300 pt-2 font-bold text-base">
+                    <span className="text-gray-900">Pool para promotores</span>
+                    <span className={poolReal >= 0 ? 'text-green-600' : 'text-red-600'}>{fmt(poolReal)}</span>
+                  </div>
+                </div>
+
+                {socios.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold text-gray-700">Pago por socio</p>
+                    {socios.map((s, si) => (
+                      <div key={si} className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-2.5">
+                        <span className="text-sm text-gray-700 font-medium">{s.nombre || `Socio ${si + 1}`}</span>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs text-gray-400">{s.porcentaje}%</span>
+                          <span className={`text-sm font-bold ${poolReal >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                            {fmt((s.porcentaje / 100) * poolReal)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                    <div className={`flex justify-between items-center px-4 py-2 rounded-xl text-sm font-semibold ${Math.abs(totalPct - 100) < 0.1 ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
+                      <span>Total distribuido ({totalPct.toFixed(1)}%)</span>
+                      <span>{fmt(socios.reduce((s, x) => s + (x.porcentaje / 100) * poolReal, 0))}</span>
+                    </div>
+                  </div>
+                )}
+                {socios.length === 0 && (
+                  <p className="text-gray-400 text-xs text-center py-2">Define los socios en la pestaña Presupuesto</p>
+                )}
+              </div>
+            )
+          })()}
         </div>
       )}
 
