@@ -30,6 +30,7 @@ export async function GET(_req: Request, { params }: { params: { eventoId: strin
       ticketZonas:         { orderBy: { orden: 'asc' } },
       patrocinios:         true,
       boletosVendidosReal: { orderBy: { orden: 'asc' } },
+      socios:              { orderBy: { orden: 'asc' } },
     },
   })
 
@@ -43,13 +44,17 @@ export async function PUT(req: Request, { params }: { params: { eventoId: string
   }
 
   const body = await req.json()
-  const { artista, pais, ciudad, promotor, moneda, exchangeRate, numShows, artistGuarantee, categorias, ticketZonas, patrocinios } = body
+  const { artista, pais, ciudad, promotor, moneda, exchangeRate, numShows, artistGuarantee,
+          artistBackend, artistBackendPct,
+          categorias, ticketZonas, patrocinios, socios } = body
 
   // Upsert presupuesto
   const presupuesto = await prisma.presupuesto.upsert({
     where: { eventoId: params.eventoId },
-    create: { eventoId: params.eventoId, artista, pais, ciudad, promotor, moneda, exchangeRate, numShows, artistGuarantee },
-    update: { artista, pais, ciudad, promotor, moneda, exchangeRate, numShows, artistGuarantee },
+    create: { eventoId: params.eventoId, artista, pais, ciudad, promotor, moneda, exchangeRate, numShows, artistGuarantee,
+              artistBackend: artistBackend ?? false, artistBackendPct: artistBackendPct ?? 80 },
+    update: { artista, pais, ciudad, promotor, moneda, exchangeRate, numShows, artistGuarantee,
+              artistBackend: artistBackend ?? false, artistBackendPct: artistBackendPct ?? 80 },
   })
 
   // Reemplazar categorías y líneas (dentro de transacción para evitar pérdida parcial)
@@ -136,6 +141,21 @@ export async function PUT(req: Request, { params }: { params: { eventoId: string
     }
   }
 
+  // Socios / distribución de ganancias
+  if (socios !== undefined) {
+    await prisma.socioPresupuesto.deleteMany({ where: { presupuestoId: presupuesto.id } })
+    if (socios.length) {
+      await prisma.socioPresupuesto.createMany({
+        data: socios.map((s: { nombre: string; porcentaje: number }, i: number) => ({
+          presupuestoId: presupuesto.id,
+          nombre:        s.nombre,
+          porcentaje:    s.porcentaje ?? 0,
+          orden:         i,
+        })),
+      })
+    }
+  }
+
   // Patrocinios reales
   const { patrociniosReales } = body
   if (patrociniosReales !== undefined) {
@@ -175,11 +195,13 @@ export async function PUT(req: Request, { params }: { params: { eventoId: string
       ticketZonas:         { orderBy: { orden: 'asc' } },
       patrocinios:         true,
       boletosVendidosReal: { orderBy: { orden: 'asc' } },
+      socios:              { orderBy: { orden: 'asc' } },
     },
   })
 
   return NextResponse.json(result)
 }
+
 
 
 
