@@ -16,7 +16,8 @@ export async function GET() {
     where,
     include: {
       evento: true,
-      solicitante: { select: { name: true, email: true } },
+      solicitante:  { select: { name: true, email: true } },
+      aprobadoPor:  { select: { name: true, email: true } },
       tarifa: true,
       asignaciones: {
         include: {
@@ -81,3 +82,4 @@ export async function POST(req: Request) {
 
   return NextResponse.json(solicitud, { status: 201 })
 }
+
