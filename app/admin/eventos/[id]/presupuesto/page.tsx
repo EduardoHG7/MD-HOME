@@ -401,8 +401,8 @@ export default function PresupuestoPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <KpiCard label="Artist Guarantee"         value={fmt(artistG)}       color="purple" />
               <KpiCard label="Production Expenses"      value={fmt(totalProd)}     color="amber" />
-              <KpiCard label="Variable Expenses"        value={fmt(totalVar)}      color="amber" />
-              <KpiCard label="Presupuesto Total"        value={fmt(presupTotal)}   color="amber" />
+              <KpiCard label="Variable Expenses"        value={fmt(totalVar)}      color="amber" sub="Resta a la ganancia, no al costo" />
+              <KpiCard label="Costo Fijo Total"         value={fmt(artistG + totalProd)} color="amber" />
               <KpiCard label="Ingreso Boletos (est.)"   value={fmt(ticketIncome)}  color="blue" />
               <KpiCard label="Ingreso Patrocinios"      value={fmt(sponsorIncome)} color="blue" />
               <KpiCard label="Ingreso Total Estimado"   value={fmt(totalIncome)}   color="green" />
@@ -457,8 +457,18 @@ export default function PresupuestoPage() {
                 onDelete={() => setCategorias(prev => prev.filter((_, xi) => xi !== i))} />
             ))}
             {categorias.length > 0 && (
-              <div className="flex justify-end gap-8 px-5 py-3 bg-gray-50 rounded-xl border border-gray-200 text-sm font-semibold">
-                <span className="text-gray-500">Total Costos</span><span className="text-gray-900">{fmt(totalProd + totalVar)}</span>
+              <div className="flex justify-end gap-6 px-5 py-3 bg-gray-50 rounded-xl border border-gray-200 text-sm">
+                {totalVar > 0 && (
+                  <div className="flex items-center gap-2 text-amber-600">
+                    <span className="font-medium">Gastos variables</span>
+                    <span className="font-bold">{fmt(totalVar)}</span>
+                    <span className="text-xs text-amber-400">(resta ganancia, no suma al costo fijo)</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-2 font-semibold">
+                  <span className="text-gray-500">Total Costos Fijos</span>
+                  <span className="text-gray-900">{fmt(totalProd)}</span>
+                </div>
               </div>
             )}
           </div>
