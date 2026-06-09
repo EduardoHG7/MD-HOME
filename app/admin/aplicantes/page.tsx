@@ -14,9 +14,11 @@ interface Asignacion {
 }
 interface Aplicante {
   id: string; nombreCompleto: string; cedula: string; telefono: string
-  email: string; cuentaBancaria: string; terminosAceptados: boolean
-  terminosAceptadosAt: string | null; createdAt: string; activo: boolean
+  email: string; cuentaBancaria: string; banco: string | null; tipoCuenta: string | null
+  terminosAceptados: boolean; terminosAceptadosAt: string | null
+  createdAt: string; activo: boolean
   noApto: boolean; motivoNoApto: string | null
+  fotoPersonal: string | null; fotoCedula: string | null; fotoConCedula: string | null
   asignaciones: Asignacion[]
 }
 interface ConfigHoras { horaExtra: number; horasBase: number; limiteDia: number }
@@ -228,7 +230,37 @@ export default function AplicantesAdminPage() {
                 <Field label="Telefono"        value={selected.telefono} />
                 <Field label="Correo"          value={selected.email} />
                 <Field label="Cuenta Bancaria" value={selected.cuentaBancaria} />
+                {selected.banco     && <Field label="Banco"        value={selected.banco} />}
+                {selected.tipoCuenta && <Field label="Tipo de cuenta" value={selected.tipoCuenta} />}
               </div>
+
+              {/* Fotos de verificación */}
+              {(selected.fotoPersonal || selected.fotoCedula || selected.fotoConCedula) && (
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Fotos de verificación</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { key: 'fotoPersonal',  label: 'Foto personal',  url: selected.fotoPersonal },
+                      { key: 'fotoCedula',    label: 'Cédula',         url: selected.fotoCedula },
+                      { key: 'fotoConCedula', label: 'Con cédula',     url: selected.fotoConCedula },
+                    ].map(({ key, label, url }) => (
+                      <div key={key} className="flex flex-col items-center gap-1">
+                        <p className="text-xs text-gray-400">{label}</p>
+                        {url ? (
+                          <a href={url} target="_blank" rel="noopener noreferrer"
+                            className="block w-full aspect-square rounded-xl overflow-hidden border-2 border-gray-200 hover:border-gray-400 transition-all">
+                            <img src={url} alt={label} className="w-full h-full object-cover" />
+                          </a>
+                        ) : (
+                          <div className="w-full aspect-square rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center">
+                            <span className="text-gray-300 text-xs">Sin foto</span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {selected.noApto ? (
