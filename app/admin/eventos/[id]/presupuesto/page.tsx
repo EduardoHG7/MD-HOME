@@ -13,6 +13,7 @@ interface TicketZona  { id?: string; scaling: string; zona: string; capacity: nu
 interface BoletoReal  { id?: string; zona: string; vendidos: number; precio: number; match?: string; nota?: string }
 interface Patrocinio  { id?: string; patrocinadorId: string; nombre: string; tipo: string; tipoPago: string; montoLocal: number; montoUsd: number; notas: string; esReal?: boolean }
 interface Patrocinador { id: string; nombre: string }
+interface Socio       { nombre: string; porcentaje: number }
 interface Header      { artista: string; pais: string; ciudad: string; promotor: string; moneda: string; exchangeRate: number; numShows: number }
 
 const emptyHeader: Header = { artista: '', pais: '', ciudad: '', promotor: '', moneda: 'USD', exchangeRate: 1, numShows: 1 }
@@ -208,6 +209,9 @@ export default function PresupuestoPage() {
   const [patroReal,   setPatroReal]   = useState<Patrocinio[]>([])
   const [patrocinadores, setPatrocinadores] = useState<Patrocinador[]>([])
   const [usuarios,    setUsuarios]    = useState<Usuario[]>([])
+  const [artistBackend,    setArtistBackend]    = useState(false)
+  const [artistBackendPct, setArtistBackendPct] = useState(80)
+  const [socios,           setSocios]           = useState<Socio[]>([])
   const [loading,     setLoading]     = useState(true)
   const [dataLoaded,  setDataLoaded]  = useState(false)
   const [tipoEvento,  setTipoEvento]  = useState<string | null>(null)
@@ -237,6 +241,9 @@ export default function PresupuestoPage() {
         setPatrocinios(pats.filter((p: Patrocinio) => !p.esReal).map((p: Patrocinio) => ({ ...p, notas: p.notas ?? '', tipo: p.tipo ?? '', tipoPago: p.tipoPago ?? '', patrocinadorId: p.patrocinadorId ?? '' })))
         setPatroReal(pats.filter((p: Patrocinio) => p.esReal).map((p: Patrocinio) => ({ ...p, notas: p.notas ?? '', tipo: p.tipo ?? '', tipoPago: p.tipoPago ?? '', patrocinadorId: p.patrocinadorId ?? '' })))
         setBoletosReal(data.boletosVendidosReal ?? [])
+        setArtistBackend(data.artistBackend ?? false)
+        setArtistBackendPct(data.artistBackendPct ?? 80)
+        setSocios(data.socios?.map((s: Socio) => ({ nombre: s.nombre, porcentaje: s.porcentaje })) ?? [])
       }
     }
     setLoading(false)
@@ -262,7 +269,7 @@ export default function PresupuestoPage() {
     try {
       const res = await fetch(`/api/presupuestos/${eventoId}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...header, artistGuarantee: artistG, categorias, ticketZonas, patrocinios, boletosVendidosReal: boletosReal, patrociniosReales: patroReal }),
+        body: JSON.stringify({ ...header, artistGuarantee: artistG, artistBackend, artistBackendPct, categorias, ticketZonas, patrocinios, socios, boletosVendidosReal: boletosReal, patrociniosReales: patroReal }),
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
@@ -502,6 +509,113 @@ export default function PresupuestoPage() {
 
           {/* Patrocinios presupuestados — solo eventos propios */}
           {!isContratado && <PatrociniosSection title="🤝 Sponsorship Income (Presupuesto)" patrocinios={patrocinios} patrocinadores={patrocinadores} onChange={setPatrocinios} />}
+
+          {/* ── Distribución de Ganancias ── */}
+          {!isContratado && (() => {
+            const netAnteArtista  = totalIncome - totalProd - totalVar
+            const backendAmount   = (artistBackendPct / 100) * netAnteArtista
+            const backendAplica   = artistBackend && backendAmount > artistG
+            const artistPayout    = backendAplica ? backendAmount : artistG
+            const pool            = netAnteArtista - artistPayout
+            const totalPct        = socios.reduce((s, x) => s + x.porcentaje, 0)
+            return (
+              <div className="card p-5 border-l-4 border-l-indigo-400 space-y-5">
+                <h2 className="font-semibold text-gray-900">💼 Distribución de Ganancias</h2>
+
+                {/* Toggle 80/20 */}
+                <div className="flex items-center justify-between bg-indigo-50 rounded-xl px-4 py-3">
+                  <div>
+                    <p className="text-sm font-semibold text-indigo-900">Backend / Regla {artistBackendPct}% artista</p>
+                    <p className="text-xs text-indigo-500 mt-0.5">Si el {artistBackendPct}% de la ganancia neta supera la garantía, el artista recibe ese porcentaje</p>
+                  </div>
+                  <button type="button" onClick={() => setArtistBackend(v => !v)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${artistBackend ? 'bg-indigo-600' : 'bg-gray-300'}`}>
+                    <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${artistBackend ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+                </div>
+
+                {/* Porcentaje ajustable */}
+                {artistBackend && (
+                  <div className="flex items-center gap-3">
+                    <label className="text-sm text-gray-600 whitespace-nowrap">Porcentaje al artista:</label>
+                    <input type="number" min={1} max={99} step={1} className="input w-24 text-center font-bold"
+                      value={artistBackendPct} onChange={e => setArtistBackendPct(Math.min(99, Math.max(1, parseInt(e.target.value)||80)))} />
+                    <span className="text-gray-500 text-sm">%</span>
+                  </div>
+                )}
+
+                {/* Cálculo */}
+                <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Ingresos estimados</span>
+                    <span className="font-semibold">{fmt(totalIncome)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Costos de producción</span>
+                    <span className="font-semibold text-red-500">− {fmt(totalProd + totalVar)}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-gray-200 pt-2 font-semibold">
+                    <span className="text-gray-700">Ganancia neta (antes del artista)</span>
+                    <span className={netAnteArtista >= 0 ? 'text-green-600' : 'text-red-600'}>{fmt(netAnteArtista)}</span>
+                  </div>
+                  {artistBackend && (
+                    <div className="flex justify-between text-xs text-indigo-600">
+                      <span>{artistBackendPct}% de la ganancia neta</span>
+                      <span className="font-semibold">{fmt(backendAmount)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between border-t border-gray-200 pt-2">
+                    <span className="text-gray-500">
+                      Pago al artista
+                      {artistBackend && <span className={`ml-2 text-xs px-2 py-0.5 rounded-full font-medium ${backendAplica ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-200 text-gray-500'}`}>
+                        {backendAplica ? `Backend ${artistBackendPct}% aplica` : 'Garantía aplica'}
+                      </span>}
+                    </span>
+                    <span className="font-bold text-purple-600">− {fmt(artistPayout)}</span>
+                  </div>
+                  <div className="flex justify-between border-t-2 border-gray-300 pt-2 font-bold text-base">
+                    <span className="text-gray-900">Pool para promotores</span>
+                    <span className={pool >= 0 ? 'text-green-600' : 'text-red-600'}>{fmt(pool)}</span>
+                  </div>
+                </div>
+
+                {/* Socios */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-sm font-semibold text-gray-700">Socios / Promotores</p>
+                    <button type="button" onClick={() => setSocios(prev => [...prev, { nombre: '', porcentaje: 0 }])}
+                      className="text-sm text-blue-500 hover:underline">+ Agregar socio</button>
+                  </div>
+                  {socios.length === 0 && <p className="text-gray-400 text-xs text-center py-3">Sin socios definidos</p>}
+                  <div className="space-y-2">
+                    {socios.map((s, si) => (
+                      <div key={si} className="flex items-center gap-3 bg-gray-50 rounded-xl px-3 py-2">
+                        <input className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-gray-400"
+                          placeholder="Nombre del socio..." value={s.nombre}
+                          onChange={e => setSocios(prev => prev.map((x, i) => i === si ? { ...x, nombre: e.target.value } : x))} />
+                        <input type="number" min={0} max={100} step={0.1}
+                          className="w-20 bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-center outline-none focus:border-gray-400"
+                          placeholder="%" value={s.porcentaje}
+                          onChange={e => setSocios(prev => prev.map((x, i) => i === si ? { ...x, porcentaje: parseFloat(e.target.value)||0 } : x))} />
+                        <span className="text-gray-400 text-sm">%</span>
+                        <span className={`text-sm font-semibold w-24 text-right ${pool >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                          {fmt((s.porcentaje / 100) * pool)}
+                        </span>
+                        <button type="button" onClick={() => setSocios(prev => prev.filter((_, i) => i !== si))}
+                          className="text-red-300 hover:text-red-500 text-sm">✕</button>
+                      </div>
+                    ))}
+                  </div>
+                  {socios.length > 0 && (
+                    <div className={`flex justify-between items-center mt-3 px-3 py-2 rounded-xl text-sm font-semibold ${Math.abs(totalPct - 100) < 0.1 ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
+                      <span>Total asignado: {totalPct.toFixed(1)}% {Math.abs(totalPct - 100) < 0.1 ? '✓' : `(faltan ${(100 - totalPct).toFixed(1)}%)`}</span>
+                      <span>{fmt(socios.reduce((s, x) => s + (x.porcentaje / 100) * pool, 0))}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })()}
         </div>
       )}
 
@@ -829,6 +943,7 @@ function PatrociniosSection({ title, patrocinios, patrocinadores, onChange }: {
     </div>
   )
 }
+
 
 
 
