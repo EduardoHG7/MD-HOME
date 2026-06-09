@@ -523,40 +523,65 @@ export default function PresupuestoPage() {
             </div>
           )}
 
-          {/* Cotizaciones aprobadas por categoría */}
-          <div className="card p-5">
-            <h2 className="font-semibold text-gray-900 mb-4">📋 Costos Aprobados por Subcategoría</h2>
+          {/* Cotizaciones por categoría — todas las pendientes y aprobadas */}
+          <div className="space-y-4">
+            <h2 className="font-semibold text-gray-900">📋 Cotizaciones por Subcategoría</h2>
             {categorias.map(cat => {
-              const lineasConCot = cat.lineas.filter(l => (l.cotizaciones ?? []).some(c => c.estado === 'APROBADA'))
+              const lineasConCot = cat.lineas.filter(l => (l.cotizaciones ?? []).length > 0)
               if (!lineasConCot.length) return null
+              const catAprobado = lineasConCot.reduce((s, l) => s + (l.cotizaciones ?? []).filter(c => c.estado === 'APROBADA').reduce((ss, c) => ss + c.montoTotal, 0), 0)
+              const catPresup   = lineasConCot.reduce((s, l) => s + num(l.montoUsd), 0)
               return (
-                <div key={cat.nombre} className="mb-4">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{cat.nombre}</p>
-                  <div className="space-y-1">
-                    {lineasConCot.map(l => {
-                      const aprobadas = (l.cotizaciones ?? []).filter(c => c.estado === 'APROBADA')
-                      const total = aprobadas.reduce((s, c) => s + c.montoTotal, 0)
-                      return (
-                        <div key={l.descripcion} className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-2.5 text-sm">
+                <div key={cat.nombre} className="card overflow-hidden">
+                  {/* Header categoría */}
+                  <div className="flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-100">
+                    <p className="text-sm font-semibold text-gray-700 uppercase tracking-wide">{cat.nombre}</p>
+                    <div className="flex items-center gap-4 text-xs">
+                      <span className="text-gray-400">Presup: <span className="font-semibold text-gray-600">{fmt(catPresup)}</span></span>
+                      <span className="text-gray-400">Aprobado: <span className={`font-semibold ${catAprobado > catPresup ? 'text-red-600' : 'text-green-600'}`}>{fmt(catAprobado)}</span></span>
+                    </div>
+                  </div>
+                  {/* Líneas con cotizaciones */}
+                  {lineasConCot.map(l => {
+                    const cots     = l.cotizaciones ?? []
+                    const aprobadas = cots.filter(c => c.estado === 'APROBADA')
+                    const pendientes = cots.filter(c => c.estado === 'PENDIENTE')
+                    const totalAprob = aprobadas.reduce((s, c) => s + c.montoTotal, 0)
+                    return (
+                      <div key={l.descripcion} className="border-b border-gray-50 last:border-0">
+                        {/* Resumen línea */}
+                        <div className="flex items-center justify-between px-5 py-3 bg-white">
                           <div>
-                            <p className="font-medium text-gray-900">{l.descripcion}</p>
-                            <p className="text-gray-400 text-xs">{aprobadas.length} cotización(es) aprobada(s)</p>
+                            <p className="text-sm font-medium text-gray-900">{l.descripcion}</p>
+                            <div className="flex gap-3 mt-0.5">
+                              {pendientes.length > 0 && <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-medium">{pendientes.length} pendiente(s)</span>}
+                              {aprobadas.length > 0  && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">{aprobadas.length} aprobada(s)</span>}
+                            </div>
                           </div>
-                          <div className="text-right">
-                            <p className="font-bold text-gray-900">{fmt(total)}</p>
-                            <p className={`text-xs ${num(l.montoUsd) >= total ? 'text-green-500' : 'text-red-500'}`}>
-                              Presup.: {fmt(num(l.montoUsd))} ({num(l.montoUsd) >= total ? '✓' : '⚠ excede'})
+                          <div className="text-right text-sm">
+                            <p className="font-bold text-gray-900">{fmt(totalAprob)} <span className="text-gray-400 font-normal text-xs">aprobado</span></p>
+                            <p className={`text-xs ${num(l.montoUsd) >= totalAprob ? 'text-green-500' : 'text-red-500'}`}>
+                              Presup: {fmt(num(l.montoUsd))} {num(l.montoUsd) >= totalAprob ? '✓' : '⚠ excede'}
                             </p>
                           </div>
                         </div>
-                      )
-                    })}
-                  </div>
+                        {/* Detalle cotizaciones */}
+                        <div className="bg-gray-50 border-t border-gray-100">
+                          {cots.map(cot => (
+                            <CotizacionRow key={cot.id} cot={cot} isAdmin={isAdmin} onUpdate={() => loadPresupuesto()} />
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               )
             })}
-            {categorias.every(c => c.lineas.every(l => !(l.cotizaciones ?? []).some(x => x.estado === 'APROBADA'))) && (
-              <p className="text-gray-400 text-sm text-center py-6">No hay cotizaciones aprobadas aún</p>
+            {categorias.every(c => c.lineas.every(l => !(l.cotizaciones ?? []).length)) && (
+              <div className="card p-8 text-center text-gray-400 text-sm">
+                <p className="text-3xl mb-2">📬</p>
+                No hay cotizaciones registradas aún
+              </div>
             )}
           </div>
 
@@ -804,6 +829,7 @@ function PatrociniosSection({ title, patrocinios, patrocinadores, onChange }: {
     </div>
   )
 }
+
 
 
 
