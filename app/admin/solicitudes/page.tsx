@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState } from 'react'
 import { formatDate, formatCurrency, TARIFA_LABELS, ESTADO_COLORS, ESTADO_SOLICITUD_LABELS } from '@/lib/utils'
@@ -20,6 +20,8 @@ interface Solicitud {
   presupuesto: number | null
   costoTotal: number | null
   notaAdmin: string | null
+  aprobadoPor: { name: string | null; email: string } | null
+  aprobadoEn: string | null
   createdAt: string
   fechaInicioLabor: string | null
   fechaFinLabor: string | null
@@ -232,7 +234,7 @@ export default function SolicitudesAdminPage() {
 
                 {/* Costo total */}
                 <div>
-                  <label className="label">Costo total aprobado ($)</label>
+                  <label className="label">Total preaprobado ($)</label>
                   <input
                     type="number" step="0.01" className="input" placeholder="Ej: 1500.00"
                     value={costo} onChange={e => setCosto(e.target.value)}
@@ -292,11 +294,19 @@ export default function SolicitudesAdminPage() {
             )}
 
             {selected.estado !== 'PENDIENTE' && (
-              <div className={`rounded-xl p-3 border ${ESTADO_COLORS[selected.estado]}`}>
+              <div className={`rounded-xl p-3 border space-y-1 ${ESTADO_COLORS[selected.estado]}`}>
                 <p className="text-sm font-semibold">{ESTADO_SOLICITUD_LABELS[selected.estado]}</p>
-                {selected.tarifa && <p className="text-sm mt-1">Tarifa: {TARIFA_LABELS[selected.tarifa.tipo]}</p>}
-                {selected.costoTotal && <p className="text-sm mt-1">Costo total: {formatCurrency(selected.costoTotal)}</p>}
-                {selected.notaAdmin && <p className="text-sm mt-1 opacity-80">{selected.notaAdmin}</p>}
+                {selected.tarifa && <p className="text-sm">Tarifa: {TARIFA_LABELS[selected.tarifa.tipo]}</p>}
+                {selected.costoTotal != null && <p className="text-sm font-medium">Total preaprobado: {formatCurrency(selected.costoTotal)}</p>}
+                {selected.aprobadoPor && (
+                  <p className="text-xs opacity-80">
+                    Aprobado por: <span className="font-semibold">{selected.aprobadoPor.name ?? selected.aprobadoPor.email}</span>
+                    {selected.aprobadoEn && (
+                      <> · {new Date(selected.aprobadoEn).toLocaleString('es-PA', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</>
+                    )}
+                  </p>
+                )}
+                {selected.notaAdmin && <p className="text-sm opacity-80">{selected.notaAdmin}</p>}
               </div>
             )}
 
@@ -359,3 +369,4 @@ function Row({ label, value }: { label: string; value: string }) {
     </div>
   )
 }
+
