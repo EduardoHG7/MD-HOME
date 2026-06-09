@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic'
+﻿export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
@@ -27,11 +27,16 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       costoTotal,
       notaAdmin,
       ...(tarifaId ? { tarifaId } : {}),
+      ...(estado === 'APROBADA' ? {
+        aprobadoPorId: session.user.id,
+        aprobadoEn:    new Date(),
+      } : {}),
     },
     include: {
       evento: true,
       tarifa: true,
       solicitante: { select: { name: true, email: true } },
+      aprobadoPor:  { select: { name: true, email: true } },
     },
   })
 
@@ -127,3 +132,4 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   return NextResponse.json({ ok: true })
 }
+
