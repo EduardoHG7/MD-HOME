@@ -395,6 +395,30 @@ export default function SolicitarPage() {
                             </button>
                           </>
                         )}
+                        {s.estado === 'RECHAZADA' && (
+                          <button
+                            onClick={e => {
+                              e.stopPropagation()
+                              // Pre-llenar el formulario con los datos de la solicitud rechazada
+                              const funcion = puestos.some(p => p.nombre === s.funcion) ? s.funcion : 'OTRO'
+                              setForm({
+                                eventoId:        s.evento.id,
+                                numPersonas:     s.numPersonas,
+                                funcion,
+                                funcionCustom:   funcion === 'OTRO' ? s.funcion : '',
+                                fechaInicioLabor: s.fechaInicioLabor ? s.fechaInicioLabor.slice(0, 10) : '',
+                                fechaFinLabor:    s.fechaFinLabor    ? s.fechaFinLabor.slice(0, 10)    : '',
+                                presupuesto:     '',
+                              })
+                              setShowForm(true)
+                              window.scrollTo({ top: 0, behavior: 'smooth' })
+                            }}
+                            title="Volver a solicitar con los mismos datos"
+                            className="text-xs px-2 py-1 rounded-lg border border-indigo-200 text-indigo-500 hover:bg-indigo-50 transition-all font-medium"
+                          >
+                            ↩ Volver a solicitar
+                          </button>
+                        )}
                         <span className="text-gray-400 text-sm">{isExpanded ? '▲' : '▼'}</span>
                       </div>
                     </div>
