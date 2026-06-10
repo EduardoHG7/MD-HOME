@@ -22,6 +22,7 @@ interface Asignacion {
 interface Solicitud {
   id: string; numPersonas: number; funcion: string; estado: string
   costoTotal: number | null; notaAdmin: string | null; createdAt: string
+  fechaInicioLabor: string | null; fechaFinLabor: string | null
   evento: Evento; tarifa: Tarifa | null; asignaciones: Asignacion[]
 }
 
