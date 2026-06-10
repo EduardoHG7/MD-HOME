@@ -61,10 +61,12 @@ export async function PUT(req: Request, { params }: { params: { eventoId: string
   if (categorias !== undefined) {
     await prisma.$transaction(async (tx) => {
       const incomingCatIds = categorias.map((c: { id?: string }) => c.id).filter(Boolean) as string[]
-      // Eliminar solo las categorías que ya no están en la lista (preserva las que sí están)
-      await tx.presupuestoCategoria.deleteMany({
-        where: { presupuestoId: presupuesto.id, id: { notIn: incomingCatIds } },
-      })
+      // Solo eliminar categorías removidas si hay alguna con id (evita borrar todo con notIn:[])
+      if (incomingCatIds.length > 0) {
+        await tx.presupuestoCategoria.deleteMany({
+          where: { presupuestoId: presupuesto.id, id: { notIn: incomingCatIds } },
+        })
+      }
 
       for (let i = 0; i < categorias.length; i++) {
         const cat = categorias[i] as { id?: string; nombre: string; lineas: { id?: string; descripcion: string; nota?: string; montoLocal: number; montoUsd: number; confianza?: string; asignadoAId?: string }[] }
@@ -84,8 +86,16 @@ export async function PUT(req: Request, { params }: { params: { eventoId: string
 
         // Upsert líneas dentro de la categoría
         const incomingLineaIds = (cat.lineas ?? []).map(l => l.id).filter(Boolean) as string[]
-        // Eliminar solo las líneas de esta categoría que ya no están
-        await tx.presupuestoLinea.deleteMany({ where: { categoriaId: catId, id: { notIn: incomingLineaIds } } })
+        // Solo eliminar líneas removidas si hay alguna con id Y nunca borrar líneas con cotizaciones
+        if (incomingLineaIds.length > 0) {
+          await tx.presupuestoLinea.deleteMany({
+            where: {
+              categoriaId: catId,
+              id:          { notIn: incomingLineaIds },
+              cotizaciones: { none: {} },   // nunca borrar líneas que tengan cotizaciones
+            },
+          })
+        }
 
         for (let j = 0; j < (cat.lineas ?? []).length; j++) {
           const l = cat.lineas[j]
