@@ -1,4 +1,4 @@
-﻿export const dynamic = 'force-dynamic'
+export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
@@ -79,7 +79,8 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
   if (solicitud.solicitanteId !== session.user.id && session.user.role !== 'ADMIN') {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
   }
-  if (solicitud.estado !== 'PENDIENTE') {
+  // Admins pueden eliminar en cualquier estado; usuarios solo pueden eliminar PENDIENTE
+  if (session.user.role !== 'ADMIN' && solicitud.estado !== 'PENDIENTE') {
     return NextResponse.json({ error: 'Solo se pueden eliminar solicitudes pendientes' }, { status: 400 })
   }
 
