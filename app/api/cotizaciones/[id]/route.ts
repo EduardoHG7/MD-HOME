@@ -16,10 +16,15 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   const cot = await prisma.cotizacion.update({
     where: { id: params.id },
-    data:  { estado, notaAdmin: notaAdmin ?? null },
+    data: {
+      estado,
+      notaAdmin: notaAdmin ?? null,
+      ...(estado === 'APROBADA' ? { aprobadaPorId: session.user.id, aprobadaEn: new Date() } : {}),
+    },
     include: {
-      facturas:  true,
-      creadoPor: { select: { name: true, email: true } },
+      facturas:    true,
+      creadoPor:   { select: { name: true, email: true } },
+      aprobadaPor: { select: { name: true, email: true } },
       linea: {
         include: {
           categoria: {
