@@ -16,11 +16,12 @@ model User {
   role      String   @default("USER")
   createdAt DateTime @default(now())
 
-  solicitudes          Solicitud[]
-  solicitudesAprobadas Solicitud[]  @relation("SolicitudAprobador")
-  facturas             Factura[]
-  lineasAsignadas      PresupuestoLinea[]
-  cotizaciones         Cotizacion[]
+  solicitudes              Solicitud[]
+  solicitudesAprobadas     Solicitud[]   @relation("SolicitudAprobador")
+  facturas                 Factura[]
+  lineasAsignadas          PresupuestoLinea[]
+  cotizaciones             Cotizacion[]
+  cotizacionesAprobadas    Cotizacion[]  @relation("CotizacionAprobador")
 
   @@map("users")
 }
@@ -164,12 +165,15 @@ model Cotizacion {
   facturaItbms      Float?
   facturaTotal      Float?
   facturaSubida     Boolean  @default(false)
+  aprobadaPorId     String?
+  aprobadaEn        DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  linea     PresupuestoLinea   @relation(fields: [lineaId], references: [id], onDelete: Cascade)
-  creadoPor User               @relation(fields: [creadoPorId], references: [id])
-  facturas  CotizacionFactura[]
+  linea       PresupuestoLinea   @relation(fields: [lineaId], references: [id], onDelete: Cascade)
+  creadoPor   User               @relation(fields: [creadoPorId], references: [id])
+  aprobadaPor User?              @relation("CotizacionAprobador", fields: [aprobadaPorId], references: [id])
+  facturas    CotizacionFactura[]
 
   @@map("cotizaciones")
 }
