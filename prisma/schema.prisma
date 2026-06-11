@@ -13,6 +13,7 @@ model User {
   email     String   @unique
   name      String?
   image     String?
+  telefono  String?
   role      String   @default("USER")
   createdAt DateTime @default(now())
 
