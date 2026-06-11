@@ -337,13 +337,26 @@ export default function PresupuestoPage() {
       const data = await resp.json()
       if (!resp.ok) { setExtractBolError(data.error ?? 'Error al procesar'); return }
       if (data.zonas?.length) {
-        setBoletosReal(
-          data.zonas
-            .filter((z: { precio: number }) => num(z.precio) > 0)
-            .map((z: { zona: string; vendidos: number; precio: number; match?: string; nota?: string }) => ({
-              zona: z.zona, vendidos: z.vendidos, precio: z.precio, match: z.match, nota: z.nota ?? undefined,
-            }))
-        )
+        // Consolidar filas con el mismo precio de boleto sumando los vendidos
+        type RawZona = { zona: string; vendidos: number; precio: number; match?: string; nota?: string }
+        const byPrice = new Map<number, BoletoReal>()
+        data.zonas
+          .filter((z: RawZona) => num(z.precio) > 0)
+          .forEach((z: RawZona) => {
+            const key = z.precio
+            if (byPrice.has(key)) {
+              const prev = byPrice.get(key)!
+              byPrice.set(key, {
+                ...prev,
+                vendidos: prev.vendidos + z.vendidos,
+                // Si la zona tiene distinto nombre, concatenar ambos
+                zona: prev.zona === z.zona ? prev.zona : `${prev.zona} / ${z.zona}`,
+              })
+            } else {
+              byPrice.set(key, { zona: z.zona, vendidos: z.vendidos, precio: z.precio, match: z.match, nota: z.nota ?? undefined })
+            }
+          })
+        setBoletosReal(Array.from(byPrice.values()))
       }
     } catch (e) { setExtractBolError(String(e)) }
     finally { setExtractingBol(false) }
