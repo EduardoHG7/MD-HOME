@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { sendMail, templateRespuestaSolicitud, templateNuevaSolicitud } from '@/lib/mail'
+import { sendWhatsApp } from '@/lib/whatsapp'
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
@@ -35,12 +36,15 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     include: {
       evento: true,
       tarifa: true,
-      solicitante: { select: { name: true, email: true } },
+      solicitante: { select: { name: true, email: true, telefono: true } },
       aprobadoPor:  { select: { name: true, email: true } },
     },
   })
 
   if ((estado === 'APROBADA' || estado === 'RECHAZADA') && session.user.email && solicitud.solicitante.email) {
+    const emoji = estado === 'APROBADA' ? '✅' : '❌'
+    const texto = estado === 'APROBADA' ? 'aprobada' : 'rechazada'
+
     try {
       await sendMail({
         fromEmail: session.user.email,
@@ -59,6 +63,25 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       })
     } catch (err) {
       console.error('[solicitudes/id] Error enviando email:', err)
+    }
+
+    if (solicitud.solicitante.telefono) {
+      try {
+        const lines = [
+          `${emoji} *Magic Dreams Productions*`,
+          `Tu solicitud de personal fue *${texto}*.`,
+          ``,
+          `*Evento:* ${solicitud.evento.nombre}`,
+          `*Función:* ${solicitud.funcion}`,
+          `*Personas:* ${solicitud.numPersonas}`,
+          ...(estado === 'APROBADA' && costoTotal ? [`*Costo aprobado:* $${Number(costoTotal).toFixed(2)}`] : []),
+          ...(notaAdmin ? [`*Nota del admin:* ${notaAdmin}`] : []),
+          `*Revisado por:* ${session.user.name ?? session.user.email}`,
+        ]
+        await sendWhatsApp(solicitud.solicitante.telefono, lines.join('\n'))
+      } catch (err) {
+        console.error('[solicitudes/id] Error enviando WhatsApp:', err)
+      }
     }
   }
 
@@ -107,7 +130,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   }
 
   try {
-    const admins      = await prisma.user.findMany({ where: { role: 'ADMIN' }, select: { email: true } })
+    const admins      = await prisma.user.findMany({ where: { role: 'ADMIN' }, select: { email: true, telefono: true } })
     const adminEmails = admins.map(a => a.email)
     const fromEmail   = session.user.email
     if (adminEmails.length && fromEmail) {
@@ -126,6 +149,20 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         }),
       })
     }
+
+    const adminsConPhone = admins.filter(a => a.telefono)
+    for (const admin of adminsConPhone) {
+      try {
+        await sendWhatsApp(
+          admin.telefono!,
+          `📋 *Magic Dreams — Solicitud de personal*\n\n` +
+          `[Reenvío] *${session.user.name ?? fromEmail}* solicita personal para *${solicitud.evento.nombre}*.\n` +
+          `*Función:* ${solicitud.funcion} · *Personas:* ${solicitud.numPersonas}`
+        )
+      } catch (err) {
+        console.error('[solicitudes/id] Error enviando WhatsApp a admin:', err)
+      }
+    }
   } catch (err) {
     console.error('[solicitudes/id] Error reenviando email:', err)
     return NextResponse.json({ error: 'Error al reenviar' }, { status: 500 })
@@ -133,4 +170,3 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   return NextResponse.json({ ok: true })
 }
-
