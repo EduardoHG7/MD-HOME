@@ -36,6 +36,8 @@ interface CotAdmin {
   id: string; descripcion: string | null; estado: string; notaAdmin: string | null
   montoTotal: number; createdAt: string
   archivoUrl: string | null; archivoNombreCot: string | null
+  aprobadaPor: { name: string | null; email: string } | null
+  aprobadaEn: string | null
   facturas: CotFact[]
   creadoPor: { name: string | null; email: string }
   linea: {
@@ -480,6 +482,15 @@ export default function SolicitudesAdminPage() {
                 {selectedCot.estado !== 'PENDIENTE' && (
                   <div className={`rounded-xl p-3 border space-y-1 ${COT_COLORS[selectedCot.estado]}`}>
                     <p className="text-sm font-semibold">{selectedCot.estado}</p>
+                    {selectedCot.aprobadaPor && (
+                      <p className="text-xs opacity-80">
+                        {selectedCot.estado === 'APROBADA' ? 'Aprobada' : 'Rechazada'} por:{' '}
+                        <span className="font-semibold">{selectedCot.aprobadaPor.name ?? selectedCot.aprobadaPor.email}</span>
+                        {selectedCot.aprobadaEn && (
+                          <> · {new Date(selectedCot.aprobadaEn).toLocaleString('es-PA', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</>
+                        )}
+                      </p>
+                    )}
                     {selectedCot.notaAdmin && <p className="text-sm">{selectedCot.notaAdmin}</p>}
                   </div>
                 )}
