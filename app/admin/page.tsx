@@ -1,7 +1,10 @@
 export const dynamic = 'force-dynamic'
 
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import PhoneEditor from '@/app/components/PhoneEditor'
 
 function getMesCalendario(year: number, month: number) {
   const primerDia = new Date(year, month, 1).getDay() // 0=dom
@@ -10,7 +13,9 @@ function getMesCalendario(year: number, month: number) {
 }
 
 export default async function AdminDashboard() {
-  const [solicitudes, aplicantes, eventosData, eventosCount] = await Promise.all([
+  const session = await getServerSession(authOptions)
+
+  const [solicitudes, aplicantes, eventosData, eventosCount, usuario] = await Promise.all([
     prisma.solicitud.findMany({ include: { tarifa: true, evento: true } }),
     prisma.aplicante.count(),
     prisma.evento.findMany({
@@ -22,6 +27,7 @@ export default async function AdminDashboard() {
       },
     }),
     prisma.evento.count({ where: { estado: 'ACTIVO' } }),
+    session ? prisma.user.findUnique({ where: { id: session.user.id }, select: { telefono: true } }) : null,
   ])
 
   const pendientes = solicitudes.filter(s => s.estado === 'PENDIENTE').length
@@ -91,6 +97,9 @@ export default async function AdminDashboard() {
           </div>
         ))}
       </div>
+
+      {/* WhatsApp phone */}
+      <PhoneEditor telefono={usuario?.telefono ?? null} />
 
       {/* Cost + ganancia */}
       <div className={`grid gap-4 ${hayPresupuesto ? 'grid-cols-3' : 'grid-cols-1'}`}>
