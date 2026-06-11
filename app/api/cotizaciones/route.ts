@@ -20,8 +20,9 @@ export async function GET(req: Request) {
   const cotizaciones = await prisma.cotizacion.findMany({
     where,
     include: {
-      facturas:   true,
-      creadoPor:  { select: { name: true, email: true } },
+      facturas:    true,
+      creadoPor:   { select: { name: true, email: true } },
+      aprobadaPor: { select: { name: true, email: true } },
       linea: {
         include: {
           categoria: {
