@@ -5,6 +5,7 @@ import { authOptions } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import PhoneEditor from '@/app/components/PhoneEditor'
 
 function getMesCalendario(year: number, month: number) {
   const primerDia = new Date(year, month, 1).getDay()
@@ -18,7 +19,7 @@ export default async function UsuarioDashboard() {
 
   const hoy = new Date()
 
-  const [solicitudes, eventos] = await Promise.all([
+  const [solicitudes, eventos, usuario] = await Promise.all([
     prisma.solicitud.findMany({
       where: { solicitanteId: session.user.id },
       include: {
@@ -31,6 +32,10 @@ export default async function UsuarioDashboard() {
     prisma.evento.findMany({
       where: { estado: { not: 'CANCELADO' } },
       orderBy: { fechaInicio: 'asc' },
+    }),
+    prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { telefono: true },
     }),
   ])
 
@@ -83,6 +88,9 @@ export default async function UsuarioDashboard() {
           <p className="text-3xl font-bold mt-1 text-amber-600">{eventosActivos}</p>
         </div>
       </div>
+
+      {/* WhatsApp phone */}
+      <PhoneEditor telefono={usuario?.telefono ?? null} />
 
       {/* Personal por solicitud + Calendario */}
       <div className="grid grid-cols-2 gap-6 items-start">
