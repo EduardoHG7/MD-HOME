@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { sendMail, templateNuevaCotizacion } from '@/lib/mail'
+import { sendWhatsApp } from '@/lib/whatsapp'
 
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions)
@@ -77,7 +78,7 @@ export async function POST(req: Request) {
 
   // Notificar a todos los admins
   try {
-    const admins      = await prisma.user.findMany({ where: { role: 'ADMIN' }, select: { email: true } })
+    const admins      = await prisma.user.findMany({ where: { role: 'ADMIN' }, select: { email: true, telefono: true } })
     const adminEmails = admins.map(a => a.email)
     const fromEmail   = session.user.email
     if (adminEmails.length && fromEmail) {
@@ -97,8 +98,24 @@ export async function POST(req: Request) {
         }),
       })
     }
+
+    const adminsConPhone = admins.filter(a => a.telefono)
+    for (const admin of adminsConPhone) {
+      try {
+        await sendWhatsApp(
+          admin.telefono!,
+          `💰 *Magic Dreams — Nueva cotización*\n\n` +
+          `*${session.user.name ?? fromEmail}* subió una cotización para aprobación.\n\n` +
+          `*Evento:* ${cot.linea.categoria.presupuesto.evento.nombre}\n` +
+          `*Subcategoría:* ${cot.linea.descripcion}\n` +
+          `*Monto total:* $${montoTotal.toFixed(2)}`
+        )
+      } catch (err) {
+        console.error('[cotizaciones] Error enviando WhatsApp a admin:', err)
+      }
+    }
   } catch (err) {
-    console.error('[cotizaciones] Error enviando email a admins:', err)
+    console.error('[cotizaciones] Error enviando notificaciones a admins:', err)
   }
 
   return NextResponse.json(cot, { status: 201 })
