@@ -99,6 +99,7 @@ export async function POST(req: Request) {
       })
     }
 
+    const url = process.env.NEXTAUTH_URL ?? ''
     const adminsConPhone = admins.filter(a => a.telefono)
     for (const admin of adminsConPhone) {
       try {
@@ -108,7 +109,8 @@ export async function POST(req: Request) {
           `*${session.user.name ?? fromEmail}* subió una cotización para aprobación.\n\n` +
           `*Evento:* ${cot.linea.categoria.presupuesto.evento.nombre}\n` +
           `*Subcategoría:* ${cot.linea.descripcion}\n` +
-          `*Monto total:* $${montoTotal.toFixed(2)}`
+          `*Monto total:* $${montoTotal.toFixed(2)}\n\n` +
+          `Revisar y aprobar:\n${url}/admin/solicitudes`
         )
       } catch (err) {
         console.error('[cotizaciones] Error enviando WhatsApp a admin:', err)

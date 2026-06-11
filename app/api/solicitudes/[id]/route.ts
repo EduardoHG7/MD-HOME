@@ -150,14 +150,16 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       })
     }
 
+    const url = process.env.NEXTAUTH_URL ?? ''
     const adminsConPhone = admins.filter(a => a.telefono)
     for (const admin of adminsConPhone) {
       try {
         await sendWhatsApp(
           admin.telefono!,
-          `📋 *Magic Dreams — Solicitud de personal*\n\n` +
-          `[Reenvío] *${session.user.name ?? fromEmail}* solicita personal para *${solicitud.evento.nombre}*.\n` +
-          `*Función:* ${solicitud.funcion} · *Personas:* ${solicitud.numPersonas}`
+          `📋 *Magic Dreams — Solicitud de personal (reenvío)*\n\n` +
+          `*${session.user.name ?? fromEmail}* solicita personal para *${solicitud.evento.nombre}*.\n` +
+          `*Función:* ${solicitud.funcion} · *Personas:* ${solicitud.numPersonas}\n\n` +
+          `Revisar y aprobar:\n${url}/admin/solicitudes`
         )
       } catch (err) {
         console.error('[solicitudes/id] Error enviando WhatsApp a admin:', err)
