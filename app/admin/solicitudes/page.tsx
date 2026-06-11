@@ -31,10 +31,11 @@ interface Solicitud {
   asignaciones: Asignacion[]
 }
 
-interface CotFact { id: string; descripcion: string; proveedor: string | null; monto: number }
+interface CotFact { id: string; descripcion: string; proveedor: string | null; monto: number; archivoNombre: string | null }
 interface CotAdmin {
   id: string; descripcion: string | null; estado: string; notaAdmin: string | null
   montoTotal: number; createdAt: string
+  archivoUrl: string | null; archivoNombreCot: string | null
   facturas: CotFact[]
   creadoPor: { name: string | null; email: string }
   linea: {
@@ -159,9 +160,9 @@ export default function SolicitudesAdminPage() {
       body: JSON.stringify({ estado, notaAdmin: cotNota || null }),
     })
     if (res.ok) {
-      const updated = await res.json()
-      setCotizaciones(prev => prev.map(c => c.id === cotId ? { ...c, ...updated } : c))
-      if (selectedCot?.id === cotId) setSelectedCot(prev => prev ? { ...prev, ...updated } : null)
+      const nota = cotNota || null
+      setCotizaciones(prev => prev.map(c => c.id === cotId ? { ...c, estado, notaAdmin: nota } : c))
+      setSelectedCot(prev => prev?.id === cotId ? { ...prev, estado, notaAdmin: nota } : prev)
     }
     setSavingCot(false)
   }
@@ -435,6 +436,13 @@ export default function SolicitudesAdminPage() {
 
                 {selectedCot.descripcion && (
                   <p className="text-sm text-gray-600 bg-gray-50 rounded-xl px-4 py-3 italic">{selectedCot.descripcion}</p>
+                )}
+
+                {selectedCot.archivoUrl && (
+                  <a href={selectedCot.archivoUrl} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-700 hover:bg-blue-100 transition-all font-medium">
+                    📎 {selectedCot.archivoNombreCot ?? 'Ver adjunto'}
+                  </a>
                 )}
 
                 {selectedCot.facturas.length > 0 && (
