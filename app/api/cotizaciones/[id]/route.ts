@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { sendMail, templateRespuestaCotizacion } from '@/lib/mail'
+import { sendWhatsApp } from '@/lib/whatsapp'
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
@@ -23,7 +24,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     },
     include: {
       facturas:    true,
-      creadoPor:   { select: { name: true, email: true } },
+      creadoPor:   { select: { name: true, email: true, telefono: true } },
       aprobadaPor: { select: { name: true, email: true } },
       linea: {
         include: {
@@ -35,8 +36,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     },
   })
 
-  // Notificar al usuario que creó la cotización
   if ((estado === 'APROBADA' || estado === 'RECHAZADA') && session.user.email && cot.creadoPor.email) {
+    const emoji = estado === 'APROBADA' ? '✅' : '❌'
+    const texto = estado === 'APROBADA' ? 'aprobada' : 'rechazada'
+
     try {
       await sendMail({
         fromEmail: session.user.email,
@@ -55,6 +58,25 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       })
     } catch (err) {
       console.error('[cotizaciones/id] Error enviando email:', err)
+    }
+
+    if (cot.creadoPor.telefono) {
+      try {
+        const lines = [
+          `${emoji} *Magic Dreams Productions*`,
+          `Tu cotización fue *${texto}*.`,
+          ``,
+          `*Evento:* ${cot.linea.categoria.presupuesto.evento.nombre}`,
+          `*Subcategoría:* ${cot.linea.descripcion}`,
+          `*Monto:* $${cot.montoTotal.toFixed(2)}`,
+          ...(notaAdmin ? [`*Nota del admin:* ${notaAdmin}`] : []),
+          `*Revisado por:* ${session.user.name ?? session.user.email}`,
+          ...(estado === 'APROBADA' ? [`\nRecuerda subir tu factura real para completar el proceso.`] : []),
+        ]
+        await sendWhatsApp(cot.creadoPor.telefono, lines.join('\n'))
+      } catch (err) {
+        console.error('[cotizaciones/id] Error enviando WhatsApp:', err)
+      }
     }
   }
 
