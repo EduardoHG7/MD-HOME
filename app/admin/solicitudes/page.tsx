@@ -326,7 +326,7 @@ export default function SolicitudesAdminPage() {
                 {selected.estado === 'PENDIENTE' && (
                   <div className="space-y-3 pt-2 border-t border-gray-100">
                     <div>
-                      <label className="label">Tipo de tarifa *</label>
+                      <label className="label">Tipo de tarifa <span className="text-gray-400 font-normal">(opcional — para calcular el monto)</span></label>
                       <div className="grid grid-cols-3 gap-2">
                         {tarifas.map(t => (
                           <button key={t.tipo} type="button" onClick={() => handleTarifaChange(t.tipo)}
@@ -379,7 +379,7 @@ export default function SolicitudesAdminPage() {
                     <div className="flex gap-3">
                       <button onClick={() => handleDecision('RECHAZADA')} disabled={loading}
                         className="flex-1 px-4 py-2 rounded-xl border-2 border-red-200 text-red-600 hover:bg-red-50 font-medium text-sm transition-all">Rechazar</button>
-                      <button onClick={() => handleDecision('APROBADA')} disabled={loading || !tipoTarifa}
+                      <button onClick={() => handleDecision('APROBADA')} disabled={loading || !costo}
                         className="flex-1 btn-primary">{loading ? '...' : 'Aprobar âœ“'}</button>
                     </div>
                   </div>
