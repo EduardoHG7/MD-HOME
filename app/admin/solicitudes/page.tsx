@@ -74,8 +74,6 @@ export default function SolicitudesAdminPage() {
   const [savingCot, setSavingCot] = useState(false)
   const [editingCosto, setEditingCosto] = useState(false)
   const [nuevoCosto,   setNuevoCosto]   = useState('')
-  const [editingCosto, setEditingCosto] = useState(false)
-  const [nuevoCosto,   setNuevoCosto]   = useState('')
 
   function copiarLinkEvento(aplicanteId: string, eventoId: string) {
     const url = `${window.location.origin}/aplicante/${aplicanteId}?evento=${eventoId}`
@@ -150,29 +148,6 @@ export default function SolicitudesAdminPage() {
     setLoading(false)
   }
 
-
-  async function handleReenviar() {
-    if (!selected || !selected.costoTotal) return
-    setLoading(true)
-    const costoNum = parseFloat(nuevoCosto)
-    const res = await fetch(/api/solicitudes/${selected.id}, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        estado: 'APROBADA',
-        costoTotal: !isNaN(costoNum) ? costoNum : selected.costoTotal,
-        notaAdmin: selected.notaAdmin ?? null,
-        tipoTarifa: selected.tarifa?.tipo,
-      }),
-    })
-    if (res.ok) {
-      const updated = await res.json()
-      setSolicitudes(prev => prev.map(s => s.id === updated.id ? updated : s))
-      setSelected(updated)
-      setEditingCosto(false)
-    }
-    setLoading(false)
-  }
 
   async function handleReenviar() {
     if (!selected) return
