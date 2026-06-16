@@ -321,6 +321,7 @@ export default function SolicitudesAdminPage() {
                     <Row label="Fechas de labor" value={`${formatDate(selected.fechaInicioLabor)} â€“ ${formatDate(selected.fechaFinLabor)} (${getDiasLabor(selected)} dÃ­a(s))`} />
                   )}
                   {selected.presupuesto != null && <Row label="Presupuesto cliente" value={formatCurrency(selected.presupuesto)} />}
+                  {selected.comentario && <Row label="Comentario" value={selected.comentario} />}
                 </div>
 
                 {selected.estado === 'PENDIENTE' && (

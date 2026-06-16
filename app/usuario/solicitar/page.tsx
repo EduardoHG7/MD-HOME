@@ -69,7 +69,7 @@ export default function SolicitarPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [reenvioId,  setReenvioId]  = useState<string | null>(null)
 
-  const [form, setForm] = useState({ eventoId: '', numPersonas: 1, funcion: '', funcionCustom: '', fechaInicioLabor: '', fechaFinLabor: '', presupuesto: '' })
+  const [form, setForm] = useState({ eventoId: '', numPersonas: 1, funcion: '', funcionCustom: '', fechaInicioLabor: '', fechaFinLabor: '', presupuesto: '', comentario: '' })
 
   useEffect(() => {
     Promise.all([
@@ -205,7 +205,7 @@ export default function SolicitarPage() {
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Error al enviar.'); return }
       setSolicitudes(prev => [{ ...data, asignaciones: [] }, ...prev])
-      setSuccess(true); setForm({ eventoId: '', numPersonas: 1, funcion: '', funcionCustom: '', fechaInicioLabor: '', fechaFinLabor: '', presupuesto: '' }); setShowForm(false)
+      setSuccess(true); setForm({ eventoId: '', numPersonas: 1, funcion: '', funcionCustom: '', fechaInicioLabor: '', fechaFinLabor: '', presupuesto: '', comentario: '' }); setShowForm(false)
       setTimeout(() => setSuccess(false), 4000)
     } catch { setError('Error de conexión.') }
     finally { setLoading(false) }
@@ -308,6 +308,15 @@ export default function SolicitarPage() {
             </div>
             <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700">
               💡 El administrador asignará la tarifa al revisar tu solicitud.
+            </div>
+            <div>
+              <label className="label">Comentario (opcional)</label>
+              <textarea
+                className="input resize-none h-20"
+                placeholder="Agrega cualquier detalle adicional para el administrador..."
+                value={form.comentario}
+                onChange={e => setForm(f => ({ ...f, comentario: e.target.value }))}
+              />
             </div>
             <button type="submit" disabled={loading} className="btn-primary w-full">
               {loading ? 'Enviando...' : 'Enviar Solicitud'}
