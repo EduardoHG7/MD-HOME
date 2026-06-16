@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState } from 'react'
 import { formatDate, formatCurrency, TARIFA_LABELS, ESTADO_COLORS, ESTADO_SOLICITUD_LABELS } from '@/lib/utils'
@@ -72,6 +72,10 @@ export default function SolicitudesAdminPage() {
   const [selectedCot, setSelectedCot] = useState<CotAdmin | null>(null)
   const [cotNota, setCotNota] = useState('')
   const [savingCot, setSavingCot] = useState(false)
+  const [editingCosto, setEditingCosto] = useState(false)
+  const [nuevoCosto,   setNuevoCosto]   = useState('')
+  const [editingCosto, setEditingCosto] = useState(false)
+  const [nuevoCosto,   setNuevoCosto]   = useState('')
 
   function copiarLinkEvento(aplicanteId: string, eventoId: string) {
     const url = `${window.location.origin}/aplicante/${aplicanteId}?evento=${eventoId}`
@@ -100,6 +104,8 @@ export default function SolicitudesAdminPage() {
     setCosto(s.costoTotal?.toString() ?? '')
     setNota(s.notaAdmin ?? '')
     setTipoTarifa(s.tarifa?.tipo ?? (tarifas[0]?.tipo ?? ''))
+    setEditingCosto(false)
+    setNuevoCosto(s.costoTotal?.toString() ?? '')
   }
 
   const selectedTarifa = tarifas.find(t => t.tipo === tipoTarifa)
@@ -144,8 +150,55 @@ export default function SolicitudesAdminPage() {
     setLoading(false)
   }
 
+
+  async function handleReenviar() {
+    if (!selected || !selected.costoTotal) return
+    setLoading(true)
+    const costoNum = parseFloat(nuevoCosto)
+    const res = await fetch(/api/solicitudes/${selected.id}, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        estado: 'APROBADA',
+        costoTotal: !isNaN(costoNum) ? costoNum : selected.costoTotal,
+        notaAdmin: selected.notaAdmin ?? null,
+        tipoTarifa: selected.tarifa?.tipo,
+      }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      setSolicitudes(prev => prev.map(s => s.id === updated.id ? updated : s))
+      setSelected(updated)
+      setEditingCosto(false)
+    }
+    setLoading(false)
+  }
+
+  async function handleReenviar() {
+    if (!selected) return
+    setLoading(true)
+    const costoNum = parseFloat(nuevoCosto)
+    const res = await fetch(`/api/solicitudes/${selected.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        estado: 'APROBADA',
+        costoTotal: !isNaN(costoNum) && nuevoCosto ? costoNum : selected.costoTotal,
+        notaAdmin: selected.notaAdmin ?? null,
+        tipoTarifa: selected.tarifa?.tipo,
+      }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      setSolicitudes(prev => prev.map(s => s.id === updated.id ? updated : s))
+      setSelected(updated)
+      setEditingCosto(false)
+    }
+    setLoading(false)
+  }
+
   async function handleDeleteSolicitud(id: string) {
-    if (!confirm('¿Eliminar esta solicitud? Esta acción no se puede deshacer.')) return
+    if (!confirm('Â¿Eliminar esta solicitud? Esta acciÃ³n no se puede deshacer.')) return
     setDeleting(id)
     const res = await fetch(`/api/solicitudes/${id}`, { method: 'DELETE' })
     if (res.ok) {
@@ -170,7 +223,7 @@ export default function SolicitudesAdminPage() {
   }
 
   async function handleDeleteCot(id: string) {
-    if (!confirm('¿Eliminar esta cotización?')) return
+    if (!confirm('Â¿Eliminar esta cotizaciÃ³n?')) return
     setDeleting(id)
     const res = await fetch(`/api/cotizaciones/${id}`, { method: 'DELETE' })
     if (res.ok) {
@@ -194,17 +247,17 @@ export default function SolicitudesAdminPage() {
       <div className="flex gap-1 bg-gray-100 rounded-2xl p-1 w-fit">
         <button onClick={() => setMainTab('personal')}
           className={`px-5 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${mainTab === 'personal' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>
-          👥 Personal
+          ðŸ‘¥ Personal
           {pendPersonal > 0 && <span className="bg-amber-400 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">{pendPersonal}</span>}
         </button>
         <button onClick={() => setMainTab('cotizaciones')}
           className={`px-5 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${mainTab === 'cotizaciones' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>
-          📋 Cotizaciones
+          ðŸ“‹ Cotizaciones
           {pendCot > 0 && <span className="bg-amber-400 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">{pendCot}</span>}
         </button>
       </div>
 
-      {/* ══ TAB: PERSONAL ══ */}
+      {/* â•â• TAB: PERSONAL â•â• */}
       {mainTab === 'personal' && (
         <>
           <div className="flex gap-2">
@@ -228,7 +281,7 @@ export default function SolicitudesAdminPage() {
                     <p className="font-semibold text-gray-900 text-sm">{s.evento.nombre}</p>
                     <span className={`badge ${ESTADO_COLORS[s.estado]}`}>{ESTADO_SOLICITUD_LABELS[s.estado]}</span>
                   </div>
-                  <p className="text-gray-500 text-xs">{s.funcion} · {s.numPersonas} persona(s)</p>
+                  <p className="text-gray-500 text-xs">{s.funcion} Â· {s.numPersonas} persona(s)</p>
                   <p className="text-gray-400 text-xs mt-1">Por: {s.solicitante.name ?? s.solicitante.email}</p>
                   <p className="text-gray-400 text-xs">{formatDate(s.createdAt)}</p>
                   {s.presupuesto != null && <p className="text-blue-500 text-xs mt-1">Presupuesto: {formatCurrency(s.presupuesto)}</p>}
@@ -252,20 +305,20 @@ export default function SolicitudesAdminPage() {
                 <div className="flex items-start justify-between">
                   <div>
                     <h3 className="text-lg font-bold text-gray-900">{selected.evento.nombre}</h3>
-                    <p className="text-gray-500 text-sm">{formatDate(selected.evento.fechaInicio)} – {formatDate(selected.evento.fechaFin)}</p>
+                    <p className="text-gray-500 text-sm">{formatDate(selected.evento.fechaInicio)} â€“ {formatDate(selected.evento.fechaFin)}</p>
                   </div>
                   <button onClick={() => handleDeleteSolicitud(selected.id)} disabled={deleting === selected.id}
                     className="text-xs px-3 py-1.5 rounded-xl border border-red-200 text-red-500 hover:bg-red-50 transition-all font-medium">
-                    {deleting === selected.id ? '...' : '🗑 Eliminar'}
+                    {deleting === selected.id ? '...' : 'ðŸ—‘ Eliminar'}
                   </button>
                 </div>
 
                 <div className="space-y-0 text-sm divide-y divide-gray-100">
                   <Row label="Solicitante" value={selected.solicitante.name ?? selected.solicitante.email} />
-                  <Row label="Función"     value={selected.funcion} />
+                  <Row label="FunciÃ³n"     value={selected.funcion} />
                   <Row label="Personas"    value={`${selected.numPersonas}`} />
                   {selected.fechaInicioLabor && selected.fechaFinLabor && (
-                    <Row label="Fechas de labor" value={`${formatDate(selected.fechaInicioLabor)} – ${formatDate(selected.fechaFinLabor)} (${getDiasLabor(selected)} día(s))`} />
+                    <Row label="Fechas de labor" value={`${formatDate(selected.fechaInicioLabor)} â€“ ${formatDate(selected.fechaFinLabor)} (${getDiasLabor(selected)} dÃ­a(s))`} />
                   )}
                   {selected.presupuesto != null && <Row label="Presupuesto cliente" value={formatCurrency(selected.presupuesto)} />}
                 </div>
@@ -279,7 +332,7 @@ export default function SolicitudesAdminPage() {
                           <button key={t.tipo} type="button" onClick={() => handleTarifaChange(t.tipo)}
                             className={`p-2 rounded-xl border-2 text-center transition-all ${tipoTarifa === t.tipo ? 'border-gray-900 bg-gray-50' : 'border-gray-200 bg-white hover:border-gray-300'}`}>
                             <p className="text-xs font-semibold text-gray-500">{TARIFA_LABELS[t.tipo]}</p>
-                            <p className="text-sm font-bold text-gray-900">{formatCurrency(t.precioPorDia)}/día</p>
+                            <p className="text-sm font-bold text-gray-900">{formatCurrency(t.precioPorDia)}/dÃ­a</p>
                           </button>
                         ))}
                       </div>
@@ -287,11 +340,11 @@ export default function SolicitudesAdminPage() {
                     {estimadoPorDia > 0 && (
                       <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-sm space-y-1">
                         <div className="flex justify-between">
-                          <span className="text-amber-700">Por día ({selected.numPersonas} × {formatCurrency(selectedTarifa!.precioPorDia)})</span>
+                          <span className="text-amber-700">Por dÃ­a ({selected.numPersonas} Ã— {formatCurrency(selectedTarifa!.precioPorDia)})</span>
                           <span className="text-amber-600 font-bold">{formatCurrency(estimadoPorDia)}</span>
                         </div>
                         <div className="flex justify-between font-semibold">
-                          <span className="text-amber-700">Total estimado ({getDiasLabor(selected)} día(s))</span>
+                          <span className="text-amber-700">Total estimado ({getDiasLabor(selected)} dÃ­a(s))</span>
                           <span className="text-amber-600">{formatCurrency(estimadoPorDia * getDiasLabor(selected))}</span>
                         </div>
                       </div>
@@ -312,8 +365,8 @@ export default function SolicitudesAdminPage() {
                         <div className={`rounded-xl px-4 py-3 border ${positivo ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
                           <div className="flex justify-between items-center">
                             <div>
-                              <p className={`text-xs font-semibold ${positivo ? 'text-green-700' : 'text-red-700'}`}>{positivo ? '✅ Ganancia estimada' : '❌ Pérdida estimada'}</p>
-                              <p className="text-gray-500 text-xs mt-0.5">Presupuesto {formatCurrency(selected.presupuesto)} − Costo {formatCurrency(costoNum)}</p>
+                              <p className={`text-xs font-semibold ${positivo ? 'text-green-700' : 'text-red-700'}`}>{positivo ? 'âœ… Ganancia estimada' : 'âŒ PÃ©rdida estimada'}</p>
+                              <p className="text-gray-500 text-xs mt-0.5">Presupuesto {formatCurrency(selected.presupuesto)} âˆ’ Costo {formatCurrency(costoNum)}</p>
                             </div>
                             <div className="text-right">
                               <p className={`text-xl font-bold ${positivo ? 'text-green-600' : 'text-red-600'}`}>{positivo ? '+' : ''}{formatCurrency(ganancia)}</p>
@@ -327,23 +380,55 @@ export default function SolicitudesAdminPage() {
                       <button onClick={() => handleDecision('RECHAZADA')} disabled={loading}
                         className="flex-1 px-4 py-2 rounded-xl border-2 border-red-200 text-red-600 hover:bg-red-50 font-medium text-sm transition-all">Rechazar</button>
                       <button onClick={() => handleDecision('APROBADA')} disabled={loading || !tipoTarifa}
-                        className="flex-1 btn-primary">{loading ? '...' : 'Aprobar ✓'}</button>
+                        className="flex-1 btn-primary">{loading ? '...' : 'Aprobar âœ“'}</button>
                     </div>
                   </div>
                 )}
 
                 {selected.estado !== 'PENDIENTE' && (
-                  <div className={`rounded-xl p-3 border space-y-1 ${ESTADO_COLORS[selected.estado]}`}>
-                    <p className="text-sm font-semibold">{ESTADO_SOLICITUD_LABELS[selected.estado]}</p>
-                    {selected.tarifa && <p className="text-sm">Tarifa: {TARIFA_LABELS[selected.tarifa.tipo]}</p>}
-                    {selected.costoTotal != null && <p className="text-sm font-medium">Total preaprobado: {formatCurrency(selected.costoTotal)}</p>}
-                    {selected.aprobadoPor && (
-                      <p className="text-xs opacity-80">
-                        Aprobado por: <span className="font-semibold">{selected.aprobadoPor.name ?? selected.aprobadoPor.email}</span>
-                        {selected.aprobadoEn && <> · {new Date(selected.aprobadoEn).toLocaleString('es-PA', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</>}
-                      </p>
+                  <div className="space-y-3">
+                    <div className={`rounded-xl p-3 border space-y-1 ${ESTADO_COLORS[selected.estado]}`}>
+                      <p className="text-sm font-semibold">{ESTADO_SOLICITUD_LABELS[selected.estado]}</p>
+                      {selected.tarifa && <p className="text-sm">Tarifa: {TARIFA_LABELS[selected.tarifa.tipo]}</p>}
+                      {selected.costoTotal != null && <p className="text-sm font-medium">Total preaprobado: {formatCurrency(selected.costoTotal)}</p>}
+                      {selected.aprobadoPor && (
+                        <p className="text-xs opacity-80">
+                          Aprobado por: <span className="font-semibold">{selected.aprobadoPor.name ?? selected.aprobadoPor.email}</span>
+                          {selected.aprobadoEn && <> · {new Date(selected.aprobadoEn).toLocaleString('es-PA', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</>}
+                        </p>
+                      )}
+                      {selected.notaAdmin && <p className="text-sm opacity-80">{selected.notaAdmin}</p>}
+                    </div>
+
+                    {selected.estado === 'APROBADA' && (
+                      editingCosto ? (
+                        <div className="space-y-2 p-3 border border-amber-200 bg-amber-50 rounded-xl">
+                          <label className="text-xs font-semibold text-amber-700">Nuevo monto aprobado ($)</label>
+                          <input
+                            type="number" step="0.01"
+                            className="input"
+                            value={nuevoCosto}
+                            onChange={e => setNuevoCosto(e.target.value)}
+                          />
+                          <div className="flex gap-2">
+                            <button onClick={() => setEditingCosto(false)}
+                              className="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-gray-500 text-sm hover:bg-gray-50 transition-all">
+                              Cancelar
+                            </button>
+                            <button onClick={handleReenviar} disabled={loading || !nuevoCosto}
+                              className="flex-1 btn-primary text-sm">
+                              {loading ? '...' : '📲 Actualizar y reenviar'}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => { setNuevoCosto(selected.costoTotal?.toString() ?? ''); setEditingCosto(true) }}
+                          className="w-full px-4 py-2.5 rounded-xl border border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100 text-sm font-medium transition-all">
+                          ✏️ Editar monto y reenviar confirmación
+                        </button>
+                      )
                     )}
-                    {selected.notaAdmin && <p className="text-sm opacity-80">{selected.notaAdmin}</p>}
                   </div>
                 )}
 
@@ -365,12 +450,12 @@ export default function SolicitudesAdminPage() {
                               </div>
                               <button onClick={() => copiarLinkEvento(a.aplicante.id, selected.evento.id)}
                                 className={`text-xs px-2 py-1 rounded-lg border font-medium transition-all ${copiedId === a.aplicante.id ? 'border-green-300 bg-green-50 text-green-600' : 'border-gray-200 text-gray-600 hover:border-gray-400'}`}>
-                                {copiedId === a.aplicante.id ? '✓ Copiado' : '🔗 Link QR'}
+                                {copiedId === a.aplicante.id ? 'âœ“ Copiado' : 'ðŸ”— Link QR'}
                               </button>
                             </div>
                             <div className="flex gap-4 px-3 py-1.5 bg-gray-50 border-t border-gray-100 text-xs">
-                              {entrada ? <span className="text-green-600 font-medium">↓ {new Date(entrada.timestamp).toLocaleString('es-PA', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span> : <span className="text-gray-300">Sin entrada</span>}
-                              {salida  ? <span className="text-blue-600 font-medium">↑ {new Date(salida.timestamp).toLocaleString('es-PA', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>  : <span className="text-gray-300">Sin salida</span>}
+                              {entrada ? <span className="text-green-600 font-medium">â†“ {new Date(entrada.timestamp).toLocaleString('es-PA', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span> : <span className="text-gray-300">Sin entrada</span>}
+                              {salida  ? <span className="text-blue-600 font-medium">â†‘ {new Date(salida.timestamp).toLocaleString('es-PA', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>  : <span className="text-gray-300">Sin salida</span>}
                             </div>
                           </div>
                         )
@@ -384,7 +469,7 @@ export default function SolicitudesAdminPage() {
         </>
       )}
 
-      {/* ══ TAB: COTIZACIONES ══ */}
+      {/* â•â• TAB: COTIZACIONES â•â• */}
       {mainTab === 'cotizaciones' && (
         <>
           <div className="flex gap-2">
@@ -408,25 +493,25 @@ export default function SolicitudesAdminPage() {
                     <p className="font-semibold text-gray-900 text-sm truncate pr-2">{c.linea.categoria.presupuesto.evento.nombre}</p>
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium border shrink-0 ${COT_COLORS[c.estado]}`}>{c.estado}</span>
                   </div>
-                  <p className="text-xs text-gray-500">{c.linea.categoria.nombre} › {c.linea.descripcion}</p>
-                  <p className="text-xs text-gray-400 mt-1">Por: {c.creadoPor.name ?? c.creadoPor.email} · {formatDate(c.createdAt)}</p>
+                  <p className="text-xs text-gray-500">{c.linea.categoria.nombre} â€º {c.linea.descripcion}</p>
+                  <p className="text-xs text-gray-400 mt-1">Por: {c.creadoPor.name ?? c.creadoPor.email} Â· {formatDate(c.createdAt)}</p>
                   {c.descripcion && <p className="text-xs text-gray-500 mt-1 italic">{c.descripcion}</p>}
                   <p className="text-sm font-bold text-gray-900 mt-2">{formatCurrency(c.montoTotal)}</p>
                 </button>
               ))}
             </div>
 
-            {/* Panel detalle cotización */}
+            {/* Panel detalle cotizaciÃ³n */}
             {selectedCot && (
               <div className="card p-6 space-y-5 h-fit sticky top-4">
                 <div className="flex items-start justify-between">
                   <div>
                     <h3 className="text-lg font-bold text-gray-900">{selectedCot.linea.categoria.presupuesto.evento.nombre}</h3>
-                    <p className="text-gray-500 text-sm">{selectedCot.linea.categoria.nombre} › {selectedCot.linea.descripcion}</p>
+                    <p className="text-gray-500 text-sm">{selectedCot.linea.categoria.nombre} â€º {selectedCot.linea.descripcion}</p>
                   </div>
                   <button onClick={() => handleDeleteCot(selectedCot.id)} disabled={deleting === selectedCot.id}
                     className="text-xs px-3 py-1.5 rounded-xl border border-red-200 text-red-500 hover:bg-red-50 transition-all font-medium">
-                    {deleting === selectedCot.id ? '...' : '🗑 Eliminar'}
+                    {deleting === selectedCot.id ? '...' : 'ðŸ—‘ Eliminar'}
                   </button>
                 </div>
 
@@ -443,7 +528,7 @@ export default function SolicitudesAdminPage() {
                 {selectedCot.archivoUrl && (
                   <a href={selectedCot.archivoUrl} target="_blank" rel="noopener noreferrer"
                     className="flex items-center gap-2 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-700 hover:bg-blue-100 transition-all font-medium">
-                    📎 {selectedCot.archivoNombreCot ?? 'Ver adjunto'}
+                    ðŸ“Ž {selectedCot.archivoNombreCot ?? 'Ver adjunto'}
                   </a>
                 )}
 
@@ -474,7 +559,7 @@ export default function SolicitudesAdminPage() {
                       <button onClick={() => handleCotDecision(selectedCot.id, 'RECHAZADA')} disabled={savingCot}
                         className="flex-1 px-4 py-2 rounded-xl border-2 border-red-200 text-red-600 hover:bg-red-50 font-medium text-sm">Rechazar</button>
                       <button onClick={() => handleCotDecision(selectedCot.id, 'APROBADA')} disabled={savingCot}
-                        className="flex-1 btn-primary">{savingCot ? '...' : 'Aprobar ✓'}</button>
+                        className="flex-1 btn-primary">{savingCot ? '...' : 'Aprobar âœ“'}</button>
                     </div>
                   </div>
                 )}
@@ -487,7 +572,7 @@ export default function SolicitudesAdminPage() {
                         {selectedCot.estado === 'APROBADA' ? 'Aprobada' : 'Rechazada'} por:{' '}
                         <span className="font-semibold">{selectedCot.aprobadaPor.name ?? selectedCot.aprobadaPor.email}</span>
                         {selectedCot.aprobadaEn && (
-                          <> · {new Date(selectedCot.aprobadaEn).toLocaleString('es-PA', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</>
+                          <> Â· {new Date(selectedCot.aprobadaEn).toLocaleString('es-PA', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</>
                         )}
                       </p>
                     )}
