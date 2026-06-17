@@ -223,12 +223,12 @@ export default function SolicitudesAdminPage() {
       <div className="flex gap-1 bg-gray-100 rounded-2xl p-1 w-fit">
         <button onClick={() => setMainTab('personal')}
           className={`px-5 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${mainTab === 'personal' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>
-          ðŸ‘¥ Personal
+          👥 Personal
           {pendPersonal > 0 && <span className="bg-amber-400 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">{pendPersonal}</span>}
         </button>
         <button onClick={() => setMainTab('cotizaciones')}
           className={`px-5 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${mainTab === 'cotizaciones' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>
-          ðŸ“‹ Cotizaciones
+          📋 Cotizaciones
           {pendCot > 0 && <span className="bg-amber-400 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">{pendCot}</span>}
         </button>
       </div>
@@ -285,7 +285,7 @@ export default function SolicitudesAdminPage() {
                   </div>
                   <button onClick={() => handleDeleteSolicitud(selected.id)} disabled={deleting === selected.id}
                     className="text-xs px-3 py-1.5 rounded-xl border border-red-200 text-red-500 hover:bg-red-50 transition-all font-medium">
-                    {deleting === selected.id ? '...' : 'ðŸ—‘ Eliminar'}
+                    {deleting === selected.id ? ‘...’ : ‘🗑 Eliminar’}
                   </button>
                 </div>
 
@@ -427,7 +427,7 @@ export default function SolicitudesAdminPage() {
                               </div>
                               <button onClick={() => copiarLinkEvento(a.aplicante.id, selected.evento.id)}
                                 className={`text-xs px-2 py-1 rounded-lg border font-medium transition-all ${copiedId === a.aplicante.id ? 'border-green-300 bg-green-50 text-green-600' : 'border-gray-200 text-gray-600 hover:border-gray-400'}`}>
-                                {copiedId === a.aplicante.id ? 'âœ“ Copiado' : 'ðŸ”— Link QR'}
+                                {copiedId === a.aplicante.id ? '✓ Copiado' : '🔗 Link QR'}
                               </button>
                             </div>
                             <div className="flex gap-4 px-3 py-1.5 bg-gray-50 border-t border-gray-100 text-xs">
@@ -488,7 +488,7 @@ export default function SolicitudesAdminPage() {
                   </div>
                   <button onClick={() => handleDeleteCot(selectedCot.id)} disabled={deleting === selectedCot.id}
                     className="text-xs px-3 py-1.5 rounded-xl border border-red-200 text-red-500 hover:bg-red-50 transition-all font-medium">
-                    {deleting === selectedCot.id ? '...' : 'ðŸ—‘ Eliminar'}
+                    {deleting === selectedCot.id ? ‘...’ : ‘🗑 Eliminar’}
                   </button>
                 </div>
 
@@ -505,7 +505,7 @@ export default function SolicitudesAdminPage() {
                 {selectedCot.archivoUrl && (
                   <a href={selectedCot.archivoUrl} target="_blank" rel="noopener noreferrer"
                     className="flex items-center gap-2 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-700 hover:bg-blue-100 transition-all font-medium">
-                    ðŸ“Ž {selectedCot.archivoNombreCot ?? 'Ver adjunto'}
+                    🔎 {selectedCot.archivoNombreCot ?? 'Ver adjunto'}
                   </a>
                 )}
 
