@@ -246,7 +246,7 @@ export default function SolicitudesAdminPage() {
             ))}
           </div>
 
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Lista */}
             <div className="space-y-2">
               {filtered.length === 0 && <div className="card p-6 text-center text-gray-400">No hay solicitudes en este estado.</div>}
@@ -467,7 +467,7 @@ export default function SolicitudesAdminPage() {
             ))}
           </div>
 
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Lista cotizaciones */}
             <div className="space-y-2">
               {filteredCot.length === 0 && <div className="card p-6 text-center text-gray-400">No hay cotizaciones en este estado.</div>}

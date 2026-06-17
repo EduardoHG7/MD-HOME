@@ -244,35 +244,37 @@ export default function EventosPage() {
       {/* Lista */}
       <div className="space-y-3">
         {eventos.map(ev => (
-          <div key={ev.id} className="card p-5 flex items-center justify-between hover:shadow-md transition-shadow">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                <p className="font-semibold text-gray-900">{ev.nombre}</p>
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_STYLES[ev.estado] ?? ''}`}>
-                  {ev.estado}
-                </span>
-                {ev.tipoEvento && (
-                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
-                    {TIPO_LABELS[ev.tipoEvento] ?? ev.tipoEvento}
+          <div key={ev.id} className="card p-5 hover:shadow-md transition-shadow">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                  <p className="font-semibold text-gray-900">{ev.nombre}</p>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_STYLES[ev.estado] ?? ''}`}>
+                    {ev.estado}
                   </span>
-                )}
-                {ev.tieneSocio && (
-                  <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">
-                    🤝 {ev.nombreSocio ?? 'Socio externo'}
-                  </span>
-                )}
+                  {ev.tipoEvento && (
+                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+                      {TIPO_LABELS[ev.tipoEvento] ?? ev.tipoEvento}
+                    </span>
+                  )}
+                  {ev.tieneSocio && (
+                    <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">
+                      🤝 {ev.nombreSocio ?? 'Socio externo'}
+                    </span>
+                  )}
+                </div>
+                {ev.descripcion && <p className="text-gray-500 text-sm">{ev.descripcion}</p>}
+                <div className="flex flex-wrap items-center gap-3 text-gray-400 text-xs mt-1">
+                  <span>📅 {formatDate(ev.fechaInicio)} – {formatDate(ev.fechaFin)}</span>
+                  {ev.venue && <span>📍 {ev.venue.nombre}</span>}
+                </div>
               </div>
-              {ev.descripcion && <p className="text-gray-500 text-sm">{ev.descripcion}</p>}
-              <div className="flex items-center gap-3 text-gray-400 text-xs mt-1">
-                <span>📅 {formatDate(ev.fechaInicio)} – {formatDate(ev.fechaFin)}</span>
-                {ev.venue && <span>📍 {ev.venue.nombre}</span>}
-              </div>
-            </div>
-            <div className="flex items-center gap-4 ml-4">
-              <div className="text-right">
+              <div className="text-right shrink-0">
                 <p className="text-2xl font-bold text-gray-900">{ev._count.asignaciones}</p>
                 <p className="text-gray-400 text-xs">aplicante(s)</p>
               </div>
+            </div>
+            <div className="flex items-center gap-2 mt-3 flex-wrap">
               <button onClick={() => router.push(`/admin/eventos/${ev.id}/presupuesto`)}
                 className="p-2 rounded-xl border border-amber-200 hover:border-amber-400 hover:bg-amber-50 transition-all text-amber-600 text-xs font-medium px-3"
                 title="Ver presupuesto">💰 Presupuesto</button>
