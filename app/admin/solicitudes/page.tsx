@@ -303,7 +303,7 @@ export default function SolicitudesAdminPage() {
                 {selected.estado === 'PENDIENTE' && (
                   <div className="space-y-3 pt-2 border-t border-gray-100">
                     <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-800">
-                      <p>💡 Recuerda que el monto es en base a 8 horas laboradas. Este puede subir dependiendo de las horas extras, hasta <strong>$50.00</strong> adicionales.</p>
+                      <p>💡 Recuerda que el monto es en base a 8 horas laboradas. Este puede subir dependiendo de las horas extras, hasta <strong>$50.00</strong> máximo.</p>
                     </div>
                     <div>
                       <label className="label">Tipo de tarifa <span className="text-gray-400 font-normal">(opcional — para calcular el monto)</span></label>
