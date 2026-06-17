@@ -302,9 +302,12 @@ export default function SolicitudesAdminPage() {
 
                 {selected.estado === 'PENDIENTE' && (
                   <div className="space-y-3 pt-2 border-t border-gray-100">
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-800">
+                      <p>💡 Recuerda que el monto es en base a 8 horas laboradas. Este puede subir dependiendo de las horas extras, hasta <strong>$50.00</strong> adicionales.</p>
+                    </div>
                     <div>
                       <label className="label">Tipo de tarifa <span className="text-gray-400 font-normal">(opcional — para calcular el monto)</span></label>
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-2 gap-2">
                         {tarifas.map(t => (
                           <button key={t.tipo} type="button" onClick={() => handleTarifaChange(t.tipo)}
                             className={`p-2 rounded-xl border-2 text-center transition-all ${tipoTarifa === t.tipo ? 'border-gray-900 bg-gray-50' : 'border-gray-200 bg-white hover:border-gray-300'}`}>
@@ -312,6 +315,11 @@ export default function SolicitudesAdminPage() {
                             <p className="text-sm font-bold text-gray-900">{formatCurrency(t.precioPorDia)}/día</p>
                           </button>
                         ))}
+                        <button type="button" onClick={() => { setTipoTarifa(''); setCosto('') }}
+                          className={`p-2 rounded-xl border-2 text-center transition-all ${tipoTarifa === '' && costo === '' ? 'border-gray-900 bg-gray-50' : 'border-gray-200 bg-white hover:border-gray-300'}`}>
+                          <p className="text-xs font-semibold text-gray-500">Monto personalizado</p>
+                          <p className="text-sm font-bold text-gray-900">Ingresar manualmente</p>
+                        </button>
                       </div>
                     </div>
                     {estimadoPorDia > 0 && (
