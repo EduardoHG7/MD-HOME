@@ -174,7 +174,7 @@ export default function SolicitudesAdminPage() {
   }
 
   async function handleDeleteSolicitud(id: string) {
-    if (!confirm('Â¿Eliminar esta solicitud? Esta acciÃ³n no se puede deshacer.')) return
+    if (!confirm('¿Eliminar esta solicitud? Esta acción no se puede deshacer.')) return
     setDeleting(id)
     const res = await fetch(`/api/solicitudes/${id}`, { method: 'DELETE' })
     if (res.ok) {
@@ -199,7 +199,7 @@ export default function SolicitudesAdminPage() {
   }
 
   async function handleDeleteCot(id: string) {
-    if (!confirm('Â¿Eliminar esta cotizaciÃ³n?')) return
+    if (!confirm('¿Eliminar esta cotización?')) return
     setDeleting(id)
     const res = await fetch(`/api/cotizaciones/${id}`, { method: 'DELETE' })
     if (res.ok) {
@@ -233,7 +233,7 @@ export default function SolicitudesAdminPage() {
         </button>
       </div>
 
-      {/* â•â• TAB: PERSONAL â•â• */}
+      {/* ══ TAB: PERSONAL ══ */}
       {mainTab === 'personal' && (
         <>
           <div className="flex gap-2">
@@ -257,7 +257,7 @@ export default function SolicitudesAdminPage() {
                     <p className="font-semibold text-gray-900 text-sm">{s.evento.nombre}</p>
                     <span className={`badge ${ESTADO_COLORS[s.estado]}`}>{ESTADO_SOLICITUD_LABELS[s.estado]}</span>
                   </div>
-                  <p className="text-gray-500 text-xs">{s.funcion} Â· {s.numPersonas} persona(s)</p>
+                  <p className="text-gray-500 text-xs">{s.funcion} · {s.numPersonas} persona(s)</p>
                   <p className="text-gray-400 text-xs mt-1">Por: {s.solicitante.name ?? s.solicitante.email}</p>
                   <p className="text-gray-400 text-xs">{formatDate(s.createdAt)}</p>
                   {s.presupuesto != null && <p className="text-blue-500 text-xs mt-1">Presupuesto: {formatCurrency(s.presupuesto)}</p>}
@@ -281,7 +281,7 @@ export default function SolicitudesAdminPage() {
                 <div className="flex items-start justify-between">
                   <div>
                     <h3 className="text-lg font-bold text-gray-900">{selected.evento.nombre}</h3>
-                    <p className="text-gray-500 text-sm">{formatDate(selected.evento.fechaInicio)} â€“ {formatDate(selected.evento.fechaFin)}</p>
+                    <p className="text-gray-500 text-sm">{formatDate(selected.evento.fechaInicio)} – {formatDate(selected.evento.fechaFin)}</p>
                   </div>
                   <button onClick={() => handleDeleteSolicitud(selected.id)} disabled={deleting === selected.id}
                     className="text-xs px-3 py-1.5 rounded-xl border border-red-200 text-red-500 hover:bg-red-50 transition-all font-medium">
@@ -291,10 +291,10 @@ export default function SolicitudesAdminPage() {
 
                 <div className="space-y-0 text-sm divide-y divide-gray-100">
                   <Row label="Solicitante" value={selected.solicitante.name ?? selected.solicitante.email} />
-                  <Row label="FunciÃ³n"     value={selected.funcion} />
+                  <Row label="Función"     value={selected.funcion} />
                   <Row label="Personas"    value={`${selected.numPersonas}`} />
                   {selected.fechaInicioLabor && selected.fechaFinLabor && (
-                    <Row label="Fechas de labor" value={`${formatDate(selected.fechaInicioLabor)} â€“ ${formatDate(selected.fechaFinLabor)} (${getDiasLabor(selected)} dÃ­a(s))`} />
+                    <Row label="Fechas de labor" value={`${formatDate(selected.fechaInicioLabor)} – ${formatDate(selected.fechaFinLabor)} (${getDiasLabor(selected)} día(s))`} />
                   )}
                   {selected.presupuesto != null && <Row label="Presupuesto cliente" value={formatCurrency(selected.presupuesto)} />}
                   {selected.comentario && <Row label="Comentario" value={selected.comentario} />}
@@ -309,7 +309,7 @@ export default function SolicitudesAdminPage() {
                           <button key={t.tipo} type="button" onClick={() => handleTarifaChange(t.tipo)}
                             className={`p-2 rounded-xl border-2 text-center transition-all ${tipoTarifa === t.tipo ? 'border-gray-900 bg-gray-50' : 'border-gray-200 bg-white hover:border-gray-300'}`}>
                             <p className="text-xs font-semibold text-gray-500">{TARIFA_LABELS[t.tipo]}</p>
-                            <p className="text-sm font-bold text-gray-900">{formatCurrency(t.precioPorDia)}/dÃ­a</p>
+                            <p className="text-sm font-bold text-gray-900">{formatCurrency(t.precioPorDia)}/día</p>
                           </button>
                         ))}
                       </div>
@@ -317,11 +317,11 @@ export default function SolicitudesAdminPage() {
                     {estimadoPorDia > 0 && (
                       <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-sm space-y-1">
                         <div className="flex justify-between">
-                          <span className="text-amber-700">Por dÃ­a ({selected.numPersonas} Ã— {formatCurrency(selectedTarifa!.precioPorDia)})</span>
+                          <span className="text-amber-700">Por día ({selected.numPersonas} × {formatCurrency(selectedTarifa!.precioPorDia)})</span>
                           <span className="text-amber-600 font-bold">{formatCurrency(estimadoPorDia)}</span>
                         </div>
                         <div className="flex justify-between font-semibold">
-                          <span className="text-amber-700">Total estimado ({getDiasLabor(selected)} dÃ­a(s))</span>
+                          <span className="text-amber-700">Total estimado ({getDiasLabor(selected)} día(s))</span>
                           <span className="text-amber-600">{formatCurrency(estimadoPorDia * getDiasLabor(selected))}</span>
                         </div>
                       </div>
@@ -342,8 +342,8 @@ export default function SolicitudesAdminPage() {
                         <div className={`rounded-xl px-4 py-3 border ${positivo ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
                           <div className="flex justify-between items-center">
                             <div>
-                              <p className={`text-xs font-semibold ${positivo ? 'text-green-700' : 'text-red-700'}`}>{positivo ? 'âœ… Ganancia estimada' : 'âŒ PÃ©rdida estimada'}</p>
-                              <p className="text-gray-500 text-xs mt-0.5">Presupuesto {formatCurrency(selected.presupuesto)} âˆ’ Costo {formatCurrency(costoNum)}</p>
+                              <p className={`text-xs font-semibold ${positivo ? 'text-green-700' : 'text-red-700'}`}>{positivo ? '✅ Ganancia estimada' : '❌ Pérdida estimada'}</p>
+                              <p className="text-gray-500 text-xs mt-0.5">Presupuesto {formatCurrency(selected.presupuesto)} − Costo {formatCurrency(costoNum)}</p>
                             </div>
                             <div className="text-right">
                               <p className={`text-xl font-bold ${positivo ? 'text-green-600' : 'text-red-600'}`}>{positivo ? '+' : ''}{formatCurrency(ganancia)}</p>
@@ -357,7 +357,7 @@ export default function SolicitudesAdminPage() {
                       <button onClick={() => handleDecision('RECHAZADA')} disabled={loading}
                         className="flex-1 px-4 py-2 rounded-xl border-2 border-red-200 text-red-600 hover:bg-red-50 font-medium text-sm transition-all">Rechazar</button>
                       <button onClick={() => handleDecision('APROBADA')} disabled={loading || !costo}
-                        className="flex-1 btn-primary">{loading ? '...' : 'Aprobar âœ“'}</button>
+                        className="flex-1 btn-primary">{loading ? '...' : 'Aprobar ✓'}</button>
                     </div>
                   </div>
                 )}
@@ -431,8 +431,8 @@ export default function SolicitudesAdminPage() {
                               </button>
                             </div>
                             <div className="flex gap-4 px-3 py-1.5 bg-gray-50 border-t border-gray-100 text-xs">
-                              {entrada ? <span className="text-green-600 font-medium">â†“ {new Date(entrada.timestamp).toLocaleString('es-PA', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span> : <span className="text-gray-300">Sin entrada</span>}
-                              {salida  ? <span className="text-blue-600 font-medium">â†‘ {new Date(salida.timestamp).toLocaleString('es-PA', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>  : <span className="text-gray-300">Sin salida</span>}
+                              {entrada ? <span className="text-green-600 font-medium">↓ {new Date(entrada.timestamp).toLocaleString('es-PA', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span> : <span className="text-gray-300">Sin entrada</span>}
+                              {salida  ? <span className="text-blue-600 font-medium">↑ {new Date(salida.timestamp).toLocaleString('es-PA', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>  : <span className="text-gray-300">Sin salida</span>}
                             </div>
                           </div>
                         )
@@ -446,7 +446,7 @@ export default function SolicitudesAdminPage() {
         </>
       )}
 
-      {/* â•â• TAB: COTIZACIONES â•â• */}
+      {/* ══ TAB: COTIZACIONES ══ */}
       {mainTab === 'cotizaciones' && (
         <>
           <div className="flex gap-2">
@@ -470,21 +470,21 @@ export default function SolicitudesAdminPage() {
                     <p className="font-semibold text-gray-900 text-sm truncate pr-2">{c.linea.categoria.presupuesto.evento.nombre}</p>
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium border shrink-0 ${COT_COLORS[c.estado]}`}>{c.estado}</span>
                   </div>
-                  <p className="text-xs text-gray-500">{c.linea.categoria.nombre} â€º {c.linea.descripcion}</p>
-                  <p className="text-xs text-gray-400 mt-1">Por: {c.creadoPor.name ?? c.creadoPor.email} Â· {formatDate(c.createdAt)}</p>
+                  <p className="text-xs text-gray-500">{c.linea.categoria.nombre} › {c.linea.descripcion}</p>
+                  <p className="text-xs text-gray-400 mt-1">Por: {c.creadoPor.name ?? c.creadoPor.email} · {formatDate(c.createdAt)}</p>
                   {c.descripcion && <p className="text-xs text-gray-500 mt-1 italic">{c.descripcion}</p>}
                   <p className="text-sm font-bold text-gray-900 mt-2">{formatCurrency(c.montoTotal)}</p>
                 </button>
               ))}
             </div>
 
-            {/* Panel detalle cotizaciÃ³n */}
+            {/* Panel detalle cotización */}
             {selectedCot && (
               <div className="card p-6 space-y-5 h-fit sticky top-4">
                 <div className="flex items-start justify-between">
                   <div>
                     <h3 className="text-lg font-bold text-gray-900">{selectedCot.linea.categoria.presupuesto.evento.nombre}</h3>
-                    <p className="text-gray-500 text-sm">{selectedCot.linea.categoria.nombre} â€º {selectedCot.linea.descripcion}</p>
+                    <p className="text-gray-500 text-sm">{selectedCot.linea.categoria.nombre} › {selectedCot.linea.descripcion}</p>
                   </div>
                   <button onClick={() => handleDeleteCot(selectedCot.id)} disabled={deleting === selectedCot.id}
                     className="text-xs px-3 py-1.5 rounded-xl border border-red-200 text-red-500 hover:bg-red-50 transition-all font-medium">
@@ -536,7 +536,7 @@ export default function SolicitudesAdminPage() {
                       <button onClick={() => handleCotDecision(selectedCot.id, 'RECHAZADA')} disabled={savingCot}
                         className="flex-1 px-4 py-2 rounded-xl border-2 border-red-200 text-red-600 hover:bg-red-50 font-medium text-sm">Rechazar</button>
                       <button onClick={() => handleCotDecision(selectedCot.id, 'APROBADA')} disabled={savingCot}
-                        className="flex-1 btn-primary">{savingCot ? '...' : 'Aprobar âœ“'}</button>
+                        className="flex-1 btn-primary">{savingCot ? '...' : 'Aprobar ✓'}</button>
                     </div>
                   </div>
                 )}
@@ -549,7 +549,7 @@ export default function SolicitudesAdminPage() {
                         {selectedCot.estado === 'APROBADA' ? 'Aprobada' : 'Rechazada'} por:{' '}
                         <span className="font-semibold">{selectedCot.aprobadaPor.name ?? selectedCot.aprobadaPor.email}</span>
                         {selectedCot.aprobadaEn && (
-                          <> Â· {new Date(selectedCot.aprobadaEn).toLocaleString('es-PA', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</>
+                          <> · {new Date(selectedCot.aprobadaEn).toLocaleString('es-PA', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</>
                         )}
                       </p>
                     )}
