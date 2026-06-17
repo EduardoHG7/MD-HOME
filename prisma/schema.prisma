@@ -265,6 +265,7 @@ model Solicitud {
   fechaFinLabor    DateTime?
   presupuesto   Float?
   costoTotal    Float?
+  comentario    String?
   notaAdmin     String?
   aprobadoPorId String?
   aprobadoEn    DateTime?
