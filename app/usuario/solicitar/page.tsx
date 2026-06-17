@@ -419,6 +419,7 @@ export default function SolicitarPage() {
                                 fechaInicioLabor: s.fechaInicioLabor ? s.fechaInicioLabor.slice(0, 10) : '',
                                 fechaFinLabor:    s.fechaFinLabor    ? s.fechaFinLabor.slice(0, 10)    : '',
                                 presupuesto:     '',
+                                comentario:      '',
                               })
                               setShowForm(true)
                               window.scrollTo({ top: 0, behavior: 'smooth' })
