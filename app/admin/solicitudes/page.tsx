@@ -20,6 +20,7 @@ interface Solicitud {
   presupuesto: number | null
   costoTotal: number | null
   notaAdmin: string | null
+  comentario: string | null
   aprobadoPor: { name: string | null; email: string } | null
   aprobadoEn: string | null
   createdAt: string
