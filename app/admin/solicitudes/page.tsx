@@ -285,7 +285,7 @@ export default function SolicitudesAdminPage() {
                   </div>
                   <button onClick={() => handleDeleteSolicitud(selected.id)} disabled={deleting === selected.id}
                     className="text-xs px-3 py-1.5 rounded-xl border border-red-200 text-red-500 hover:bg-red-50 transition-all font-medium">
-                    {deleting === selected.id ? ‘...’ : ‘🗑 Eliminar’}
+                    {deleting === selected.id ? '...' : '🗑 Eliminar'}
                   </button>
                 </div>
 
@@ -488,7 +488,7 @@ export default function SolicitudesAdminPage() {
                   </div>
                   <button onClick={() => handleDeleteCot(selectedCot.id)} disabled={deleting === selectedCot.id}
                     className="text-xs px-3 py-1.5 rounded-xl border border-red-200 text-red-500 hover:bg-red-50 transition-all font-medium">
-                    {deleting === selectedCot.id ? ‘...’ : ‘🗑 Eliminar’}
+                    {deleting === selectedCot.id ? '...' : '🗑 Eliminar'}
                   </button>
                 </div>
 
