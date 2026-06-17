@@ -102,22 +102,22 @@ export default async function AdminDashboard() {
       <PhoneEditor telefono={usuario?.telefono ?? null} />
 
       {/* Cost + ganancia */}
-      <div className={`grid gap-4 ${hayPresupuesto ? 'grid-cols-3' : 'grid-cols-1'}`}>
+      <div className={`grid gap-4 ${hayPresupuesto ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1'}`}>
         <div className="card-gold p-6">
           <p className="text-gray-500 text-sm mb-1">Costo total aprobado</p>
-          <p className="text-4xl font-bold text-amber-600">{formatCurrency(costoTotal)}</p>
+          <p className="text-3xl font-bold text-amber-600 break-all">{formatCurrency(costoTotal)}</p>
           <p className="text-gray-400 text-xs mt-2">Estimado desde tarifa si no tiene costo fijo</p>
         </div>
         {hayPresupuesto && (
           <>
             <div className="card p-6 border-l-4 border-l-blue-400">
               <p className="text-gray-500 text-sm mb-1">Presupuesto total clientes</p>
-              <p className="text-4xl font-bold text-blue-600">{formatCurrency(presupuestoTotal)}</p>
+              <p className="text-3xl font-bold text-blue-600 break-all">{formatCurrency(presupuestoTotal)}</p>
               <p className="text-gray-400 text-xs mt-2">Suma de presupuestos de solicitudes aprobadas</p>
             </div>
             <div className={`card p-6 border-l-4 ${gananciaTotal >= 0 ? 'border-l-green-400' : 'border-l-red-400'}`}>
               <p className="text-gray-500 text-sm mb-1">{gananciaTotal >= 0 ? '✅ Ganancia estimada' : '❌ Pérdida estimada'}</p>
-              <p className={`text-4xl font-bold ${gananciaTotal >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              <p className={`text-3xl font-bold break-all ${gananciaTotal >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                 {gananciaTotal >= 0 ? '+' : ''}{formatCurrency(gananciaTotal)}
               </p>
               <p className="text-gray-400 text-xs mt-2">
@@ -130,7 +130,7 @@ export default async function AdminDashboard() {
       </div>
 
       {/* Personal por evento + Calendario */}
-      <div className="grid grid-cols-2 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
 
         {/* Personal por evento */}
         <div className="space-y-3">
