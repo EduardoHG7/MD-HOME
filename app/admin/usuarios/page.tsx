@@ -11,6 +11,18 @@ interface User {
   createdAt: string
 }
 
+const ROLE_LABELS: Record<string, string> = {
+  ADMIN:        '👑 Admin',
+  CONTABILIDAD: '📊 Contabilidad',
+  USER:         '👤 Usuario',
+}
+
+const ROLE_STYLES: Record<string, string> = {
+  ADMIN:        'bg-gray-900 text-white border-gray-900',
+  CONTABILIDAD: 'bg-blue-700 text-white border-blue-700',
+  USER:         'bg-gray-100 text-gray-600 border-gray-200',
+}
+
 export default function UsuariosAdminPage() {
   const { data: session } = useSession()
   const [users,   setUsers]   = useState<User[]>([])
@@ -22,11 +34,8 @@ export default function UsuariosAdminPage() {
     })
   }, [])
 
-  async function toggleRole(user: User) {
-    const newRole = user.role === 'ADMIN' ? 'USER' : 'ADMIN'
-    const accion  = newRole === 'ADMIN' ? 'hacer ADMIN' : 'quitar el rol de ADMIN'
-    if (!confirm(`¿Deseas ${accion} a ${user.name ?? user.email}?`)) return
-
+  async function setRole(user: User, newRole: string) {
+    if (!confirm(`¿Cambiar rol de ${user.name ?? user.email} a ${ROLE_LABELS[newRole]}?`)) return
     setLoading(user.id)
     const res = await fetch(`/api/usuarios/${user.id}`, {
       method:  'PATCH',
@@ -40,21 +49,25 @@ export default function UsuariosAdminPage() {
     setLoading(null)
   }
 
-  const admins  = users.filter(u => u.role === 'ADMIN')
-  const normales = users.filter(u => u.role === 'USER')
+  const admins       = users.filter(u => u.role === 'ADMIN')
+  const contabilidad = users.filter(u => u.role === 'CONTABILIDAD')
+  const normales     = users.filter(u => u.role === 'USER')
 
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Gestión de Usuarios</h1>
-        <p className="text-gray-500 mt-1">Administra los roles de los usuarios que han iniciado sesión</p>
+        <p className="text-gray-500 mt-1">Administra los roles de los usuarios registrados</p>
       </div>
 
-      {/* Resumen */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <div className="card p-4 text-center">
           <p className="text-3xl font-bold text-gray-900">{admins.length}</p>
           <p className="text-gray-500 text-sm mt-1">Administradores</p>
+        </div>
+        <div className="card p-4 text-center">
+          <p className="text-3xl font-bold text-blue-700">{contabilidad.length}</p>
+          <p className="text-gray-500 text-sm mt-1">Contabilidad</p>
         </div>
         <div className="card p-4 text-center">
           <p className="text-3xl font-bold text-gray-900">{normales.length}</p>
@@ -62,40 +75,28 @@ export default function UsuariosAdminPage() {
         </div>
       </div>
 
-      {/* Lista de admins */}
       {admins.length > 0 && (
-        <div>
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Administradores</h2>
-          <div className="card divide-y divide-gray-100">
-            {admins.map(u => (
-              <UserRow
-                key={u.id}
-                user={u}
-                isSelf={u.id === session?.user?.id}
-                loading={loading === u.id}
-                onToggle={() => toggleRole(u)}
-              />
-            ))}
-          </div>
-        </div>
+        <Section title="Administradores">
+          {admins.map(u => (
+            <UserRow key={u.id} user={u} isSelf={u.id === session?.user?.id} loading={loading === u.id} onSetRole={r => setRole(u, r)} />
+          ))}
+        </Section>
       )}
 
-      {/* Lista de usuarios normales */}
+      {contabilidad.length > 0 && (
+        <Section title="Contabilidad">
+          {contabilidad.map(u => (
+            <UserRow key={u.id} user={u} isSelf={false} loading={loading === u.id} onSetRole={r => setRole(u, r)} />
+          ))}
+        </Section>
+      )}
+
       {normales.length > 0 && (
-        <div>
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Usuarios Internos</h2>
-          <div className="card divide-y divide-gray-100">
-            {normales.map(u => (
-              <UserRow
-                key={u.id}
-                user={u}
-                isSelf={false}
-                loading={loading === u.id}
-                onToggle={() => toggleRole(u)}
-              />
-            ))}
-          </div>
-        </div>
+        <Section title="Usuarios Internos">
+          {normales.map(u => (
+            <UserRow key={u.id} user={u} isSelf={false} loading={loading === u.id} onSetRole={r => setRole(u, r)} />
+          ))}
+        </Section>
       )}
 
       {users.length === 0 && (
@@ -113,24 +114,31 @@ export default function UsuariosAdminPage() {
   )
 }
 
-function UserRow({ user, isSelf, loading, onToggle }: {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">{title}</h2>
+      <div className="card divide-y divide-gray-100">{children}</div>
+    </div>
+  )
+}
+
+function UserRow({ user, isSelf, loading, onSetRole }: {
   user:     User
   isSelf:   boolean
   loading:  boolean
-  onToggle: () => void
+  onSetRole: (role: string) => void
 }) {
-  const isAdmin = user.role === 'ADMIN'
+  const [menuOpen, setMenuOpen] = useState(false)
 
   return (
     <div className="flex items-center gap-4 px-5 py-4">
-      {/* Avatar */}
       <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shrink-0 ${
-        isAdmin ? 'bg-gray-900' : 'bg-gray-400'
+        user.role === 'ADMIN' ? 'bg-gray-900' : user.role === 'CONTABILIDAD' ? 'bg-blue-700' : 'bg-gray-400'
       }`}>
         {(user.name?.[0] ?? user.email[0]).toUpperCase()}
       </div>
 
-      {/* Info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <p className="font-semibold text-gray-900 truncate">{user.name ?? '—'}</p>
@@ -139,28 +147,30 @@ function UserRow({ user, isSelf, loading, onToggle }: {
         <p className="text-gray-500 text-sm truncate">{user.email}</p>
       </div>
 
-      {/* Badge de rol */}
-      <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${
-        isAdmin
-          ? 'bg-gray-900 text-white border-gray-900'
-          : 'bg-gray-100 text-gray-600 border-gray-200'
-      }`}>
-        {isAdmin ? '👑 Admin' : '👤 Usuario'}
+      <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${ROLE_STYLES[user.role] ?? ROLE_STYLES.USER}`}>
+        {ROLE_LABELS[user.role] ?? user.role}
       </span>
 
-      {/* Botón de cambio */}
       {!isSelf && (
-        <button
-          onClick={onToggle}
-          disabled={loading}
-          className={`text-sm px-4 py-1.5 rounded-xl border-2 font-medium transition-all ${
-            isAdmin
-              ? 'border-red-200 text-red-600 hover:bg-red-50'
-              : 'border-gray-900 text-gray-900 hover:bg-gray-900 hover:text-white'
-          }`}
-        >
-          {loading ? '...' : isAdmin ? 'Quitar Admin' : 'Hacer Admin'}
-        </button>
+        <div className="relative">
+          <button
+            onClick={() => setMenuOpen(v => !v)}
+            disabled={loading}
+            className="text-sm px-3 py-1.5 rounded-xl border-2 border-gray-200 text-gray-600 hover:bg-gray-50 font-medium transition-all"
+          >
+            {loading ? '...' : 'Cambiar rol ▾'}
+          </button>
+          {menuOpen && (
+            <div className="absolute right-0 mt-1 w-44 bg-white border border-gray-200 rounded-xl shadow-lg z-10 overflow-hidden">
+              {['ADMIN', 'CONTABILIDAD', 'USER'].filter(r => r !== user.role).map(r => (
+                <button key={r} onClick={() => { onSetRole(r); setMenuOpen(false) }}
+                  className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 transition-all">
+                  {ROLE_LABELS[r]}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   )

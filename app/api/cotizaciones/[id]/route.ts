@@ -78,6 +78,24 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         console.error('[cotizaciones/id] Error enviando WhatsApp:', err)
       }
     }
+
+    // Notificar a usuarios de CONTABILIDAD
+    try {
+      const contabilidad = await prisma.user.findMany({ where: { role: 'CONTABILIDAD' }, select: { telefono: true } })
+      const msgCont = [
+        `📊 *Magic Dreams — Cotización ${estado === 'APROBADA' ? 'aprobada' : 'rechazada'}*`,
+        ``,
+        `*Evento:* ${cot.linea.categoria.presupuesto.evento.nombre}`,
+        `*Subcategoría:* ${cot.linea.descripcion}`,
+        `*Monto:* $${cot.montoTotal.toFixed(2)}`,
+        `*Aprobado por:* ${session.user.name ?? session.user.email}`,
+      ].join('\n')
+      for (const u of contabilidad) {
+        if (u.telefono) await sendWhatsApp(u.telefono, msgCont).catch(() => {})
+      }
+    } catch (err) {
+      console.error('[cotizaciones/id] Error notificando contabilidad:', err)
+    }
   }
 
   return NextResponse.json(cot)

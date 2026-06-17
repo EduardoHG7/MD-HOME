@@ -7,7 +7,7 @@ import { Session } from 'next-auth'
 import Image from 'next/image'
 import { useState, useEffect } from 'react'
 
-const NAV_ITEMS = [
+const ADMIN_NAV = [
   { href: '/admin',                label: 'Dashboard',       icon: '◉' },
   { href: '/admin/solicitudes',    label: 'Solicitudes',     icon: '📋' },
   { href: '/admin/usuarios',       label: 'Usuarios',        icon: '👥' },
@@ -20,7 +20,16 @@ const NAV_ITEMS = [
   { href: '/admin/tarifas',        label: 'Tarifas',         icon: '💰' },
 ]
 
-export function AdminSidebar({ session }: { session: Session }) {
+const CONTABILIDAD_NAV = [
+  { href: '/contabilidad',              label: 'Dashboard',    icon: '◉' },
+  { href: '/contabilidad/solicitudes',  label: 'Solicitudes',  icon: '📋' },
+]
+
+export function AdminSidebar({ session, role }: { session: Session; role?: string }) {
+  const efectiveRole = role ?? 'ADMIN'
+  const NAV_ITEMS = efectiveRole === 'CONTABILIDAD' ? CONTABILIDAD_NAV : ADMIN_NAV
+  const panelLabel = efectiveRole === 'CONTABILIDAD' ? 'Panel Contabilidad' : 'Panel Administrativo'
+  const rootHref   = efectiveRole === 'CONTABILIDAD' ? '/contabilidad' : '/admin'
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
 
@@ -41,13 +50,13 @@ export function AdminSidebar({ session }: { session: Session }) {
 
       <div className="px-4 py-2 border-b border-gray-100">
         <span className="text-xs font-semibold text-gray-600 bg-gray-100 border border-gray-200 rounded-full px-3 py-1">
-          Panel Administrativo
+          {panelLabel}
         </span>
       </div>
 
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
         {NAV_ITEMS.map(item => {
-          const active = pathname === item.href || (item.href !== '/admin' && pathname.startsWith(item.href))
+          const active = pathname === item.href || (item.href !== rootHref && pathname.startsWith(item.href))
           return (
             <Link
               key={item.href}
