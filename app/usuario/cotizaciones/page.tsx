@@ -369,7 +369,7 @@ export default function CotizacionesPage() {
                 ) : (
                   <NuevaCotizacionForm
                     lineaId={selected.id}
-                    conceptosExistentes={[...new Set(selected.cotizaciones.map(c => c.concepto).filter(Boolean) as string[])]}
+                    conceptosExistentes={Array.from(new Set(selected.cotizaciones.map(c => c.concepto).filter(Boolean) as string[]))}
                     onCreated={cot => { handleCreated(cot); setShowForm(false) }} />
                 )}
               </div>
