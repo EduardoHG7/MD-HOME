@@ -5,6 +5,28 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 
+interface FilaCruda {
+  zona: string
+  tipo: string
+  precio: number
+  vendidos: number
+  total: number
+}
+
+interface ZonaPresupuesto {
+  zona: string
+  ticketPriceUsd: number
+}
+
+interface ZonaConsolidada {
+  zona: string
+  vendidos: number
+  precio: number
+  totalUsd: number
+  match: string
+  nota: string
+}
+
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session || session.user.role !== 'ADMIN') {
@@ -17,51 +39,24 @@ export async function POST(req: Request) {
   const { base64, mimeType, zonasPresupuesto } = await req.json()
   if (!base64 || !mimeType) return NextResponse.json({ error: 'Faltan datos' }, { status: 400 })
 
-  // Construir descripción de zonas del presupuesto para que Claude haga el match
-  const zonasDesc = (zonasPresupuesto ?? [])
-    .map((z: { zona: string; ticketPriceUsd: number }) => `- Zona "${z.zona}": precio USD $${z.ticketPriceUsd}`)
-    .join('\n')
+  // Claude solo extrae filas crudas — el backend hace toda la matemática
+  const systemPrompt = `Eres un extractor de datos de reportes de ventas de boletos.
+Tu ÚNICA tarea es leer cada fila del reporte y transcribirla exactamente. NO hagas cálculos ni agrupes — solo lee y transcribe.
 
-  const systemPrompt = `Eres un experto en análisis de reportes de ventas de boletos para eventos.
-Tu tarea es analizar un reporte de ventas de boletos y calcular el ingreso REAL total por zona, consolidando todos los sub-tipos de precio dentro de cada zona.
+Para cada fila visible en el reporte extrae:
+- zona: el nombre de la categoría/zona (columna izquierda). Si la celda está vacía, repite el nombre de la zona anterior.
+- tipo: el tipo de boleto (Regular, BAC, Cortesía, Diplomático, SENADYS, Promotor, etc.)
+- precio: el precio unitario exacto como número (0 si es cortesía o gratis)
+- vendidos: la cantidad vendida como número entero
+- total: el monto total de esa fila como número (exactamente como aparece en el documento)
 
-ZONAS DEL PRESUPUESTO (para hacer match por nombre o precio):
-${zonasDesc || '(No hay zonas definidas en el presupuesto — usa los nombres del reporte)'}
-
-INSTRUCCIONES — sigue este orden exacto:
-
-PASO 1 — Identifica todas las ZONAS del reporte (columna más a la izquierda: RAWALAND 1, BINIKINI 2, FUNKY 1, etc.). Cada zona es un grupo.
-
-PASO 2 — Dentro de cada zona, suma TODOS los sub-tipos de boletos (Regular, BAC, Diplomático, SENADYS, Promotor, etc.):
-  - Suma los boletos vendidos con precio > $0 → este es el campo "vendidos"
-  - Suma el monto total de esos boletos → este es el campo "totalUsd"
-  - IGNORA las filas con precio $0 (Cortesía, complementarios) — no las incluyas en vendidos ni en totalUsd
-  - Precio efectivo = totalUsd / vendidos (promedio ponderado, redondeado a 2 decimales)
-
-PASO 3 — Si dentro de una zona hay un sub-tipo con precio MUY diferente al resto (más del 30% de diferencia, ej: SENADYS $85 dentro de una zona $170), crea una fila separada para ese sub-tipo usando el nombre "Zona — SubTipo" (ej: "RAWALAND 2 — SENADYS").
-
-PASO 4 — Intenta hacer match entre cada zona del reporte y las zonas del presupuesto:
-  - "EXACTO" si el precio promedio coincide exactamente
-  - "APROXIMADO" si el nombre o precio es similar
-  - "NUEVO" si no hay match — usa el nombre del reporte como zona
-
-PASO 5 — Usa el nombre de la zona del PRESUPUESTO si hay match, si no usa el nombre del reporte.
+IMPORTANTE:
+- Copia los números EXACTAMENTE como aparecen en el documento — no redondees ni calcules
+- Incluye TODAS las filas, incluyendo las de precio $0
+- Si una fila no tiene datos legibles, ponlos en 0
 
 Retorna SOLO el JSON, sin texto adicional ni backticks:
-{
-  "zonas": [
-    {
-      "zona": "nombre de la zona (del presupuesto si hay match, si no del reporte)",
-      "vendidos": número total de boletos pagados en esta zona (excluye $0),
-      "precio": precio promedio ponderado en USD,
-      "totalUsd": ingreso total real de esta zona,
-      "match": "EXACTO | APROXIMADO | NUEVO",
-      "nota": "detalle de cómo se consolidó — ej: RAWALAND 2: Regular(105×$170) + BAC(174×$170) + Diplomático(34×$170) = 313 tickets"
-    }
-  ],
-  "totalBoletos": suma de todos los vendidos,
-  "totalUsd": suma de todos los totalUsd
-}`
+{ "filas": [ { "zona": "RAWALAND 1", "tipo": "Precio Regular", "precio": 185.00, "vendidos": 17, "total": 3145.00 } ] }`
 
   const contentBlock = mimeType === 'application/pdf'
     ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
@@ -76,9 +71,9 @@ Retorna SOLO el JSON, sin texto adicional ni backticks:
     },
     body: JSON.stringify({
       model:      'claude-opus-4-5',
-      max_tokens: 2048,
+      max_tokens: 4096,
       system:     systemPrompt,
-      messages:   [{ role: 'user', content: [contentBlock, { type: 'text', text: 'Analiza este reporte de ventas de boletos y extrae los datos agrupados por precio según las instrucciones.' }] }],
+      messages:   [{ role: 'user', content: [contentBlock, { type: 'text', text: 'Extrae todas las filas de este reporte de ventas de boletos exactamente como aparecen.' }] }],
     }),
   })
 
@@ -90,21 +85,106 @@ Retorna SOLO el JSON, sin texto adicional ni backticks:
   const result = await response.json()
   const text   = result.content?.[0]?.text ?? ''
 
+  let filas: FilaCruda[] = []
   try {
     const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/)
     const jsonStr   = jsonMatch ? jsonMatch[1].trim() : text.trim()
     const parsed    = JSON.parse(jsonStr)
-    return NextResponse.json(parsed)
+    filas = parsed.filas ?? []
   } catch {
     try {
       const start = text.indexOf('{')
       const end   = text.lastIndexOf('}')
       if (start !== -1 && end !== -1) {
         const parsed = JSON.parse(text.slice(start, end + 1))
-        return NextResponse.json(parsed)
+        filas = parsed.filas ?? []
       }
     } catch { /* continúa */ }
-    return NextResponse.json({ error: 'Claude no devolvió JSON válido', raw: text }, { status: 422 })
+    if (!filas.length) {
+      return NextResponse.json({ error: 'Claude no devolvió JSON válido', raw: text }, { status: 422 })
+    }
   }
+
+  // ── Consolidación en el backend (matemática exacta) ──────────────────────
+
+  // Agrupar filas por zona
+  const porZona: Record<string, FilaCruda[]> = {}
+  for (const f of filas) {
+    const key = (f.zona ?? '').trim()
+    if (!key) continue
+    if (!porZona[key]) porZona[key] = []
+    porZona[key].push(f)
+  }
+
+  const zonas: ZonaConsolidada[] = []
+
+  for (const [nombreZona, filaZona] of Object.entries(porZona)) {
+    // Separar filas con precio > 0 (ingresos reales) de las de $0 (cortesía)
+    const filasConPrecio = filaZona.filter(f => f.precio > 0)
+    if (!filasConPrecio.length) continue
+
+    // Detectar si hay sub-tipos con precio muy diferente (>30%) dentro de la misma zona
+    const precios = filasConPrecio.map(f => f.precio)
+    const precioMax = Math.max(...precios)
+    const precioMin = Math.min(...precios)
+    const hayPreciosMuyDiferentes = precioMin < precioMax * 0.7
+
+    if (hayPreciosMuyDiferentes) {
+      // Agrupar por precio dentro de la zona
+      const porPrecio: Record<number, FilaCruda[]> = {}
+      for (const f of filasConPrecio) {
+        if (!porPrecio[f.precio]) porPrecio[f.precio] = []
+        porPrecio[f.precio].push(f)
+      }
+      for (const [precioStr, filasPrecio] of Object.entries(porPrecio)) {
+        const precio    = parseFloat(precioStr)
+        const vendidos  = filasPrecio.reduce((s, f) => s + f.vendidos, 0)
+        const totalUsd  = filasPrecio.reduce((s, f) => s + f.total, 0)
+        const tiposDesc = filasPrecio.map(f => `${f.tipo}(${f.vendidos})`).join('+')
+        const subNombre = precio === precioMax ? nombreZona : `${nombreZona} — $${precio}`
+        zonas.push({
+          zona:     subNombre,
+          vendidos,
+          precio,
+          totalUsd: Math.round(totalUsd * 100) / 100,
+          match:    matchZona(subNombre, precio, zonasPresupuesto ?? []),
+          nota:     `${nombreZona}: ${tiposDesc} × $${precio}`,
+        })
+      }
+    } else {
+      // Todos los sub-tipos tienen precio similar — consolidar en una sola fila
+      const vendidos = filasConPrecio.reduce((s, f) => s + f.vendidos, 0)
+      const totalUsd = filasConPrecio.reduce((s, f) => s + f.total, 0)
+      const precioEfectivo = vendidos > 0 ? Math.round((totalUsd / vendidos) * 100) / 100 : precioMax
+      const tiposDesc = filasConPrecio.map(f => `${f.tipo}(${f.vendidos}×$${f.precio})`).join(' + ')
+      zonas.push({
+        zona:     nombreZona,
+        vendidos,
+        precio:   precioEfectivo,
+        totalUsd: Math.round(totalUsd * 100) / 100,
+        match:    matchZona(nombreZona, precioEfectivo, zonasPresupuesto ?? []),
+        nota:     tiposDesc,
+      })
+    }
+  }
+
+  const totalBoletos = zonas.reduce((s, z) => s + z.vendidos, 0)
+  const totalUsd     = Math.round(zonas.reduce((s, z) => s + z.totalUsd, 0) * 100) / 100
+
+  return NextResponse.json({ zonas, totalBoletos, totalUsd })
 }
 
+// Match zona del reporte con zona del presupuesto por nombre o precio
+function matchZona(nombre: string, precio: number, zonasPresupuesto: ZonaPresupuesto[]): string {
+  if (!zonasPresupuesto.length) return 'NUEVO'
+  for (const z of zonasPresupuesto) {
+    if (z.zona.toLowerCase() === nombre.toLowerCase()) return 'EXACTO'
+    if (Math.abs(z.ticketPriceUsd - precio) < 0.01) return 'EXACTO'
+  }
+  for (const z of zonasPresupuesto) {
+    const diff = Math.abs(z.ticketPriceUsd - precio) / Math.max(z.ticketPriceUsd, precio)
+    if (diff < 0.15) return 'APROXIMADO'
+    if (nombre.toLowerCase().includes(z.zona.toLowerCase()) || z.zona.toLowerCase().includes(nombre.toLowerCase())) return 'APROXIMADO'
+  }
+  return 'NUEVO'
+}
