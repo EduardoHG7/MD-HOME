@@ -23,33 +23,44 @@ export async function POST(req: Request) {
     .join('\n')
 
   const systemPrompt = `Eres un experto en análisis de reportes de ventas de boletos para eventos.
-Tu tarea es analizar una imagen de reporte de ventas de boletos reales y agrupar los datos por precio, relacionándolos con las zonas del presupuesto.
+Tu tarea es analizar un reporte de ventas de boletos y calcular el ingreso REAL total por zona, consolidando todos los sub-tipos de precio dentro de cada zona.
 
-ZONAS DEL PRESUPUESTO (referencia de precios):
-${zonasDesc || '(No hay zonas definidas en el presupuesto — detecta las que encuentres)'}
+ZONAS DEL PRESUPUESTO (para hacer match por nombre o precio):
+${zonasDesc || '(No hay zonas definidas en el presupuesto — usa los nombres del reporte)'}
 
-Reglas:
-- Lee todos los boletos vendidos de la imagen
-- IGNORA completamente los boletos con precio $0 (cero) — no los incluyas en el resultado
-- Agrupa por precio: si hay varios registros con el mismo precio, SUMA los boletos vendidos y el monto total
-- Relaciona cada precio con la zona del presupuesto que tenga el mismo o más cercano precio
-- Si no hay zona en el presupuesto que coincida, crea una nueva entrada con el nombre del precio
-- Retorna SOLO el JSON, sin texto adicional ni backticks
+INSTRUCCIONES — sigue este orden exacto:
 
-Responde con este JSON exacto:
+PASO 1 — Identifica todas las ZONAS del reporte (columna más a la izquierda: RAWALAND 1, BINIKINI 2, FUNKY 1, etc.). Cada zona es un grupo.
+
+PASO 2 — Dentro de cada zona, suma TODOS los sub-tipos de boletos (Regular, BAC, Diplomático, SENADYS, Promotor, etc.):
+  - Suma los boletos vendidos con precio > $0 → este es el campo "vendidos"
+  - Suma el monto total de esos boletos → este es el campo "totalUsd"
+  - IGNORA las filas con precio $0 (Cortesía, complementarios) — no las incluyas en vendidos ni en totalUsd
+  - Precio efectivo = totalUsd / vendidos (promedio ponderado, redondeado a 2 decimales)
+
+PASO 3 — Si dentro de una zona hay un sub-tipo con precio MUY diferente al resto (más del 30% de diferencia, ej: SENADYS $85 dentro de una zona $170), crea una fila separada para ese sub-tipo usando el nombre "Zona — SubTipo" (ej: "RAWALAND 2 — SENADYS").
+
+PASO 4 — Intenta hacer match entre cada zona del reporte y las zonas del presupuesto:
+  - "EXACTO" si el precio promedio coincide exactamente
+  - "APROXIMADO" si el nombre o precio es similar
+  - "NUEVO" si no hay match — usa el nombre del reporte como zona
+
+PASO 5 — Usa el nombre de la zona del PRESUPUESTO si hay match, si no usa el nombre del reporte.
+
+Retorna SOLO el JSON, sin texto adicional ni backticks:
 {
   "zonas": [
     {
-      "zona": "nombre de la zona (usa el nombre del presupuesto si hay match, si no el precio como nombre)",
-      "vendidos": número total de boletos vendidos en esta zona/precio,
-      "precio": precio unitario en USD (número),
-      "totalUsd": vendidos * precio,
+      "zona": "nombre de la zona (del presupuesto si hay match, si no del reporte)",
+      "vendidos": número total de boletos pagados en esta zona (excluye $0),
+      "precio": precio promedio ponderado en USD,
+      "totalUsd": ingreso total real de esta zona,
       "match": "EXACTO | APROXIMADO | NUEVO",
-      "nota": "descripción adicional o null"
+      "nota": "detalle de cómo se consolidó — ej: RAWALAND 2: Regular(105×$170) + BAC(174×$170) + Diplomático(34×$170) = 313 tickets"
     }
   ],
   "totalBoletos": suma de todos los vendidos,
-  "totalUsd": suma de todos los totales
+  "totalUsd": suma de todos los totalUsd
 }`
 
   const contentBlock = mimeType === 'application/pdf'
