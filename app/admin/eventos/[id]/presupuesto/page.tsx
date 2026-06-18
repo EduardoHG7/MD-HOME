@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation'
 /* ─── Types ─── */
 interface Usuario     { id: string; name: string | null; email: string }
 interface CotFact     { id: string; descripcion: string; proveedor: string | null; monto: number; archivoNombre: string | null }
-interface Cotizacion  { id: string; descripcion: string | null; estado: string; notaAdmin: string | null; montoTotal: number; createdAt: string; facturas: CotFact[]; creadoPor: { name: string | null; email: string } }
+interface Cotizacion  { id: string; concepto: string | null; descripcion: string | null; estado: string; notaAdmin: string | null; montoTotal: number; createdAt: string; facturas: CotFact[]; creadoPor: { name: string | null; email: string } }
 interface Linea       { id?: string; descripcion: string; nota: string; montoLocal: number; montoUsd: number; confianza?: string; asignadoAId?: string; asignadoA?: { id: string; name: string | null; email: string } | null; cotizaciones?: Cotizacion[] }
 interface Categoria   { id?: string; nombre: string; lineas: Linea[] }
 interface TicketZona  { id?: string; scaling: string; zona: string; capacity: number; killsBlocks: number; comps: number; ticketPriceLocal: number; ticketPriceUsd: number }
@@ -120,9 +120,30 @@ function CategoriaRow({ cat, idx, rate, usuarios, onChange, onDelete, isAdmin }:
                     <div className="px-3 py-2 bg-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wide">
                       Cotizaciones — Presupuesto: {fmt(num(l.montoUsd))} · Real aprobado: {fmt(totalCot)}
                     </div>
-                    {l.cotizaciones!.map(cot => (
-                      <CotizacionRow key={cot.id} cot={cot} isAdmin={isAdmin} onUpdate={() => {}} />
-                    ))}
+                    {(() => {
+                      const hayConceptos = l.cotizaciones!.some(c => c.concepto)
+                      if (!hayConceptos) return l.cotizaciones!.map(cot => <CotizacionRow key={cot.id} cot={cot} isAdmin={isAdmin} onUpdate={() => {}} />)
+                      const grupos: Record<string, Cotizacion[]> = {}
+                      for (const cot of l.cotizaciones!) {
+                        const key = cot.concepto || '—'
+                        if (!grupos[key]) grupos[key] = []
+                        grupos[key].push(cot)
+                      }
+                      return Object.entries(grupos).map(([grupo, gCots]) => {
+                        const aprobada = gCots.find(c => c.estado === 'APROBADA')
+                        return (
+                          <div key={grupo} className="border-b border-gray-200 last:border-0">
+                            <div className="flex items-center gap-2 px-4 py-1.5 bg-gray-50">
+                              <span className="text-xs font-semibold text-indigo-700">📦 {grupo}</span>
+                              {aprobada
+                                ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">✓ {fmt(aprobada.montoTotal)}</span>
+                                : <span className="text-xs text-gray-400">{gCots.length} cotización(es)</span>}
+                            </div>
+                            {gCots.map(cot => <CotizacionRow key={cot.id} cot={cot} isAdmin={isAdmin} onUpdate={() => {}} />)}
+                          </div>
+                        )
+                      })
+                    })()}
                   </div>
                 )}
               </div>
@@ -164,7 +185,8 @@ function CotizacionRow({ cot, isAdmin, onUpdate }: { cot: Cotizacion; isAdmin: b
     <div className="px-3 py-2.5 border-b border-gray-100 last:border-0">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {cot.concepto && <span className="text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full">{cot.concepto}</span>}
             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${COLORS[cot.estado] ?? ''}`}>{cot.estado}</span>
             <p className="text-xs text-gray-500">{cot.creadoPor.name ?? cot.creadoPor.email} · {new Date(cot.createdAt).toLocaleDateString('es-PA')}</p>
           </div>
@@ -703,11 +725,32 @@ export default function PresupuestoPage() {
                             </p>
                           </div>
                         </div>
-                        {/* Detalle cotizaciones */}
+                        {/* Detalle cotizaciones agrupadas por concepto */}
                         <div className="bg-gray-50 border-t border-gray-100">
-                          {cots.map(cot => (
-                            <CotizacionRow key={cot.id} cot={cot} isAdmin={isAdmin} onUpdate={() => loadPresupuesto()} />
-                          ))}
+                          {(() => {
+                            const grupos: Record<string, Cotizacion[]> = {}
+                            for (const cot of cots) {
+                              const key = cot.concepto || '—'
+                              if (!grupos[key]) grupos[key] = []
+                              grupos[key].push(cot)
+                            }
+                            const hayConceptos = cots.some(c => c.concepto)
+                            if (!hayConceptos) return cots.map(cot => <CotizacionRow key={cot.id} cot={cot} isAdmin={isAdmin} onUpdate={() => loadPresupuesto()} />)
+                            return Object.entries(grupos).map(([grupo, gCots]) => {
+                              const aprobada = gCots.find(c => c.estado === 'APROBADA')
+                              return (
+                                <div key={grupo} className="border-b border-gray-100 last:border-0">
+                                  <div className="flex items-center gap-2 px-4 py-2 bg-gray-100">
+                                    <span className="text-xs font-semibold text-indigo-700">📦 {grupo}</span>
+                                    {aprobada
+                                      ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">✓ {fmt(aprobada.montoTotal)}</span>
+                                      : <span className="text-xs text-gray-400">{gCots.length} cotización(es) pendiente(s)</span>}
+                                  </div>
+                                  {gCots.map(cot => <CotizacionRow key={cot.id} cot={cot} isAdmin={isAdmin} onUpdate={() => loadPresupuesto()} />)}
+                                </div>
+                              )
+                            })
+                          })()}
                         </div>
                       </div>
                     )

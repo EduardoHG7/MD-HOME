@@ -5,7 +5,7 @@ import { formatDate } from '@/lib/utils'
 
 interface CotFact    { id: string; descripcion: string; proveedor: string; monto: number }
 interface Cotizacion {
-  id: string; descripcion: string | null; estado: string; notaAdmin: string | null
+  id: string; concepto: string | null; descripcion: string | null; estado: string; notaAdmin: string | null
   montoTotal: number; createdAt: string; facturas: CotFact[]
   archivoUrl: string | null; archivoNombreCot: string | null
   facturaSubida: boolean; facturaUrl: string | null
@@ -27,7 +27,8 @@ const ESTADO_COLORS: Record<string, string> = {
 function fmt(n: number) { return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(n) }
 
 /* ── Formulario de nueva cotización — componente separado para evitar re-mount ── */
-function NuevaCotizacionForm({ lineaId, onCreated }: { lineaId: string; onCreated: (cot: Cotizacion) => void }) {
+function NuevaCotizacionForm({ lineaId, conceptosExistentes, onCreated }: { lineaId: string; conceptosExistentes: string[]; onCreated: (cot: Cotizacion) => void }) {
+  const [concepto,  setConcepto]  = useState('')
   const [desc,      setDesc]      = useState('')
   const [facturas,  setFacturas]  = useState([{ descripcion: '', proveedor: '', monto: '' }])
   const [archivo,   setArchivo]   = useState<File | null>(null)
@@ -38,13 +39,14 @@ function NuevaCotizacionForm({ lineaId, onCreated }: { lineaId: string; onCreate
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (!concepto.trim()) { setError('El concepto es obligatorio (ej: Comida, Bebidas, Toldas...)'); return }
     if (facturas.some(f => !f.descripcion || !f.monto)) { setError('Completa todas las facturas'); return }
     setSubmitting(true); setError('')
 
     const res = await fetch('/api/cotizaciones', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        lineaId, descripcion: desc || null,
+        lineaId, concepto: concepto.trim(), descripcion: desc || null,
         facturas: facturas.map(f => ({ descripcion: f.descripcion, proveedor: f.proveedor || null, monto: parseFloat(f.monto) || 0 })),
       }),
     })
@@ -70,8 +72,18 @@ function NuevaCotizacionForm({ lineaId, onCreated }: { lineaId: string; onCreate
   return (
     <form onSubmit={handleSubmit} className="space-y-4 border-t border-gray-100 pt-4">
       <div>
-        <label className="label">Descripción general (opcional)</label>
-        <input className="input" placeholder="Ej: Pauta radio agosto semana 1..." value={desc} onChange={e => setDesc(e.target.value)} />
+        <label className="label">Concepto / Sub-rubro *</label>
+        <p className="text-gray-400 text-xs mb-1">Identifica qué estás cotizando dentro de esta subcategoría (ej: Comida, Bebidas, Toldas, Muebles...)</p>
+        <input className="input" placeholder="Ej: Comida, Bebidas, Toldas..." value={concepto} onChange={e => setConcepto(e.target.value)} list={`conceptos-${lineaId}`} />
+        {conceptosExistentes.length > 0 && (
+          <datalist id={`conceptos-${lineaId}`}>
+            {conceptosExistentes.map(c => <option key={c} value={c} />)}
+          </datalist>
+        )}
+      </div>
+      <div>
+        <label className="label">Descripción adicional (opcional)</label>
+        <input className="input" placeholder="Ej: Proveedor principal semana 1..." value={desc} onChange={e => setDesc(e.target.value)} />
       </div>
 
       <div>
@@ -355,83 +367,96 @@ export default function CotizacionesPage() {
                     + Nueva Cotización
                   </button>
                 ) : (
-                  <NuevaCotizacionForm lineaId={selected.id} onCreated={cot => { handleCreated(cot); setShowForm(false) }} />
+                  <NuevaCotizacionForm
+                    lineaId={selected.id}
+                    conceptosExistentes={[...new Set(selected.cotizaciones.map(c => c.concepto).filter(Boolean) as string[])]}
+                    onCreated={cot => { handleCreated(cot); setShowForm(false) }} />
                 )}
               </div>
 
-              {/* Historial */}
-              {selected.cotizaciones.length > 0 && (
-                <div className="card p-5">
-                  <h4 className="font-semibold text-gray-700 text-sm mb-3">Historial de Cotizaciones</h4>
+              {/* Historial agrupado por concepto */}
+              {selected.cotizaciones.length > 0 && (() => {
+                const grupos: Record<string, Cotizacion[]> = {}
+                for (const cot of selected.cotizaciones) {
+                  const key = cot.concepto || '—'
+                  if (!grupos[key]) grupos[key] = []
+                  grupos[key].push(cot)
+                }
+                return (
                   <div className="space-y-4">
-                    {selected.cotizaciones.map(cot => (
-                      <div key={cot.id} className="bg-gray-50 rounded-xl p-4">
-                        <div className="flex items-start justify-between mb-2">
-                          <div>
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_COLORS[cot.estado]}`}>{cot.estado}</span>
-                            <p className="text-xs text-gray-400 mt-1">{new Date(cot.createdAt).toLocaleDateString('es-PA')}</p>
-                            {cot.descripcion && <p className="text-sm text-gray-600 mt-1">{cot.descripcion}</p>}
-                          </div>
-                          <div className="text-right">
-                            <p className="font-bold text-gray-900">{fmt(cot.montoTotal)}</p>
-                            {cot.estado === 'PENDIENTE' && (
-                              <button onClick={() => eliminarCot(selected.id, cot.id)} className="text-xs text-red-400 hover:text-red-600 mt-1 block">Eliminar</button>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Líneas de monto */}
-                        <div className="flex flex-wrap gap-2 mb-2">
-                          {cot.facturas.map(f => (
-                            <span key={f.id} className="text-xs bg-white border border-gray-200 rounded-lg px-2 py-1 text-gray-600">
-                              {f.descripcion}{f.proveedor ? ` · ${f.proveedor}` : ''} — {fmt(f.monto)}
-                            </span>
-                          ))}
-                        </div>
-
-                        {/* Archivo adjunto */}
-                        {cot.archivoUrl && (
-                          <a href={cot.archivoUrl} target="_blank" rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-xs text-blue-500 hover:underline mb-2">
-                            📎 {cot.archivoNombreCot ?? 'Ver cotización adjunta'}
-                          </a>
-                        )}
-
-                        {cot.notaAdmin && (
-                          <div className="pt-2 border-t border-gray-200">
-                            <p className="text-xs text-gray-500 italic">Admin: "{cot.notaAdmin}"</p>
-                          </div>
-                        )}
-
-                        {/* Factura subida */}
-                        {cot.estado === 'APROBADA' && cot.facturaSubida && (
-                          <div className="mt-3 pt-3 border-t border-green-200 bg-green-50 rounded-xl px-3 py-2">
-                            <p className="text-xs font-semibold text-green-700 mb-1">📋 Factura registrada</p>
-                            <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-green-600">
-                              {cot.facturaNumero    && <span>N°: {cot.facturaNumero}</span>}
-                              {cot.facturaProveedor && <span>Proveedor: {cot.facturaProveedor}</span>}
-                              {cot.facturaFechaEmision && <span>Emisión: {cot.facturaFechaEmision}</span>}
-                              {cot.facturaTotal != null && <span className="font-bold">Total: {fmt(cot.facturaTotal)}</span>}
+                    {Object.entries(grupos).map(([grupo, cots]) => {
+                      const aprobada = cots.find(c => c.estado === 'APROBADA')
+                      return (
+                        <div key={grupo} className="card p-5">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-semibold text-gray-800 text-sm">{grupo}</h4>
+                              {aprobada && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">✓ Aprobado</span>}
                             </div>
-                            {cot.facturaUrl && (
-                              <a href={cot.facturaUrl} target="_blank" rel="noopener noreferrer"
-                                className="text-xs text-blue-500 hover:underline mt-1 inline-block">
-                                📄 Ver factura
-                              </a>
-                            )}
+                            <span className="text-xs text-gray-400">{cots.length} cotización(es)</span>
                           </div>
-                        )}
-
-                        {/* Subir factura si está aprobada y no tiene */}
-                        {cot.estado === 'APROBADA' && !cot.facturaSubida && (
-                          <SubirFacturaSection cot={cot}
-                            onUpdated={updated => handleCotUpdated(selected.id, cot.id, updated)} />
-                        )}
-                      </div>
-                    ))}
+                          <div className="space-y-3">
+                            {cots.map(cot => (
+                              <div key={cot.id} className={`rounded-xl p-4 ${cot.estado === 'APROBADA' ? 'bg-green-50 border border-green-200' : cot.estado === 'RECHAZADA' ? 'bg-red-50 border border-red-100' : 'bg-gray-50'}`}>
+                                <div className="flex items-start justify-between mb-2">
+                                  <div>
+                                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_COLORS[cot.estado]}`}>{cot.estado}</span>
+                                    <p className="text-xs text-gray-400 mt-1">{new Date(cot.createdAt).toLocaleDateString('es-PA')}</p>
+                                    {cot.descripcion && <p className="text-sm text-gray-600 mt-1">{cot.descripcion}</p>}
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="font-bold text-gray-900">{fmt(cot.montoTotal)}</p>
+                                    {cot.estado === 'PENDIENTE' && (
+                                      <button onClick={() => eliminarCot(selected.id, cot.id)} className="text-xs text-red-400 hover:text-red-600 mt-1 block">Eliminar</button>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex flex-wrap gap-2 mb-2">
+                                  {cot.facturas.map(f => (
+                                    <span key={f.id} className="text-xs bg-white border border-gray-200 rounded-lg px-2 py-1 text-gray-600">
+                                      {f.descripcion}{f.proveedor ? ` · ${f.proveedor}` : ''} — {fmt(f.monto)}
+                                    </span>
+                                  ))}
+                                </div>
+                                {cot.archivoUrl && (
+                                  <a href={cot.archivoUrl} target="_blank" rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-xs text-blue-500 hover:underline mb-2">
+                                    📎 {cot.archivoNombreCot ?? 'Ver cotización adjunta'}
+                                  </a>
+                                )}
+                                {cot.notaAdmin && (
+                                  <div className="pt-2 border-t border-gray-200">
+                                    <p className="text-xs text-gray-500 italic">Admin: "{cot.notaAdmin}"</p>
+                                  </div>
+                                )}
+                                {cot.estado === 'APROBADA' && cot.facturaSubida && (
+                                  <div className="mt-3 pt-3 border-t border-green-200 bg-white bg-opacity-60 rounded-xl px-3 py-2">
+                                    <p className="text-xs font-semibold text-green-700 mb-1">📋 Factura registrada</p>
+                                    <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-green-600">
+                                      {cot.facturaNumero    && <span>N°: {cot.facturaNumero}</span>}
+                                      {cot.facturaProveedor && <span>Proveedor: {cot.facturaProveedor}</span>}
+                                      {cot.facturaFechaEmision && <span>Emisión: {cot.facturaFechaEmision}</span>}
+                                      {cot.facturaTotal != null && <span className="font-bold">Total: {fmt(cot.facturaTotal)}</span>}
+                                    </div>
+                                    {cot.facturaUrl && (
+                                      <a href={cot.facturaUrl} target="_blank" rel="noopener noreferrer"
+                                        className="text-xs text-blue-500 hover:underline mt-1 inline-block">📄 Ver factura</a>
+                                    )}
+                                  </div>
+                                )}
+                                {cot.estado === 'APROBADA' && !cot.facturaSubida && (
+                                  <SubirFacturaSection cot={cot}
+                                    onUpdated={updated => handleCotUpdated(selected.id, cot.id, updated)} />
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
-                </div>
-              )}
+                )
+              })()}
             </div>
           )}
         </div>

@@ -36,6 +36,22 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     },
   })
 
+  // Si se aprueba y tiene concepto, rechazar automáticamente las otras cotizaciones pendientes del mismo concepto+linea
+  if (estado === 'APROBADA' && cot.concepto) {
+    await prisma.cotizacion.updateMany({
+      where: {
+        lineaId:  cot.lineaId,
+        concepto: cot.concepto,
+        estado:   'PENDIENTE',
+        id:       { not: cot.id },
+      },
+      data: {
+        estado:    'RECHAZADA',
+        notaAdmin: `Rechazada automáticamente: se aprobó otra cotización para "${cot.concepto}"`,
+      },
+    })
+  }
+
   if ((estado === 'APROBADA' || estado === 'RECHAZADA') && session.user.email && cot.creadoPor.email) {
     const emoji = estado === 'APROBADA' ? '✅' : '❌'
     const texto = estado === 'APROBADA' ? 'aprobada' : 'rechazada'

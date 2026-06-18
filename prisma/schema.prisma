@@ -149,6 +149,7 @@ model Cotizacion {
   id          String   @id @default(cuid())
   lineaId     String
   creadoPorId String
+  concepto    String?  // Agrupa cotizaciones del mismo sub-rubro (ej: "Comida", "Bebidas")
   descripcion String?
   estado      String   @default("PENDIENTE")
   notaAdmin   String?

@@ -41,7 +41,7 @@ export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const { lineaId, descripcion, facturas } = await req.json()
+  const { lineaId, concepto, descripcion, facturas } = await req.json()
   if (!lineaId || !facturas?.length) {
     return NextResponse.json({ error: 'Faltan datos requeridos' }, { status: 400 })
   }
@@ -52,6 +52,7 @@ export async function POST(req: Request) {
     data: {
       lineaId,
       creadoPorId: session.user.id,
+      concepto:    concepto?.trim() || null,
       descripcion: descripcion ?? null,
       montoTotal,
       facturas: {
@@ -108,7 +109,7 @@ export async function POST(req: Request) {
           `💰 *Magic Dreams — Nueva cotización*\n\n` +
           `*${session.user.name ?? fromEmail}* subió una cotización para aprobación.\n\n` +
           `*Evento:* ${cot.linea.categoria.presupuesto.evento.nombre}\n` +
-          `*Subcategoría:* ${cot.linea.descripcion}\n` +
+          `*Subcategoría:* ${cot.linea.descripcion}${cot.concepto ? ` › ${cot.concepto}` : ''}\n` +
           `*Monto total:* $${montoTotal.toFixed(2)}\n\n` +
           `Revisar y aprobar:\n${url}/admin/solicitudes`
         )
