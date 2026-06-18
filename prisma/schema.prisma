@@ -244,6 +244,7 @@ model Patrocinio {
   montoLocal      Float    @default(0)
   montoUsd        Float    @default(0)
   notas           String?
+  boletos         Json?    // [{zona, cantidad, precioUsd}] — informativo, no afecta ganancia
   esReal          Boolean  @default(false) // false=presupuestado, true=real cobrado
 
   presupuesto  Presupuesto   @relation(fields: [presupuestoId], references: [id], onDelete: Cascade)

@@ -11,7 +11,8 @@ interface Linea       { id?: string; descripcion: string; nota: string; montoLoc
 interface Categoria   { id?: string; nombre: string; lineas: Linea[] }
 interface TicketZona  { id?: string; scaling: string; zona: string; capacity: number; killsBlocks: number; comps: number; ticketPriceLocal: number; ticketPriceUsd: number }
 interface BoletoReal  { id?: string; zona: string; vendidos: number; precio: number; match?: string; nota?: string }
-interface Patrocinio  { id?: string; patrocinadorId: string; nombre: string; tipo: string; tipoPago: string; montoLocal: number; montoUsd: number; notas: string; esReal?: boolean }
+interface BoletoPatrocinio { zona: string; cantidad: number; precioUsd: number }
+interface Patrocinio  { id?: string; patrocinadorId: string; nombre: string; tipo: string; tipoPago: string; montoLocal: number; montoUsd: number; notas: string; boletos?: BoletoPatrocinio[]; esReal?: boolean }
 interface Patrocinador { id: string; nombre: string }
 interface Socio       { nombre: string; porcentaje: number }
 interface Header      { artista: string; pais: string; ciudad: string; promotor: string; moneda: string; exchangeRate: number; numShows: number }
@@ -531,7 +532,7 @@ export default function PresupuestoPage() {
           }
 
           {/* Patrocinios presupuestados — solo eventos propios */}
-          {!isContratado && <PatrociniosSection title="🤝 Sponsorship Income (Presupuesto)" patrocinios={patrocinios} patrocinadores={patrocinadores} onChange={setPatrocinios} />}
+          {!isContratado && <PatrociniosSection title="🤝 Sponsorship Income (Presupuesto)" patrocinios={patrocinios} patrocinadores={patrocinadores} ticketZonas={ticketZonas} onChange={setPatrocinios} />}
 
           {/* ── Distribución de Ganancias ── */}
           {!isContratado && (() => {
@@ -774,7 +775,7 @@ export default function PresupuestoPage() {
           }
 
           {/* Patrocinios reales — solo eventos propios */}
-          {!isContratado && <PatrociniosSection title="🤝 Patrocinios Reales Cobrados" patrocinios={patroReal} patrocinadores={patrocinadores} onChange={setPatroReal} />}
+          {!isContratado && <PatrociniosSection title="🤝 Patrocinios Reales Cobrados" patrocinios={patroReal} patrocinadores={patrocinadores} ticketZonas={ticketZonas} onChange={setPatroReal} />}
 
           {/* ── Distribución de Ganancias Reales ── */}
           {!isContratado && (() => {
@@ -963,15 +964,50 @@ export default function PresupuestoPage() {
 }
 
 /* ─── Sección de patrocinios reutilizable ─── */
-function PatrociniosSection({ title, patrocinios, patrocinadores, onChange }: {
+function PatrociniosSection({ title, patrocinios, patrocinadores, ticketZonas, onChange }: {
   title: string; patrocinios: Patrocinio[]; patrocinadores: Patrocinador[]
-  onChange: (p: Patrocinio[]) => void
+  ticketZonas: TicketZona[]; onChange: (p: Patrocinio[]) => void
 }) {
+  const [boletosOpen, setBoletosOpen] = useState<number | null>(null)
+
+  function updPatrocinio(pi: number, field: keyof Patrocinio, val: string | number | BoletoPatrocinio[]) {
+    onChange(patrocinios.map((x, xi) => {
+      if (xi !== pi) return x
+      const updated = { ...x, [field]: val }
+      if (field === 'patrocinadorId') { const found = patrocinadores.find(pd => pd.id === String(val)); updated.nombre = found?.nombre ?? '' }
+      return updated
+    }))
+  }
+
+  function updBoleto(pi: number, bi: number, field: keyof BoletoPatrocinio, val: string | number) {
+    const current = patrocinios[pi].boletos ?? []
+    const updated = current.map((b, xi) => {
+      if (xi !== bi) return b
+      if (field === 'zona') {
+        const zona = ticketZonas.find(z => z.zona === val)
+        return { ...b, zona: String(val), precioUsd: zona?.ticketPriceUsd ?? b.precioUsd }
+      }
+      return { ...b, [field]: field === 'cantidad' ? parseInt(String(val)) || 0 : val }
+    })
+    updPatrocinio(pi, 'boletos', updated)
+  }
+
+  function addBoleto(pi: number) {
+    const first = ticketZonas[0]
+    const current = patrocinios[pi].boletos ?? []
+    updPatrocinio(pi, 'boletos', [...current, { zona: first?.zona ?? '', cantidad: 0, precioUsd: first?.ticketPriceUsd ?? 0 }])
+  }
+
+  function removeBoleto(pi: number, bi: number) {
+    const current = patrocinios[pi].boletos ?? []
+    updPatrocinio(pi, 'boletos', current.filter((_, xi) => xi !== bi))
+  }
+
   return (
     <div className="card p-5">
       <div className="flex items-center justify-between mb-4">
         <h2 className="font-semibold text-gray-900">{title}</h2>
-        <button type="button" onClick={() => onChange([...patrocinios, { patrocinadorId:'', nombre:'', tipo:'', tipoPago:'', montoLocal:0, montoUsd:0, notas:'' }])}
+        <button type="button" onClick={() => onChange([...patrocinios, { patrocinadorId:'', nombre:'', tipo:'', tipoPago:'', montoLocal:0, montoUsd:0, notas:'', boletos:[] }])}
           className="text-sm text-blue-500 hover:underline">+ Agregar</button>
       </div>
       {patrocinios.length === 0 ? (
@@ -979,20 +1015,16 @@ function PatrociniosSection({ title, patrocinios, patrocinadores, onChange }: {
       ) : (
         <div className="space-y-3">
           {patrocinios.map((p, pi) => {
-            function upd(field: keyof Patrocinio, val: string|number) {
-              onChange(patrocinios.map((x, xi) => {
-                if (xi !== pi) return x
-                const updated = { ...x, [field]: val }
-                if (field === 'patrocinadorId') { const found = patrocinadores.find(pd => pd.id === val); updated.nombre = found?.nombre ?? '' }
-                return updated
-              }))
-            }
+            const boletos = p.boletos ?? []
+            const totalBoletos = boletos.reduce((s, b) => s + b.cantidad, 0)
+            const totalBoletosUsd = boletos.reduce((s, b) => s + b.cantidad * b.precioUsd, 0)
+            const zonasSummary = boletos.filter(b => b.cantidad > 0).map(b => `${b.zona} ×${b.cantidad}`).join(', ')
             return (
               <div key={pi} className="card p-4 space-y-3 border border-gray-100">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="label">Patrocinador</label>
-                    <select className="input" value={p.patrocinadorId} onChange={e => upd('patrocinadorId', e.target.value)}>
+                    <select className="input" value={p.patrocinadorId} onChange={e => updPatrocinio(pi, 'patrocinadorId', e.target.value)}>
                       <option value="">Seleccionar...</option>
                       {patrocinadores.map(pd => <option key={pd.id} value={pd.id}>{pd.nombre}</option>)}
                     </select>
@@ -1001,7 +1033,7 @@ function PatrociniosSection({ title, patrocinios, patrocinadores, onChange }: {
                     <label className="label">Tipo</label>
                     <div className="flex gap-2">
                       {[['PATROCINIO','Patrocinio'],['BTL','BTL'],['BRANDING','Branding']].map(([val, lbl]) => (
-                        <button key={val} type="button" onClick={() => upd('tipo', val)}
+                        <button key={val} type="button" onClick={() => updPatrocinio(pi, 'tipo', val)}
                           className={`flex-1 py-2 rounded-xl border-2 text-xs font-medium transition-all ${p.tipo===val ? 'border-gray-900 bg-gray-50' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
                           {lbl}
                         </button>
@@ -1014,17 +1046,69 @@ function PatrociniosSection({ title, patrocinios, patrocinadores, onChange }: {
                     <label className="label">Pago</label>
                     <div className="flex gap-2">
                       {[['EFECTIVO','💵'],['CANJE','🔄']].map(([val,lbl]) => (
-                        <button key={val} type="button" onClick={() => upd('tipoPago', val)}
+                        <button key={val} type="button" onClick={() => updPatrocinio(pi, 'tipoPago', val)}
                           className={`flex-1 py-2 rounded-xl border-2 text-xs font-medium transition-all ${p.tipoPago===val ? 'border-gray-900 bg-gray-50' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
                           {lbl}
                         </button>
                       ))}
                     </div>
                   </div>
-                  <div><label className="label">Local</label><input type="number" className="input" value={p.montoLocal} onChange={e => upd('montoLocal', parseFloat(e.target.value)||0)} /></div>
-                  <div><label className="label">USD</label><input type="number" className="input" value={p.montoUsd} onChange={e => upd('montoUsd', parseFloat(e.target.value)||0)} /></div>
-                  <div><label className="label">Notas</label><input className="input" value={p.notas} onChange={e => upd('notas', e.target.value)} /></div>
+                  <div><label className="label">Local</label><input type="number" className="input" value={p.montoLocal} onChange={e => updPatrocinio(pi, 'montoLocal', parseFloat(e.target.value)||0)} /></div>
+                  <div><label className="label">USD</label><input type="number" className="input" value={p.montoUsd} onChange={e => updPatrocinio(pi, 'montoUsd', parseFloat(e.target.value)||0)} /></div>
+                  <div><label className="label">Notas</label><input className="input" value={p.notas} onChange={e => updPatrocinio(pi, 'notas', e.target.value)} /></div>
                 </div>
+
+                {/* Boletos otorgados */}
+                {ticketZonas.length > 0 && (
+                  <div>
+                    <button type="button" onClick={() => setBoletosOpen(boletosOpen === pi ? null : pi)}
+                      className="flex items-center gap-2 text-xs font-medium text-indigo-600 hover:text-indigo-800 transition-colors">
+                      <span>🎟️ Boletos otorgados</span>
+                      {totalBoletos > 0 && (
+                        <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
+                          {totalBoletos} boleto(s) · {fmt(totalBoletosUsd)}
+                        </span>
+                      )}
+                      <span className="text-gray-400">{boletosOpen === pi ? '▲' : '▼'}</span>
+                    </button>
+
+                    {boletosOpen === pi && (
+                      <div className="mt-2 bg-indigo-50 rounded-xl p-3 space-y-2">
+                        <p className="text-xs text-indigo-500 font-medium mb-1">ℹ️ Dato informativo — no afecta ganancia ni gastos</p>
+                        {boletos.length === 0 && <p className="text-xs text-indigo-400 text-center py-1">Sin boletos asignados</p>}
+                        {boletos.map((b, bi) => (
+                          <div key={bi} className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 text-sm">
+                            <select className="flex-1 bg-transparent outline-none text-gray-700 text-xs"
+                              value={b.zona}
+                              onChange={e => updBoleto(pi, bi, 'zona', e.target.value)}>
+                              {ticketZonas.map(z => <option key={z.id ?? z.zona} value={z.zona}>{z.zona}</option>)}
+                            </select>
+                            <input type="number" min={0} placeholder="Cant."
+                              className="w-20 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-xs text-right outline-none focus:border-indigo-300"
+                              value={b.cantidad}
+                              onChange={e => updBoleto(pi, bi, 'cantidad', e.target.value)} />
+                            <span className="text-xs text-gray-400 w-6 text-center">×</span>
+                            <span className="text-xs text-gray-500 w-16 text-right">{fmt(b.precioUsd)}</span>
+                            <span className="text-xs font-semibold text-indigo-700 w-20 text-right">{fmt(b.cantidad * b.precioUsd)}</span>
+                            <button type="button" onClick={() => removeBoleto(pi, bi)} className="text-red-300 hover:text-red-500 text-xs">✕</button>
+                          </div>
+                        ))}
+                        {boletos.length > 0 && (
+                          <div className="flex justify-end text-xs font-semibold text-indigo-800 pt-1 border-t border-indigo-200">
+                            Total boletos: {totalBoletos} · Valor: {fmt(totalBoletosUsd)}
+                          </div>
+                        )}
+                        <button type="button" onClick={() => addBoleto(pi)}
+                          className="text-xs text-indigo-500 hover:underline">+ Agregar zona</button>
+                      </div>
+                    )}
+
+                    {boletosOpen !== pi && totalBoletos > 0 && (
+                      <p className="text-xs text-indigo-500 mt-1">{zonasSummary} · Valor: {fmt(totalBoletosUsd)}</p>
+                    )}
+                  </div>
+                )}
+
                 <div className="flex justify-end">
                   <button type="button" onClick={() => onChange(patrocinios.filter((_,xi) => xi!==pi))} className="text-xs text-red-400 hover:text-red-600">✕ Eliminar</button>
                 </div>

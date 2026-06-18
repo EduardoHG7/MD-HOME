@@ -144,7 +144,7 @@ export async function PUT(req: Request, { params }: { params: { eventoId: string
     await prisma.patrocinio.deleteMany({ where: { presupuestoId: presupuesto.id, esReal: false } })
     if (patrocinios.length) {
       await prisma.patrocinio.createMany({
-        data: patrocinios.map((p: { patrocinadorId?: string; nombre: string; tipo?: string; tipoPago?: string; montoLocal: number; montoUsd: number; notas?: string }) => ({
+        data: patrocinios.map((p: { patrocinadorId?: string; nombre: string; tipo?: string; tipoPago?: string; montoLocal: number; montoUsd: number; notas?: string; boletos?: object[] }) => ({
           presupuestoId:  presupuesto.id,
           patrocinadorId: p.patrocinadorId || null,
           nombre:         p.nombre,
@@ -153,6 +153,7 @@ export async function PUT(req: Request, { params }: { params: { eventoId: string
           montoLocal:     p.montoLocal ?? 0,
           montoUsd:       p.montoUsd   ?? 0,
           notas:          p.notas ?? null,
+          boletos:        p.boletos ?? [],
           esReal:         false,
         })),
       })
@@ -197,7 +198,7 @@ export async function PUT(req: Request, { params }: { params: { eventoId: string
     await prisma.patrocinio.deleteMany({ where: { presupuestoId: presupuesto.id, esReal: true } })
     if (patrociniosReales.length) {
       await prisma.patrocinio.createMany({
-        data: patrociniosReales.map((p: { patrocinadorId?: string; nombre: string; tipo?: string; tipoPago?: string; montoLocal: number; montoUsd: number; notas?: string }) => ({
+        data: patrociniosReales.map((p: { patrocinadorId?: string; nombre: string; tipo?: string; tipoPago?: string; montoLocal: number; montoUsd: number; notas?: string; boletos?: object[] }) => ({
           presupuestoId:  presupuesto.id,
           patrocinadorId: p.patrocinadorId || null,
           nombre:         p.nombre,
@@ -206,6 +207,7 @@ export async function PUT(req: Request, { params }: { params: { eventoId: string
           montoLocal:     p.montoLocal ?? 0,
           montoUsd:       p.montoUsd   ?? 0,
           notas:          p.notas ?? null,
+          boletos:        p.boletos ?? [],
           esReal:         true,
         })),
       })
