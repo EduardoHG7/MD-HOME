@@ -10,7 +10,6 @@ interface FilaCruda {
   tipo: string
   precio: number
   vendidos: number
-  total: number
 }
 
 interface ZonaPresupuesto {
@@ -39,24 +38,25 @@ export async function POST(req: Request) {
   const { base64, mimeType, zonasPresupuesto } = await req.json()
   if (!base64 || !mimeType) return NextResponse.json({ error: 'Faltan datos' }, { status: 400 })
 
-  // Claude solo extrae filas crudas — el backend hace toda la matemática
+  // Claude solo extrae zona, tipo, precio y vendidos — el backend calcula el total (precio × vendidos)
   const systemPrompt = `Eres un extractor de datos de reportes de ventas de boletos.
-Tu ÚNICA tarea es leer cada fila del reporte y transcribirla exactamente. NO hagas cálculos ni agrupes — solo lee y transcribe.
+Tu ÚNICA tarea es leer estas columnas de cada fila: zona, tipo de boleto, precio unitario y cantidad vendida.
+NO leas la columna de monto/total — el sistema la calculará solo.
 
-Para cada fila visible en el reporte extrae:
-- zona: el nombre de la categoría/zona (columna izquierda). Si la celda está vacía, repite el nombre de la zona anterior.
-- tipo: el tipo de boleto (Regular, BAC, Cortesía, Diplomático, SENADYS, Promotor, etc.)
-- precio: el precio unitario exacto como número (0 si es cortesía o gratis)
-- vendidos: la cantidad vendida como número entero
-- total: el monto total de esa fila como número (exactamente como aparece en el documento)
+Para cada fila del reporte extrae:
+- zona: nombre de la categoría/zona (columna izquierda). Si está vacía, repite el nombre de la zona anterior.
+- tipo: tipo de boleto (Regular, BAC, Cortesía, Diplomático, SENADYS, Promotor, etc.)
+- precio: precio unitario exacto como número (0 si es cortesía o gratis)
+- vendidos: cantidad vendida como número entero exacto
 
-IMPORTANTE:
-- Copia los números EXACTAMENTE como aparecen en el documento — no redondees ni calcules
-- Incluye TODAS las filas, incluyendo las de precio $0
-- Si una fila no tiene datos legibles, ponlos en 0
+REGLAS:
+- Incluye TODAS las filas incluyendo las de precio $0
+- Si una fila no tiene datos legibles en vendidos, pon 0
+- Copia zona, tipo y precio EXACTAMENTE como aparecen
+- NO incluyas filas de totales/subtotales del documento
 
 Retorna SOLO el JSON, sin texto adicional ni backticks:
-{ "filas": [ { "zona": "RAWALAND 1", "tipo": "Precio Regular", "precio": 185.00, "vendidos": 17, "total": 3145.00 } ] }`
+{ "filas": [ { "zona": "RAWALAND 1", "tipo": "Precio Regular", "precio": 185.00, "vendidos": 17 } ] }`
 
   const contentBlock = mimeType === 'application/pdf'
     ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
@@ -139,14 +139,14 @@ Retorna SOLO el JSON, sin texto adicional ni backticks:
       for (const [precioStr, filasPrecio] of Object.entries(porPrecio)) {
         const precio    = parseFloat(precioStr)
         const vendidos  = filasPrecio.reduce((s, f) => s + f.vendidos, 0)
-        const totalUsd  = filasPrecio.reduce((s, f) => s + f.total, 0)
+        const totalUsd  = Math.round(vendidos * precio * 100) / 100
         const tiposDesc = filasPrecio.map(f => `${f.tipo}(${f.vendidos})`).join('+')
         const subNombre = precio === precioMax ? nombreZona : `${nombreZona} — $${precio}`
         zonas.push({
           zona:     subNombre,
           vendidos,
           precio,
-          totalUsd: Math.round(totalUsd * 100) / 100,
+          totalUsd,
           match:    matchZona(subNombre, precio, zonasPresupuesto ?? []),
           nota:     `${nombreZona}: ${tiposDesc} × $${precio}`,
         })
@@ -154,14 +154,14 @@ Retorna SOLO el JSON, sin texto adicional ni backticks:
     } else {
       // Todos los sub-tipos tienen precio similar — consolidar en una sola fila
       const vendidos = filasConPrecio.reduce((s, f) => s + f.vendidos, 0)
-      const totalUsd = filasConPrecio.reduce((s, f) => s + f.total, 0)
+      const totalUsd = Math.round(filasConPrecio.reduce((s, f) => s + f.precio * f.vendidos, 0) * 100) / 100
       const precioEfectivo = vendidos > 0 ? Math.round((totalUsd / vendidos) * 100) / 100 : precioMax
       const tiposDesc = filasConPrecio.map(f => `${f.tipo}(${f.vendidos}×$${f.precio})`).join(' + ')
       zonas.push({
         zona:     nombreZona,
         vendidos,
         precio:   precioEfectivo,
-        totalUsd: Math.round(totalUsd * 100) / 100,
+        totalUsd,
         match:    matchZona(nombreZona, precioEfectivo, zonasPresupuesto ?? []),
         nota:     tiposDesc,
       })
