@@ -3,9 +3,14 @@ export async function sendWhatsApp(to: string, body: string): Promise<void> {
   const token = process.env.TWILIO_AUTH_TOKEN
   const from  = process.env.TWILIO_WHATSAPP_FROM
 
-  if (!sid || !token || !from || !to) return
+  if (!sid)    { console.error('[whatsapp] Falta TWILIO_ACCOUNT_SID'); return }
+  if (!token)  { console.error('[whatsapp] Falta TWILIO_AUTH_TOKEN'); return }
+  if (!from)   { console.error('[whatsapp] Falta TWILIO_WHATSAPP_FROM'); return }
+  if (!to)     { console.error('[whatsapp] Número destino vacío'); return }
 
   const toWa = to.startsWith('whatsapp:') ? to : `whatsapp:${to}`
+
+  console.log(`[whatsapp] Enviando a ${toWa} desde ${from}`)
 
   const res = await fetch(
     `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`,
@@ -21,6 +26,9 @@ export async function sendWhatsApp(to: string, body: string): Promise<void> {
 
   if (!res.ok) {
     const err = await res.text()
-    console.error(`[whatsapp] Error enviando mensaje (${res.status}):`, err)
+    console.error(`[whatsapp] Error (${res.status}):`, err)
+    throw new Error(`Twilio error ${res.status}: ${err}`)
+  } else {
+    console.log(`[whatsapp] OK (${res.status}) para ${toWa}`)
   }
 }
