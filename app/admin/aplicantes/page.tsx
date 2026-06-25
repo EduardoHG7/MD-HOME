@@ -127,12 +127,12 @@ export default function AplicantesAdminPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Base de Aplicantes</h1>
           <p className="text-gray-500 mt-1">{aplicantes.length} aplicante(s) registrado(s)</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <button onClick={() => setShowQR(true)} className="text-sm flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 border-gray-200 text-gray-700 font-medium hover:border-gray-400 transition-all">
             <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>
@@ -174,11 +174,20 @@ export default function AplicantesAdminPage() {
         </div>
       )}
 
-      <input className="input max-w-sm" placeholder="Buscar por nombre, cedula o correo..."
+      <input className="input w-full max-w-sm" placeholder="Buscar por nombre, cedula o correo..."
         value={search} onChange={e => setSearch(e.target.value)} />
 
-      <div className="grid grid-cols-5 gap-6">
-        <div className="col-span-2 space-y-2">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        {/* En móvil: si hay seleccionado, mostrar botón de vuelta y ocultar la lista */}
+        {selected && (
+          <div className="lg:hidden">
+            <button onClick={() => setSelected(null)}
+              className="flex items-center gap-2 text-sm text-gray-600 font-medium px-3 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 transition-all">
+              ← Volver a la lista
+            </button>
+          </div>
+        )}
+        <div className={`lg:col-span-2 space-y-2 ${selected ? 'hidden lg:block' : ''}`}>
           {filtered.map(a => (
             <button key={a.id} onClick={() => setSelected(a)}
               className={`card w-full text-left p-4 hover:border-gray-400 hover:shadow-md transition-all ${selected?.id === a.id ? 'border-gray-400 shadow-md' : ''}`}>
@@ -201,7 +210,7 @@ export default function AplicantesAdminPage() {
         </div>
 
         {selected && (
-          <div className="col-span-3 space-y-4">
+          <div className="lg:col-span-3 space-y-4">
             <div className="card p-5">
               <div className="flex items-center gap-4 mb-4">
                 <div className="w-14 h-14 rounded-full bg-gray-900 flex items-center justify-center text-2xl font-bold text-white">
