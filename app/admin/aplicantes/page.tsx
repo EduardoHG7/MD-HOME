@@ -5,7 +5,7 @@ import { formatDate, formatDateTime } from '@/lib/utils'
 
 interface Registro  { tipo: string; timestamp: string }
 interface Tarifa    { tipo: string; precioPorDia: number }
-interface Solicitud { tarifa: Tarifa | null }
+interface Solicitud { id: string; tarifa: Tarifa | null }
 interface Asignacion {
   id: string; funcion: string; estado: string
   evento:    { nombre: string; fechaInicio: string }
@@ -65,10 +65,13 @@ export default function AplicantesAdminPage() {
   const [savingBan,   setSavingBan]   = useState(false)
   const [cfg, setCfg] = useState<ConfigHoras>({ horaExtra: 3.11, horasBase: 8, limiteDia: 50 })
   const [showQR, setShowQR] = useState(false)
+  const [tarifas, setTarifas] = useState<Tarifa[]>([])
+  const [savingTarifa, setSavingTarifa] = useState<string | null>(null) // solicitudId
 
   useEffect(() => {
     fetch('/api/aplicantes').then(r => r.json()).then(setAplicantes)
     fetch('/api/tarifas').then(r => r.json()).then((data: Tarifa[]) => {
+      setTarifas(data)
       const map: Record<string, number> = {}
       data.forEach(t => { map[t.tipo] = t.precioPorDia })
       setCfg({
@@ -78,6 +81,36 @@ export default function AplicantesAdminPage() {
       })
     })
   }, [])
+
+  async function asignarTarifa(solicitudId: string, tipoTarifa: string) {
+    setSavingTarifa(solicitudId)
+    const res = await fetch(`/api/solicitudes/${solicitudId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tipoTarifa }),
+    })
+    if (res.ok) {
+      const tarifa = tarifas.find(t => t.tipo === tipoTarifa) ?? null
+      setAplicantes(prev => prev.map(a => ({
+        ...a,
+        asignaciones: a.asignaciones.map(asig =>
+          asig.solicitud.id === solicitudId
+            ? { ...asig, solicitud: { ...asig.solicitud, tarifa } }
+            : asig
+        ),
+      })))
+      if (selected) {
+        setSelected(prev => prev ? {
+          ...prev,
+          asignaciones: prev.asignaciones.map(asig =>
+            asig.solicitud.id === solicitudId
+              ? { ...asig, solicitud: { ...asig.solicitud, tarifa } }
+              : asig
+          ),
+        } : prev)
+      }
+    }
+    setSavingTarifa(null)
+  }
 
   async function toggleNoApto(aplicante: Aplicante, motivo?: string) {
     setSavingBan(true)
@@ -349,7 +382,21 @@ export default function AplicantesAdminPage() {
                             <p className="text-gray-500 text-xs">{a.funcion} - {formatDate(a.evento.fechaInicio)}</p>
                             {tarifa > 0
                               ? <p className="text-gray-400 text-xs mt-0.5">Tarifa: ${tarifa}/dia</p>
-                              : <p className="text-amber-500 text-xs mt-0.5">Sin tarifa asignada</p>}
+                              : (
+                                <div className="flex items-center gap-1.5 mt-1">
+                                  <select
+                                    defaultValue=""
+                                    disabled={savingTarifa === a.solicitud.id}
+                                    onChange={e => e.target.value && asignarTarifa(a.solicitud.id, e.target.value)}
+                                    className="text-xs border border-amber-300 rounded-lg px-2 py-0.5 bg-amber-50 text-amber-700 focus:outline-none focus:ring-1 focus:ring-amber-400">
+                                    <option value="" disabled>Asignar tarifa...</option>
+                                    {tarifas.filter(t => !['HORA_EXTRA','HORAS_BASE','LIMITE_DIA'].includes(t.tipo)).map(t => (
+                                      <option key={t.tipo} value={t.tipo}>${t.precioPorDia}/día — {t.tipo}</option>
+                                    ))}
+                                  </select>
+                                  {savingTarifa === a.solicitud.id && <span className="text-xs text-amber-500">...</span>}
+                                </div>
+                              )}
                           </div>
                           <div className="text-right">
                             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${a.estado === 'ACTIVA' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
