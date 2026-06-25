@@ -69,7 +69,11 @@ export default function SolicitudesAdminPage() {
   const [deleting,    setDeleting]    = useState<string | null>(null)
   const [copiedId,    setCopiedId]    = useState<string | null>(null)
   const [filter, setFilter] = useState<'TODAS' | 'PENDIENTE' | 'APROBADA' | 'RECHAZADA'>('PENDIENTE')
+  const [filterEvento,      setFilterEvento]      = useState('')
+  const [filterSolicitante, setFilterSolicitante] = useState('')
   const [cotFilter, setCotFilter] = useState<'TODAS' | 'PENDIENTE' | 'APROBADA' | 'RECHAZADA'>('PENDIENTE')
+  const [cotFilterEvento,      setCotFilterEvento]      = useState('')
+  const [cotFilterResponsable, setCotFilterResponsable] = useState('')
   const [selectedCot, setSelectedCot] = useState<CotAdmin | null>(null)
   const [cotNota, setCotNota] = useState('')
   const [savingCot, setSavingCot] = useState(false)
@@ -95,8 +99,22 @@ export default function SolicitudesAdminPage() {
     })
   }, [])
 
-  const filtered    = solicitudes.filter(s => filter === 'TODAS' || s.estado === filter)
-  const filteredCot = cotizaciones.filter(c => cotFilter === 'TODAS' || c.estado === cotFilter)
+  // Listas únicas para los selects
+  const eventosPersonal  = Array.from(new Set(solicitudes.map(s => s.evento.nombre))).sort()
+  const solicitantes     = Array.from(new Set(solicitudes.map(s => s.solicitante.name ?? s.solicitante.email))).sort()
+  const eventosCot       = Array.from(new Set(cotizaciones.map(c => c.linea.categoria.presupuesto.evento.nombre))).sort()
+  const responsablesCot  = Array.from(new Set(cotizaciones.map(c => c.creadoPor.name ?? c.creadoPor.email))).sort()
+
+  const filtered = solicitudes.filter(s =>
+    (filter === 'TODAS' || s.estado === filter) &&
+    (!filterEvento      || s.evento.nombre === filterEvento) &&
+    (!filterSolicitante || (s.solicitante.name ?? s.solicitante.email) === filterSolicitante)
+  )
+  const filteredCot = cotizaciones.filter(c =>
+    (cotFilter === 'TODAS' || c.estado === cotFilter) &&
+    (!cotFilterEvento      || c.linea.categoria.presupuesto.evento.nombre === cotFilterEvento) &&
+    (!cotFilterResponsable || (c.creadoPor.name ?? c.creadoPor.email) === cotFilterResponsable)
+  )
 
   function selectSolicitud(s: Solicitud) {
     setSelected(s)
@@ -236,7 +254,7 @@ export default function SolicitudesAdminPage() {
       {/* ══ TAB: PERSONAL ══ */}
       {mainTab === 'personal' && (
         <>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2 items-center">
             {(['TODAS', 'PENDIENTE', 'APROBADA', 'RECHAZADA'] as const).map(f => (
               <button key={f} onClick={() => setFilter(f)}
                 className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${filter === f ? 'bg-gray-900 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
@@ -244,6 +262,16 @@ export default function SolicitudesAdminPage() {
                 <span className="ml-1.5 text-xs opacity-70">({solicitudes.filter(s => f === 'TODAS' || s.estado === f).length})</span>
               </button>
             ))}
+            <select value={filterEvento} onChange={e => setFilterEvento(e.target.value)}
+              className="px-3 py-2 rounded-xl text-sm border border-gray-200 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-300">
+              <option value="">Todos los eventos</option>
+              {eventosPersonal.map(e => <option key={e} value={e}>{e}</option>)}
+            </select>
+            <select value={filterSolicitante} onChange={e => setFilterSolicitante(e.target.value)}
+              className="px-3 py-2 rounded-xl text-sm border border-gray-200 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-300">
+              <option value="">Todos los solicitantes</option>
+              {solicitantes.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -457,7 +485,7 @@ export default function SolicitudesAdminPage() {
       {/* ══ TAB: COTIZACIONES ══ */}
       {mainTab === 'cotizaciones' && (
         <>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2 items-center">
             {(['TODAS', 'PENDIENTE', 'APROBADA', 'RECHAZADA'] as const).map(f => (
               <button key={f} onClick={() => setCotFilter(f)}
                 className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${cotFilter === f ? 'bg-gray-900 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
@@ -465,6 +493,16 @@ export default function SolicitudesAdminPage() {
                 <span className="ml-1.5 text-xs opacity-70">({cotizaciones.filter(c => f === 'TODAS' || c.estado === f).length})</span>
               </button>
             ))}
+            <select value={cotFilterEvento} onChange={e => setCotFilterEvento(e.target.value)}
+              className="px-3 py-2 rounded-xl text-sm border border-gray-200 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-300">
+              <option value="">Todos los eventos</option>
+              {eventosCot.map(e => <option key={e} value={e}>{e}</option>)}
+            </select>
+            <select value={cotFilterResponsable} onChange={e => setCotFilterResponsable(e.target.value)}
+              className="px-3 py-2 rounded-xl text-sm border border-gray-200 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-300">
+              <option value="">Todos los responsables</option>
+              {responsablesCot.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
