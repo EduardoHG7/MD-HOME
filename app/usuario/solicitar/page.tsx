@@ -1,10 +1,44 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { formatDate, formatCurrency, TARIFA_LABELS, ESTADO_COLORS, ESTADO_SOLICITUD_LABELS } from '@/lib/utils'
 
 const QrScanner = dynamic(() => import('@/components/QrScanner'), { ssr: false })
+
+// ── Caja Menuda interfaces ───────────────────────────────────────────────────
+interface FacturaCM {
+  id: string; descripcion: string | null; proveedor: string | null
+  numeroFactura: string | null; rucDv: string | null; fechaEmision: string | null
+  subtotal: number; itbms: number; total: number
+  archivoNombre: string | null; archivoPath: string | null
+}
+interface CajaMenuda {
+  id: string; descripcion: string; montoSolicitado: number; montoAprobado: number | null
+  estado: string; notaAdmin: string | null; createdAt: string
+  evento: { nombre: string }
+  aprobadoPor: { name: string | null; email: string } | null
+  facturas: FacturaCM[]
+}
+interface QueueItemCM {
+  id: string; name: string; status: 'pending' | 'processing' | 'done' | 'error'
+  result?: Omit<FacturaCM, 'id' | 'archivoPath'>; error?: string; _file?: File
+}
+
+const CM_ESTADO_COLORS: Record<string, string> = {
+  PENDIENTE:            'bg-yellow-100 text-yellow-700 border-yellow-200',
+  APROBADA:             'bg-green-100 text-green-700 border-green-200',
+  RECHAZADA:            'bg-red-100 text-red-600 border-red-200',
+  RESPALDOS_ENTREGADOS: 'bg-blue-100 text-blue-700 border-blue-200',
+  PAGADA:               'bg-purple-100 text-purple-700 border-purple-200',
+}
+const CM_ESTADO_LABELS: Record<string, string> = {
+  PENDIENTE:            'Pendiente',
+  APROBADA:             'Aprobada',
+  RECHAZADA:            'Rechazada',
+  RESPALDOS_ENTREGADOS: 'Respaldos entregados',
+  PAGADA:               'Pagada',
+}
 
 interface Evento   { id: string; nombre: string; fechaInicio: string; fechaFin: string }
 interface Puesto   { id: string; nombre: string }
@@ -44,6 +78,8 @@ function agruparPorDia(registros: Registro[]) {
 }
 
 export default function SolicitarPage() {
+  const [mainTab, setMainTab] = useState<'personal' | 'caja_menuda'>('personal')
+
   const [eventos,     setEventos]     = useState<Evento[]>([])
   const [puestos,     setPuestos]     = useState<Puesto[]>([])
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([])
@@ -51,6 +87,19 @@ export default function SolicitarPage() {
   const [loading,     setLoading]     = useState(false)
   const [success,     setSuccess]     = useState(false)
   const [error,       setError]       = useState('')
+
+  // ── Caja Menuda state ──
+  const [cajasMenuda,   setCajasMenuda]   = useState<CajaMenuda[]>([])
+  const [showCMForm,    setShowCMForm]    = useState(false)
+  const [cmLoading,     setCmLoading]     = useState(false)
+  const [cmError,       setCmError]       = useState('')
+  const [cmSuccess,     setCmSuccess]     = useState(false)
+  const [cmForm,        setCmForm]        = useState({ eventoId: '', montoSolicitado: '', descripcion: '' })
+  const [expandedCMId,  setExpandedCMId]  = useState<string | null>(null)
+  const [uploadingCM,   setUploadingCM]   = useState<string | null>(null) // cajaMenudaId being uploaded
+  const [cmQueue,       setCmQueue]       = useState<QueueItemCM[]>([])
+  const [savingCM,      setSavingCM]      = useState(false)
+  const cmFileRef = useRef<HTMLInputElement>(null)
 
   // Detalle expandido
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -76,10 +125,12 @@ export default function SolicitarPage() {
       fetch('/api/eventos').then(r => r.json()),
       fetch('/api/puestos').then(r => r.json()),
       fetch('/api/solicitudes').then(r => r.json()),
-    ]).then(([ev, pu, sol]) => {
+      fetch('/api/caja-menuda').then(r => r.json()),
+    ]).then(([ev, pu, sol, cm]) => {
       setEventos(Array.isArray(ev) ? ev : [])
       setPuestos(Array.isArray(pu) ? pu : [])
       setSolicitudes(Array.isArray(sol) ? sol : [])
+      setCajasMenuda(Array.isArray(cm) ? cm : [])
     })
   }, [])
 
@@ -211,6 +262,110 @@ export default function SolicitarPage() {
     finally { setLoading(false) }
   }
 
+  // ── Caja Menuda handlers ──────────────────────────────────────────────────
+
+  async function handleCMSubmit(e: React.FormEvent) {
+    e.preventDefault(); setCmError('')
+    if (!cmForm.eventoId) { setCmError('Selecciona un evento.'); return }
+    if (!cmForm.montoSolicitado || parseFloat(cmForm.montoSolicitado) <= 0) { setCmError('Ingresa un monto válido.'); return }
+    if (!cmForm.descripcion.trim()) { setCmError('Describe en qué se usará el dinero.'); return }
+    setCmLoading(true)
+    try {
+      const res = await fetch('/api/caja-menuda', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventoId: cmForm.eventoId, montoSolicitado: parseFloat(cmForm.montoSolicitado), descripcion: cmForm.descripcion }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setCmError(data.error ?? 'Error al enviar.'); return }
+      setCajasMenuda(prev => [data, ...prev])
+      setCmSuccess(true); setCmForm({ eventoId: '', montoSolicitado: '', descripcion: '' }); setShowCMForm(false)
+      setTimeout(() => setCmSuccess(false), 4000)
+    } catch { setCmError('Error de conexión.') }
+    finally { setCmLoading(false) }
+  }
+
+  function fileToBase64CM(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload  = () => resolve((reader.result as string).split(',')[1])
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+  }
+
+  function addCMFiles(cajaId: string, files: FileList | File[]) {
+    const allowed = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp']
+    const items: QueueItemCM[] = Array.from(files)
+      .filter(f => allowed.includes(f.type))
+      .map(f => ({ id: crypto.randomUUID(), name: f.name, status: 'pending', _file: f }))
+    if (!items.length) return
+    setCmQueue(prev => [...prev, ...items])
+    processCMQueue(cajaId, items)
+  }
+
+  async function processCMQueue(cajaId: string, items: QueueItemCM[]) {
+    for (const item of items) {
+      setCmQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'processing' } : q))
+      try {
+        const base64 = await fileToBase64CM(item._file!)
+        // Extract data
+        const extRes = await fetch('/api/facturas/extract', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ base64, mimeType: item._file!.type, fileName: item.name }),
+        })
+        const extData = await extRes.json()
+        if (!extRes.ok) throw new Error(extData.error ?? 'Error extrayendo datos')
+        // Upload to SharePoint + save
+        const saveRes = await fetch(`/api/caja-menuda/${cajaId}/facturas`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            base64, mimeType: item._file!.type, fileName: item.name,
+            descripcion:   extData.descripcion   ?? null,
+            proveedor:     extData.proveedor      ?? null,
+            numeroFactura: extData.numero_factura ?? null,
+            rucDv:         extData.ruc_dv         ?? null,
+            fechaEmision:  extData.fecha_emision  ?? null,
+            subtotal:      extData.subtotal        ?? 0,
+            itbms:         extData.itbms           ?? 0,
+            total:         extData.total           ?? 0,
+          }),
+        })
+        const saved = await saveRes.json()
+        if (!saveRes.ok) throw new Error(saved.error ?? 'Error guardando')
+        setCmQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'done', result: saved } : q))
+        setCajasMenuda(prev => prev.map(c => c.id === cajaId
+          ? { ...c, facturas: [...c.facturas, saved] } : c))
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Error'
+        setCmQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'error', error: msg } : q))
+      }
+    }
+  }
+
+  async function deleteCMFactura(cajaId: string, factId: string) {
+    const res = await fetch(`/api/caja-menuda/${cajaId}/facturas/${factId}`, { method: 'DELETE' })
+    if (res.ok) {
+      setCajasMenuda(prev => prev.map(c => c.id === cajaId
+        ? { ...c, facturas: c.facturas.filter(f => f.id !== factId) } : c))
+      setCmQueue(prev => prev.filter(q => (q.result as FacturaCM | undefined)?.id !== factId))
+    }
+  }
+
+  async function guardarRespaldosCM(cajaId: string) {
+    setSavingCM(true)
+    const res = await fetch(`/api/caja-menuda/${cajaId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ estado: 'RESPALDOS_ENTREGADOS' }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      setCajasMenuda(prev => prev.map(c => c.id === cajaId ? { ...c, ...updated } : c))
+      setCmQueue([])
+      setUploadingCM(null)
+    }
+    setSavingCM(false)
+  }
+
   const pendientes = solicitudes.filter(s => s.estado === 'PENDIENTE').length
   const aprobadas  = solicitudes.filter(s => s.estado === 'APROBADA').length
 
@@ -233,13 +388,284 @@ export default function SolicitarPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Solicitudes de Personal</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Solicitudes</h1>
           <p className="text-gray-500 mt-1">Gestiona tus solicitudes y asigna personal</p>
         </div>
-        <button onClick={() => { setShowForm(v => !v); setError('') }} className="btn-primary">
-          {showForm ? '✕ Cancelar' : '+ Nueva Solicitud'}
+        {mainTab === 'personal' && (
+          <button onClick={() => { setShowForm(v => !v); setError('') }} className="btn-primary">
+            {showForm ? '✕ Cancelar' : '+ Nueva Solicitud'}
+          </button>
+        )}
+        {mainTab === 'caja_menuda' && (
+          <button onClick={() => { setShowCMForm(v => !v); setCmError('') }} className="btn-primary">
+            {showCMForm ? '✕ Cancelar' : '+ Nueva Caja Menuda'}
+          </button>
+        )}
+      </div>
+
+      {/* Main tabs */}
+      <div className="flex gap-1 bg-gray-100 rounded-2xl p-1 w-fit">
+        <button onClick={() => setMainTab('personal')}
+          className={`px-5 py-2 rounded-xl text-sm font-medium transition-all ${mainTab === 'personal' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>
+          👥 Personal
+        </button>
+        <button onClick={() => setMainTab('caja_menuda')}
+          className={`px-5 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${mainTab === 'caja_menuda' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>
+          💰 Caja Menuda
+          {cajasMenuda.filter(c => c.estado === 'PENDIENTE').length > 0 && (
+            <span className="bg-amber-400 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">
+              {cajasMenuda.filter(c => c.estado === 'PENDIENTE').length}
+            </span>
+          )}
         </button>
       </div>
+
+      {/* ══ TAB: CAJA MENUDA ══ */}
+      {mainTab === 'caja_menuda' && (
+        <div className="space-y-5">
+          {cmSuccess && (
+            <div className="bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 text-sm">
+              ✓ Solicitud de caja menuda enviada. El administrador la revisará pronto.
+            </div>
+          )}
+
+          {/* Formulario nueva caja menuda */}
+          {showCMForm && (
+            <div className="card p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Nueva Solicitud de Caja Menuda</h2>
+              {cmError && <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl px-4 py-3 mb-4 text-sm">{cmError}</div>}
+              <form onSubmit={handleCMSubmit} className="space-y-4">
+                <div>
+                  <label className="label">Evento *</label>
+                  <select className="input" value={cmForm.eventoId} onChange={e => setCmForm(f => ({ ...f, eventoId: e.target.value }))} required>
+                    <option value="">Seleccionar evento...</option>
+                    {eventos.map(ev => <option key={ev.id} value={ev.id}>{ev.nombre} — {formatDate(ev.fechaInicio)}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Monto a solicitar ($) *</label>
+                  <input type="number" step="0.01" min="0.01" className="input" placeholder="Ej: 250.00"
+                    value={cmForm.montoSolicitado} onChange={e => setCmForm(f => ({ ...f, montoSolicitado: e.target.value }))} required />
+                </div>
+                <div>
+                  <label className="label">¿En qué se usará el dinero? *</label>
+                  <textarea className="input resize-none h-24" placeholder="Describe brevemente los gastos planificados..."
+                    value={cmForm.descripcion} onChange={e => setCmForm(f => ({ ...f, descripcion: e.target.value }))} required />
+                </div>
+                <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700">
+                  💡 Una vez aprobada, podrás subir las facturas como respaldo de los gastos.
+                </div>
+                <button type="submit" disabled={cmLoading} className="btn-primary w-full">
+                  {cmLoading ? 'Enviando...' : 'Enviar Solicitud'}
+                </button>
+              </form>
+            </div>
+          )}
+
+          {/* Lista cajas menuda */}
+          {cajasMenuda.length === 0 ? (
+            <div className="card p-10 text-center">
+              <p className="text-4xl mb-3">💰</p>
+              <p className="text-gray-700 font-semibold">No tienes solicitudes de caja menuda</p>
+              <p className="text-gray-400 text-sm mt-1">Haz click en &quot;+ Nueva Caja Menuda&quot; para comenzar</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {cajasMenuda.map(c => {
+                const isExpanded = expandedCMId === c.id
+                const totalFacturas = c.facturas.reduce((s, f) => s + f.total, 0)
+                const monto = c.montoAprobado ?? 0
+                const diff  = monto - totalFacturas
+                return (
+                  <div key={c.id} className="card overflow-hidden">
+                    <button className="w-full text-left p-5 hover:bg-gray-50 transition-colors"
+                      onClick={() => setExpandedCMId(isExpanded ? null : c.id)}>
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-gray-900">{c.evento.nombre}</p>
+                          <p className="text-gray-500 text-sm mt-1">{c.descripcion}</p>
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-400 mt-1">
+                            <span>Solicitado: <strong>${c.montoSolicitado.toFixed(2)}</strong></span>
+                            {c.montoAprobado && <span>Aprobado: <strong className="text-green-600">${c.montoAprobado.toFixed(2)}</strong></span>}
+                            <span>{formatDate(c.createdAt)}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className={`badge border ${CM_ESTADO_COLORS[c.estado]}`}>{CM_ESTADO_LABELS[c.estado]}</span>
+                          <span className="text-gray-400 text-sm">{isExpanded ? '▲' : '▼'}</span>
+                        </div>
+                      </div>
+                    </button>
+
+                    {isExpanded && (
+                      <div className="border-t border-gray-100 bg-gray-50 p-5 space-y-4">
+                        {/* Info */}
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          <div className="bg-white rounded-xl p-3 border border-gray-100">
+                            <p className="text-xs text-gray-400 mb-0.5">Monto solicitado</p>
+                            <p className="font-bold text-gray-900">${c.montoSolicitado.toFixed(2)}</p>
+                          </div>
+                          {c.montoAprobado && (
+                            <div className="bg-white rounded-xl p-3 border border-gray-100">
+                              <p className="text-xs text-gray-400 mb-0.5">Monto aprobado</p>
+                              <p className="font-bold text-green-600">${c.montoAprobado.toFixed(2)}</p>
+                            </div>
+                          )}
+                          {c.notaAdmin && (
+                            <div className="bg-white rounded-xl p-3 border border-gray-100 col-span-2">
+                              <p className="text-xs text-gray-400 mb-0.5">Nota del admin</p>
+                              <p className="text-gray-700 italic">&quot;{c.notaAdmin}&quot;</p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Respaldos: solo si está aprobada */}
+                        {(c.estado === 'APROBADA' || c.estado === 'RESPALDOS_ENTREGADOS') && c.montoAprobado && (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Facturas / Respaldos</p>
+                              {c.estado === 'APROBADA' && (
+                                <button
+                                  onClick={() => { setUploadingCM(c.id); setCmQueue([]) }}
+                                  className="text-xs px-3 py-1.5 rounded-xl border-2 border-gray-200 text-gray-600 hover:border-gray-400 font-medium transition-all">
+                                  + Agregar facturas
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Upload area */}
+                            {uploadingCM === c.id && (
+                              <div className="space-y-3">
+                                <div
+                                  className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-gray-400 transition-all"
+                                  onClick={() => cmFileRef.current?.click()}
+                                  onDragOver={e => e.preventDefault()}
+                                  onDrop={e => { e.preventDefault(); addCMFiles(c.id, e.dataTransfer.files) }}>
+                                  <p className="text-gray-500 text-sm">📎 Arrastra archivos o haz click para seleccionar</p>
+                                  <p className="text-gray-400 text-xs mt-1">PDF, JPG, PNG, WEBP</p>
+                                </div>
+                                <input ref={cmFileRef} type="file" multiple accept=".pdf,image/*" className="hidden"
+                                  onChange={e => e.target.files && addCMFiles(c.id, e.target.files)} />
+
+                                {/* Queue */}
+                                {cmQueue.length > 0 && (
+                                  <div className="space-y-1">
+                                    {cmQueue.map(q => (
+                                      <div key={q.id} className="flex items-center gap-3 bg-white rounded-xl border border-gray-200 px-3 py-2 text-sm">
+                                        <span className="text-lg">
+                                          {q.status === 'pending'    ? '⏳' :
+                                           q.status === 'processing' ? '⚙️' :
+                                           q.status === 'done'       ? '✅' : '❌'}
+                                        </span>
+                                        <span className="flex-1 truncate text-gray-700">{q.name}</span>
+                                        {q.status === 'done' && q.result && (
+                                          <span className="text-green-600 font-semibold text-xs">${(q.result as FacturaCM).total.toFixed(2)}</span>
+                                        )}
+                                        {q.status === 'error' && <span className="text-red-500 text-xs">{q.error}</span>}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Tabla facturas */}
+                            {c.facturas.length > 0 && (
+                              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                                <table className="w-full text-xs">
+                                  <thead>
+                                    <tr className="bg-gray-50 text-gray-400 border-b border-gray-100">
+                                      <th className="px-3 py-2 text-left">Descripción</th>
+                                      <th className="px-3 py-2 text-left">Proveedor</th>
+                                      <th className="px-3 py-2 text-right">Subtotal</th>
+                                      <th className="px-3 py-2 text-right">ITBMS</th>
+                                      <th className="px-3 py-2 text-right">Total</th>
+                                      <th className="px-3 py-2 text-center">Doc</th>
+                                      {c.estado === 'APROBADA' && <th className="px-3 py-2"></th>}
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-gray-50">
+                                    {c.facturas.map(f => (
+                                      <tr key={f.id} className="hover:bg-gray-50">
+                                        <td className="px-3 py-2 text-gray-700">{f.descripcion ?? '—'}</td>
+                                        <td className="px-3 py-2 text-gray-500">{f.proveedor ?? '—'}</td>
+                                        <td className="px-3 py-2 text-right">${f.subtotal.toFixed(2)}</td>
+                                        <td className="px-3 py-2 text-right">${f.itbms.toFixed(2)}</td>
+                                        <td className="px-3 py-2 text-right font-semibold">${f.total.toFixed(2)}</td>
+                                        <td className="px-3 py-2 text-center">
+                                          {f.archivoPath ? (
+                                            <a href={`/api/fotos?path=${encodeURIComponent(f.archivoPath)}`} target="_blank" rel="noopener noreferrer"
+                                              className="text-blue-500 hover:underline">Ver</a>
+                                          ) : '—'}
+                                        </td>
+                                        {c.estado === 'APROBADA' && (
+                                          <td className="px-3 py-2">
+                                            <button onClick={() => deleteCMFactura(c.id, f.id)}
+                                              className="text-red-400 hover:text-red-600 text-xs">✕</button>
+                                          </td>
+                                        )}
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                  <tfoot>
+                                    <tr className="bg-gray-50 font-semibold border-t border-gray-200">
+                                      <td className="px-3 py-2 text-gray-500" colSpan={4}>Total gastado</td>
+                                      <td className="px-3 py-2 text-right text-gray-900">${totalFacturas.toFixed(2)}</td>
+                                      <td colSpan={c.estado === 'APROBADA' ? 2 : 1}></td>
+                                    </tr>
+                                  </tfoot>
+                                </table>
+
+                                {/* Alerta de diferencia */}
+                                {c.facturas.length > 0 && (() => {
+                                  if (diff > 0.005) return (
+                                    <div className="mx-3 mb-3 mt-1 bg-green-50 border border-green-200 rounded-xl px-4 py-2.5 text-sm text-green-700 flex justify-between items-center">
+                                      <span>✅ Ahorro</span>
+                                      <span className="font-bold">${diff.toFixed(2)}</span>
+                                    </div>
+                                  )
+                                  if (diff < -0.005) return (
+                                    <div className="mx-3 mb-3 mt-1 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 text-sm text-red-700 flex justify-between items-center">
+                                      <span>❌ Excedido en</span>
+                                      <span className="font-bold">${Math.abs(diff).toFixed(2)}</span>
+                                    </div>
+                                  )
+                                  return (
+                                    <div className="mx-3 mb-3 mt-1 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-2.5 text-sm text-yellow-700 text-center font-medium">
+                                      🟡 Monto exacto — sin diferencia
+                                    </div>
+                                  )
+                                })()}
+                              </div>
+                            )}
+
+                            {/* Botón guardar respaldos */}
+                            {c.estado === 'APROBADA' && c.facturas.length > 0 && (
+                              <button onClick={() => guardarRespaldosCM(c.id)} disabled={savingCM}
+                                className="w-full btn-primary">
+                                {savingCM ? 'Guardando...' : '✓ Guardar y entregar respaldos'}
+                              </button>
+                            )}
+
+                            {c.estado === 'RESPALDOS_ENTREGADOS' && (
+                              <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-700">
+                                ✅ Respaldos entregados. Contabilidad procesará el pago.
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══ TAB: PERSONAL ══ */}
+      {mainTab === 'personal' && (<>
 
       {success && (
         <div className="bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 text-sm">
@@ -592,6 +1018,7 @@ export default function SolicitarPage() {
           </div>
         )}
       </div>
+      </>)}
     </div>
   )
 }

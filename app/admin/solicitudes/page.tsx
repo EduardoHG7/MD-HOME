@@ -56,8 +56,38 @@ const COT_COLORS: Record<string, string> = {
   RECHAZADA: 'bg-red-100 text-red-600 border-red-200',
 }
 
+interface CMFactura {
+  id: string; descripcion: string | null; proveedor: string | null
+  numeroFactura: string | null; subtotal: number; itbms: number; total: number
+  archivoNombre: string | null; archivoPath: string | null
+}
+interface CajaMenudaAdmin {
+  id: string; descripcion: string; montoSolicitado: number; montoAprobado: number | null
+  estado: string; notaAdmin: string | null; createdAt: string
+  evento:      { nombre: string }
+  solicitante: { name: string | null; email: string }
+  aprobadoPor: { name: string | null; email: string } | null
+  pagadoPor:   { name: string | null; email: string } | null
+  pagadoEn:    string | null
+  facturas:    CMFactura[]
+}
+const CM_COLORS: Record<string, string> = {
+  PENDIENTE:            'bg-yellow-100 text-yellow-700 border-yellow-200',
+  APROBADA:             'bg-green-100 text-green-700 border-green-200',
+  RECHAZADA:            'bg-red-100 text-red-600 border-red-200',
+  RESPALDOS_ENTREGADOS: 'bg-blue-100 text-blue-700 border-blue-200',
+  PAGADA:               'bg-purple-100 text-purple-700 border-purple-200',
+}
+const CM_LABELS: Record<string, string> = {
+  PENDIENTE:            'Pendiente',
+  APROBADA:             'Aprobada',
+  RECHAZADA:            'Rechazada',
+  RESPALDOS_ENTREGADOS: 'Respaldos entregados',
+  PAGADA:               'Pagada',
+}
+
 export default function SolicitudesAdminPage() {
-  const [mainTab,     setMainTab]     = useState<'personal' | 'cotizaciones'>('personal')
+  const [mainTab,     setMainTab]     = useState<'personal' | 'cotizaciones' | 'caja_menuda'>('personal')
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([])
   const [cotizaciones, setCotizaciones] = useState<CotAdmin[]>([])
   const [tarifas,     setTarifas]     = useState<Tarifa[]>([])
@@ -80,6 +110,16 @@ export default function SolicitudesAdminPage() {
   const [editingCosto, setEditingCosto] = useState(false)
   const [nuevoCosto,   setNuevoCosto]   = useState('')
 
+  // Caja Menuda admin state
+  const [cajasMenuda,    setCajasMenuda]    = useState<CajaMenudaAdmin[]>([])
+  const [selectedCM,     setSelectedCM]     = useState<CajaMenudaAdmin | null>(null)
+  const [cmMontoAprob,   setCmMontoAprob]   = useState('')
+  const [cmNota,         setCmNota]         = useState('')
+  const [savingCM,       setSavingCM]       = useState(false)
+  const [cmFilter,       setCmFilter]       = useState<'TODAS'|'PENDIENTE'|'APROBADA'|'RECHAZADA'|'RESPALDOS_ENTREGADOS'|'PAGADA'>('PENDIENTE')
+  const [cmFilterEvento, setCmFilterEvento] = useState('')
+  const [cmFilterSolic,  setCmFilterSolic]  = useState('')
+
   function copiarLinkEvento(aplicanteId: string, eventoId: string) {
     const url = `${window.location.origin}/aplicante/${aplicanteId}?evento=${eventoId}`
     navigator.clipboard.writeText(url)
@@ -92,10 +132,12 @@ export default function SolicitudesAdminPage() {
       fetch('/api/solicitudes').then(r => r.json()),
       fetch('/api/tarifas').then(r => r.json()),
       fetch('/api/cotizaciones').then(r => r.json()),
-    ]).then(([sol, tar, cot]) => {
+      fetch('/api/caja-menuda').then(r => r.json()),
+    ]).then(([sol, tar, cot, cm]) => {
       setSolicitudes(Array.isArray(sol) ? sol : [])
       setTarifas(Array.isArray(tar) ? tar : [])
       setCotizaciones(Array.isArray(cot) ? cot : [])
+      setCajasMenuda(Array.isArray(cm) ? cm : [])
     })
   }, [])
 
@@ -227,8 +269,51 @@ export default function SolicitudesAdminPage() {
     setDeleting(null)
   }
 
+  // Caja Menuda filters & handler
+  const eventosCM    = Array.from(new Set(cajasMenuda.map(c => c.evento.nombre))).sort()
+  const solicitCM    = Array.from(new Set(cajasMenuda.map(c => c.solicitante.name ?? c.solicitante.email))).sort()
+  const filteredCM   = cajasMenuda.filter(c =>
+    (cmFilter === 'TODAS' || c.estado === cmFilter) &&
+    (!cmFilterEvento || c.evento.nombre === cmFilterEvento) &&
+    (!cmFilterSolic  || (c.solicitante.name ?? c.solicitante.email) === cmFilterSolic)
+  )
+
+  async function handleCMDecision(id: string, estado: 'APROBADA' | 'RECHAZADA') {
+    if (estado === 'APROBADA' && (!cmMontoAprob || parseFloat(cmMontoAprob) <= 0)) return
+    setSavingCM(true)
+    const res = await fetch(`/api/caja-menuda/${id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        estado,
+        montoAprobado: estado === 'APROBADA' ? parseFloat(cmMontoAprob) : undefined,
+        notaAdmin: cmNota || null,
+      }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      setCajasMenuda(prev => prev.map(c => c.id === id ? { ...c, ...updated } : c))
+      setSelectedCM(prev => prev?.id === id ? { ...prev, ...updated } : prev)
+    }
+    setSavingCM(false)
+  }
+
+  async function handleCMPagada(id: string) {
+    setSavingCM(true)
+    const res = await fetch(`/api/caja-menuda/${id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ estado: 'PAGADA' }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      setCajasMenuda(prev => prev.map(c => c.id === id ? { ...c, ...updated } : c))
+      setSelectedCM(prev => prev?.id === id ? { ...prev, ...updated } : prev)
+    }
+    setSavingCM(false)
+  }
+
   const pendPersonal = solicitudes.filter(s => s.estado === 'PENDIENTE').length
   const pendCot      = cotizaciones.filter(c => c.estado === 'PENDIENTE').length
+  const pendCM       = cajasMenuda.filter(c => c.estado === 'PENDIENTE').length
 
   return (
     <div className="space-y-6">
@@ -248,6 +333,11 @@ export default function SolicitudesAdminPage() {
           className={`px-5 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${mainTab === 'cotizaciones' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>
           📋 Cotizaciones
           {pendCot > 0 && <span className="bg-amber-400 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">{pendCot}</span>}
+        </button>
+        <button onClick={() => setMainTab('caja_menuda')}
+          className={`px-5 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${mainTab === 'caja_menuda' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>
+          💰 Caja Menuda
+          {pendCM > 0 && <span className="bg-amber-400 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">{pendCM}</span>}
         </button>
       </div>
 
@@ -609,6 +699,174 @@ export default function SolicitudesAdminPage() {
                 )}
               </div>
             )}
+          </div>
+        </>
+      )}
+
+      {/* ══ TAB: CAJA MENUDA ══ */}
+      {mainTab === 'caja_menuda' && (
+        <>
+          <div className="flex flex-wrap gap-2 items-center">
+            {(['TODAS','PENDIENTE','APROBADA','RECHAZADA','RESPALDOS_ENTREGADOS','PAGADA'] as const).map(f => (
+              <button key={f} onClick={() => setCmFilter(f)}
+                className={`px-3 py-2 rounded-xl text-xs font-medium transition-all ${cmFilter === f ? 'bg-gray-900 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                {CM_LABELS[f] ?? f}
+                <span className="ml-1 opacity-70">({cajasMenuda.filter(c => f === 'TODAS' || c.estado === f).length})</span>
+              </button>
+            ))}
+            <select value={cmFilterEvento} onChange={e => setCmFilterEvento(e.target.value)}
+              className="px-3 py-2 rounded-xl text-sm border border-gray-200 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-300">
+              <option value="">Todos los eventos</option>
+              {eventosCM.map(e => <option key={e} value={e}>{e}</option>)}
+            </select>
+            <select value={cmFilterSolic} onChange={e => setCmFilterSolic(e.target.value)}
+              className="px-3 py-2 rounded-xl text-sm border border-gray-200 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-300">
+              <option value="">Todos los solicitantes</option>
+              {solicitCM.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Lista */}
+            <div className="space-y-2">
+              {filteredCM.length === 0 && <div className="card p-6 text-center text-gray-400">No hay solicitudes.</div>}
+              {filteredCM.map(c => (
+                <button key={c.id} onClick={() => { setSelectedCM(c); setCmMontoAprob(c.montoAprobado?.toString() ?? ''); setCmNota(c.notaAdmin ?? '') }}
+                  className={`card w-full text-left p-4 hover:border-gray-400 hover:shadow-md transition-all ${selectedCM?.id === c.id ? 'border-gray-400 shadow-md' : ''}`}>
+                  <div className="flex justify-between items-start mb-1">
+                    <p className="font-semibold text-gray-900 text-sm truncate pr-2">{c.evento.nombre}</p>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium border shrink-0 ${CM_COLORS[c.estado]}`}>{CM_LABELS[c.estado]}</span>
+                  </div>
+                  <p className="text-xs text-gray-500 truncate">{c.descripcion}</p>
+                  <p className="text-xs text-gray-400 mt-1">Por: {c.solicitante.name ?? c.solicitante.email} · {formatDate(c.createdAt)}</p>
+                  <div className="flex gap-4 mt-2 text-xs">
+                    <span className="text-gray-700">Solicitado: <strong>${c.montoSolicitado.toFixed(2)}</strong></span>
+                    {c.montoAprobado && <span className="text-green-600">Aprobado: <strong>${c.montoAprobado.toFixed(2)}</strong></span>}
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {/* Panel detalle */}
+            {selectedCM && (() => {
+              const totalFacturas = selectedCM.facturas.reduce((s, f) => s + f.total, 0)
+              const monto = selectedCM.montoAprobado ?? 0
+              const diff  = monto - totalFacturas
+              return (
+                <div className="card p-6 space-y-5 h-fit sticky top-4">
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">{selectedCM.evento.nombre}</h3>
+                    <p className="text-gray-500 text-sm">Por: {selectedCM.solicitante.name ?? selectedCM.solicitante.email}</p>
+                  </div>
+
+                  <div className="space-y-0 text-sm divide-y divide-gray-100">
+                    <Row label="Descripción"       value={selectedCM.descripcion} />
+                    <Row label="Monto solicitado"  value={`$${selectedCM.montoSolicitado.toFixed(2)}`} />
+                    {selectedCM.montoAprobado && <Row label="Monto aprobado" value={`$${selectedCM.montoAprobado.toFixed(2)}`} />}
+                    <Row label="Fecha"             value={formatDate(selectedCM.createdAt)} />
+                  </div>
+
+                  {/* Aprobar / Rechazar */}
+                  {selectedCM.estado === 'PENDIENTE' && (
+                    <div className="space-y-3 pt-2 border-t border-gray-100">
+                      <div>
+                        <label className="label">Monto a aprobar ($) *</label>
+                        <input type="number" step="0.01" min="0.01" className="input"
+                          placeholder={`Máx. sugerido: $${selectedCM.montoSolicitado.toFixed(2)}`}
+                          value={cmMontoAprob} onChange={e => setCmMontoAprob(e.target.value)} />
+                        <p className="text-xs text-gray-400 mt-1">Puede ser igual o menor al monto solicitado.</p>
+                      </div>
+                      <div>
+                        <label className="label">Nota (opcional)</label>
+                        <textarea className="input resize-none h-16" placeholder="Comentario..."
+                          value={cmNota} onChange={e => setCmNota(e.target.value)} />
+                      </div>
+                      <div className="flex gap-3">
+                        <button onClick={() => handleCMDecision(selectedCM.id, 'RECHAZADA')} disabled={savingCM}
+                          className="flex-1 px-4 py-2 rounded-xl border-2 border-red-200 text-red-600 hover:bg-red-50 font-medium text-sm">Rechazar</button>
+                        <button onClick={() => handleCMDecision(selectedCM.id, 'APROBADA')} disabled={savingCM || !cmMontoAprob || parseFloat(cmMontoAprob) <= 0}
+                          className="flex-1 btn-primary">{savingCM ? '...' : 'Aprobar ✓'}</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Estado aprobada/rechazada */}
+                  {selectedCM.estado !== 'PENDIENTE' && (
+                    <div className={`rounded-xl p-3 border space-y-1 ${CM_COLORS[selectedCM.estado]}`}>
+                      <p className="text-sm font-semibold">{CM_LABELS[selectedCM.estado]}</p>
+                      {selectedCM.notaAdmin && <p className="text-sm">{selectedCM.notaAdmin}</p>}
+                      {selectedCM.pagadoPor && <p className="text-xs opacity-80">Pagado por: {selectedCM.pagadoPor.name ?? selectedCM.pagadoPor.email}</p>}
+                    </div>
+                  )}
+
+                  {/* Facturas */}
+                  {selectedCM.facturas.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Respaldos ({selectedCM.facturas.length} factura{selectedCM.facturas.length !== 1 ? 's' : ''})</p>
+                      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="bg-gray-50 text-gray-400 border-b border-gray-100">
+                              <th className="px-3 py-2 text-left">Descripción</th>
+                              <th className="px-3 py-2 text-left">Proveedor</th>
+                              <th className="px-3 py-2 text-right">Total</th>
+                              <th className="px-3 py-2 text-center">Doc</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-50">
+                            {selectedCM.facturas.map(f => (
+                              <tr key={f.id}>
+                                <td className="px-3 py-2 text-gray-700">{f.descripcion ?? '—'}</td>
+                                <td className="px-3 py-2 text-gray-500">{f.proveedor ?? '—'}</td>
+                                <td className="px-3 py-2 text-right font-semibold">${f.total.toFixed(2)}</td>
+                                <td className="px-3 py-2 text-center">
+                                  {f.archivoPath
+                                    ? <a href={`/api/fotos?path=${encodeURIComponent(f.archivoPath)}`} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Ver</a>
+                                    : '—'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot>
+                            <tr className="bg-gray-50 font-semibold border-t border-gray-200 text-xs">
+                              <td className="px-3 py-2 text-gray-500" colSpan={2}>Total facturas</td>
+                              <td className="px-3 py-2 text-right">${totalFacturas.toFixed(2)}</td>
+                              <td></td>
+                            </tr>
+                          </tfoot>
+                        </table>
+
+                        {selectedCM.montoAprobado && (() => {
+                          if (diff > 0.005) return (
+                            <div className="mx-3 mb-3 mt-1 bg-green-50 border border-green-200 rounded-xl px-4 py-2 text-sm text-green-700 flex justify-between">
+                              <span>✅ Ahorro</span><span className="font-bold">${diff.toFixed(2)}</span>
+                            </div>
+                          )
+                          if (diff < -0.005) return (
+                            <div className="mx-3 mb-3 mt-1 bg-red-50 border border-red-200 rounded-xl px-4 py-2 text-sm text-red-700 flex justify-between">
+                              <span>❌ Excedido en</span><span className="font-bold">${Math.abs(diff).toFixed(2)}</span>
+                            </div>
+                          )
+                          return (
+                            <div className="mx-3 mb-3 mt-1 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-2 text-sm text-yellow-700 text-center font-medium">
+                              🟡 Monto exacto
+                            </div>
+                          )
+                        })()}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Marcar pagada */}
+                  {selectedCM.estado === 'RESPALDOS_ENTREGADOS' && (
+                    <button onClick={() => handleCMPagada(selectedCM.id)} disabled={savingCM}
+                      className="w-full px-4 py-2.5 rounded-xl bg-purple-600 text-white font-semibold text-sm hover:bg-purple-700 transition-all">
+                      {savingCM ? '...' : '✓ Marcar como Pagada'}
+                    </button>
+                  )}
+                </div>
+              )
+            })()}
           </div>
         </>
       )}

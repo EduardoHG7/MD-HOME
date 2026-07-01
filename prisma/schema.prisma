@@ -23,6 +23,9 @@ model User {
   lineasAsignadas          PresupuestoLinea[]
   cotizaciones             Cotizacion[]
   cotizacionesAprobadas    Cotizacion[]  @relation("CotizacionAprobador")
+  cajasMenuda              CajaMenuda[]
+  cajasMenudaAprobadas     CajaMenuda[]  @relation("CajaMenudaAprobador")
+  cajasMenudaPagadas       CajaMenuda[]  @relation("CajaMenudaPagador")
 
   @@map("users")
 }
@@ -69,6 +72,7 @@ model Evento {
   solicitudes  Solicitud[]
   asignaciones AsignacionAplicante[]
   facturas     Factura[]
+  cajasMenuda  CajaMenuda[]
   venue        Venue?        @relation(fields: [venueId], references: [id])
   presupuesto  Presupuesto?
 
@@ -376,4 +380,50 @@ model RegistroAsistencia {
   @@map("registros_asistencia")
 }
 
+// Estado: PENDIENTE | APROBADA | RECHAZADA | RESPALDOS_ENTREGADOS | PAGADA
+model CajaMenuda {
+  id               String    @id @default(cuid())
+  eventoId         String
+  solicitanteId    String
+  descripcion      String
+  montoSolicitado  Float
+  montoAprobado    Float?
+  estado           String    @default("PENDIENTE")
+  notaAdmin        String?
+  aprobadoPorId    String?
+  aprobadoEn       DateTime?
+  pagadoPorId      String?
+  pagadoEn         DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  evento       Evento              @relation(fields: [eventoId], references: [id])
+  solicitante  User                @relation(fields: [solicitanteId], references: [id])
+  aprobadoPor  User?               @relation("CajaMenudaAprobador", fields: [aprobadoPorId], references: [id])
+  pagadoPor    User?               @relation("CajaMenudaPagador",   fields: [pagadoPorId],   references: [id])
+  facturas     FacturaCajaMenuda[]
+
+  @@unique([solicitanteId, eventoId])
+  @@map("cajas_menuda")
+}
+
+model FacturaCajaMenuda {
+  id            String   @id @default(cuid())
+  cajaMenudaId  String
+  descripcion   String?
+  proveedor     String?
+  numeroFactura String?
+  rucDv         String?
+  fechaEmision  String?
+  subtotal      Float    @default(0)
+  itbms         Float    @default(0)
+  total         Float    @default(0)
+  archivoNombre String?
+  archivoPath   String?
+  createdAt     DateTime @default(now())
+
+  cajaMenuda CajaMenuda @relation(fields: [cajaMenudaId], references: [id], onDelete: Cascade)
+
+  @@map("facturas_caja_menuda")
+}
 
