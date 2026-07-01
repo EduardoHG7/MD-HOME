@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
+import Link from 'next/link'
 
 interface User {
   id:        string
@@ -150,6 +151,13 @@ function UserRow({ user, isSelf, loading, onSetRole }: {
       <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${ROLE_STYLES[user.role] ?? ROLE_STYLES.USER}`}>
         {ROLE_LABELS[user.role] ?? user.role}
       </span>
+
+      {user.role === 'USER' && (
+        <Link href={`/admin/usuarios/${user.id}/vista`}
+          className="text-xs px-3 py-1.5 rounded-xl border-2 border-gray-200 text-gray-500 hover:border-gray-400 hover:text-gray-700 font-medium transition-all whitespace-nowrap">
+          👁 Ver como usuario
+        </Link>
+      )}
 
       {!isSelf && (
         <div className="relative">
