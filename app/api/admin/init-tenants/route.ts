@@ -13,44 +13,41 @@ export async function POST() {
     return NextResponse.json({ error: 'Solo el super-admin puede hacer esto' }, { status: 403 })
   }
 
-  // Create tenants
-  const md = await prisma.tenant.upsert({
-    where:  { slug: 'magic-dreams' },
-    update: {},
-    create: { nombre: 'Magic Dreams Productions', slug: 'magic-dreams', logo: '/logo.png' },
-  })
+  const TENANTS = [
+    { nombre: 'Magic Dreams Productions', slug: 'magic-dreams',    logo: '/logo.png' },
+    { nombre: 'PanaTickets',              slug: 'panatickets',     logo: null },
+    { nombre: 'Master Events PTY',        slug: 'mastereventspty', logo: null },
+    { nombre: 'Print Media PTY',          slug: 'printmediapty',   logo: null },
+  ]
 
-  const pt = await prisma.tenant.upsert({
-    where:  { slug: 'panatickets' },
-    update: {},
-    create: { nombre: 'PanaTickets', slug: 'panatickets', logo: '/logo-panatickets.png' },
-  })
+  const createdTenants = []
+  for (const t of TENANTS) {
+    const tenant = await prisma.tenant.upsert({
+      where:  { slug: t.slug },
+      update: { nombre: t.nombre },
+      create: t,
+    })
+    createdTenants.push(tenant)
+  }
 
-  // Mark Eduardo as super-admin and assign to both tenants
+  // Mark Eduardo as super-admin and assign to all tenants
   const admin = await prisma.user.upsert({
     where:  { email: adminEmail },
     update: { isSuperAdmin: true, role: 'ADMIN' },
     create: { email: adminEmail, role: 'ADMIN', isSuperAdmin: true },
   })
 
-  await prisma.userTenant.upsert({
-    where:  { userId_tenantId: { userId: admin.id, tenantId: md.id } },
-    update: { role: 'ADMIN' },
-    create: { userId: admin.id, tenantId: md.id, role: 'ADMIN' },
-  })
-
-  await prisma.userTenant.upsert({
-    where:  { userId_tenantId: { userId: admin.id, tenantId: pt.id } },
-    update: { role: 'ADMIN' },
-    create: { userId: admin.id, tenantId: pt.id, role: 'ADMIN' },
-  })
+  for (const tenant of createdTenants) {
+    await prisma.userTenant.upsert({
+      where:  { userId_tenantId: { userId: admin.id, tenantId: tenant.id } },
+      update: { role: 'ADMIN' },
+      create: { userId: admin.id, tenantId: tenant.id, role: 'ADMIN' },
+    })
+  }
 
   return NextResponse.json({
     ok: true,
-    tenants: [
-      { slug: md.slug, nombre: md.nombre },
-      { slug: pt.slug, nombre: pt.nombre },
-    ],
+    tenants: createdTenants.map(t => ({ slug: t.slug, nombre: t.nombre })),
     superAdmin: admin.email,
   })
 }
