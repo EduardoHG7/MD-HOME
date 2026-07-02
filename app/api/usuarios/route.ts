@@ -1,4 +1,4 @@
-﻿export const dynamic = 'force-dynamic'
+export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
@@ -14,7 +14,6 @@ export async function GET() {
 
   const tenantId = await getActiveTenantId()
 
-  // If there's an active tenant, only show users assigned to it
   const users = tenantId
     ? await prisma.user.findMany({
         where: { tenants: { some: { tenantId } } },
