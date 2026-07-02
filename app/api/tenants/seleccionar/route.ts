@@ -17,7 +17,7 @@ export async function POST(req: Request) {
   // Use NextResponse.cookies to actually set the cookie (cookies() from next/headers is read-only in Route Handlers)
   const res = NextResponse.json({ ok: true })
   res.cookies.set('active_tenant_id', tenantId, {
-    httpOnly: true,
+    httpOnly: false,
     path: '/',
     maxAge: 60 * 60 * 24 * 30,
     sameSite: 'lax',
