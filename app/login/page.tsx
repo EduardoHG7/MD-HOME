@@ -19,8 +19,8 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="w-full max-w-md">
 
-        {/* Logo */}
-        <div className="text-center mb-8">
+        {/* Logo principal */}
+        <div className="text-center mb-6">
           <div className="inline-block">
             <Image
               src="/logo.png"
@@ -34,6 +34,13 @@ export default function LoginPage() {
           <p className="text-gray-500 text-sm mt-3 tracking-widest uppercase">
             Portal de Personal Eventual
           </p>
+        </div>
+
+        {/* Logos de empresas del holding */}
+        <div className="flex items-center justify-center gap-4 mb-8">
+          <Image src="/logo_panatickets.png"   alt="Panatickets"     width={72} height={36} className="object-contain max-h-9 opacity-70 hover:opacity-100 transition-opacity" />
+          <Image src="/logo_masterevents.png"  alt="Master Events"   width={72} height={36} className="object-contain max-h-9 opacity-70 hover:opacity-100 transition-opacity" />
+          <Image src="/logo_printmedia.png"    alt="Print Media PTY" width={72} height={36} className="object-contain max-h-9 opacity-70 hover:opacity-100 transition-opacity" />
         </div>
 
         {/* Card */}
