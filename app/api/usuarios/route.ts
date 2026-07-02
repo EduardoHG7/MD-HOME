@@ -12,7 +12,7 @@ export async function GET() {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
 
-  const tenantId = await getActiveTenantId()
+  const tenantId = getActiveTenantId()
 
   const users = tenantId
     ? await prisma.user.findMany({

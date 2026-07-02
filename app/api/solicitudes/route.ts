@@ -12,7 +12,7 @@ export async function GET() {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const tenantId = await getActiveTenantId()
+  const tenantId = getActiveTenantId()
 
   const tenantFilter = tenantId ? { evento: { tenantId } } : {}
   const userFilter   = session.user.role === 'ADMIN' || session.user.role === 'CONTABILIDAD'

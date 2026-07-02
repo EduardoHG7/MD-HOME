@@ -13,7 +13,7 @@ export async function GET() {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
 
-  const tenantId = await getActiveTenantId()
+  const tenantId = getActiveTenantId()
 
   const aplicantes = await prisma.aplicante.findMany({
     where: tenantId ? { asignaciones: { some: { evento: { tenantId } } } } : {},

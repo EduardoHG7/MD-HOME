@@ -7,7 +7,7 @@ import { prisma } from '@/lib/prisma'
 import { getActiveTenantId } from '@/lib/tenant'
 
 export async function GET() {
-  const tenantId = await getActiveTenantId()
+  const tenantId = getActiveTenantId()
 
   const eventos = await prisma.evento.findMany({
     where: {
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const tenantId = await getActiveTenantId()
+  const tenantId = getActiveTenantId()
   const { nombre, descripcion, fechaInicio, fechaFin, tipoEvento, venueId, tieneSocio, nombreSocio } = await req.json()
 
   const evento = await prisma.evento.create({

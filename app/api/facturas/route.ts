@@ -10,7 +10,7 @@ export async function GET() {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const tenantId = await getActiveTenantId()
+  const tenantId = getActiveTenantId()
 
   const tenantFilter = tenantId
     ? { OR: [{ evento: { tenantId } }, { eventoId: null }] }
