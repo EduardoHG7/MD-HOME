@@ -51,39 +51,52 @@ export const authOptions: NextAuthOptions = {
         token.role = (user as { role?: string }).role
       }
 
-      if (account?.provider === 'azure-ad' && token.email) {
+      // For aplicante logins, skip DB lookup
+      if (token.role === 'APLICANTE') return token
+
+      // Always reload from DB for Microsoft users (keeps tenants fresh)
+      if (token.email && token.role !== 'APLICANTE') {
         try {
-          const dbUser = await prisma.user.upsert({
-            where:  { email: token.email as string },
-            update: { name: token.name },
-            create: {
-              email:        token.email as string,
-              name:         token.name,
-              role:         token.email === process.env.ADMIN_EMAIL ? 'ADMIN' : 'USER',
-              isSuperAdmin: token.email === process.env.ADMIN_EMAIL,
-            },
-            include: { tenants: { include: { tenant: true } } },
+          const dbUser = await prisma.user.findUnique({
+            where: { email: token.email as string },
+            include: { tenants: { include: { tenant: { select: { id: true, slug: true, nombre: true, logo: true, activo: true } } } } },
           })
 
-          token.role         = dbUser.role
-          token.dbId         = dbUser.id
-          token.isSuperAdmin = dbUser.isSuperAdmin
+          if (!dbUser && account?.provider === 'azure-ad') {
+            // First login ever — create the user
+            const created = await prisma.user.create({
+              data: {
+                email:        token.email as string,
+                name:         token.name,
+                role:         token.email === process.env.ADMIN_EMAIL ? 'ADMIN' : 'USER',
+                isSuperAdmin: token.email === process.env.ADMIN_EMAIL,
+              },
+              include: { tenants: { include: { tenant: true } } },
+            })
+            token.role         = created.role
+            token.dbId         = created.id
+            token.isSuperAdmin = created.isSuperAdmin
+            token.availableTenants = []
+          } else if (dbUser) {
+            // Update name on each login
+            if (account?.provider === 'azure-ad' && token.name) {
+              await prisma.user.update({ where: { id: dbUser.id }, data: { name: token.name } })
+            }
+            token.role         = dbUser.role
+            token.dbId         = dbUser.id
+            token.isSuperAdmin = dbUser.isSuperAdmin
 
-          // Build available tenants list
-          token.availableTenants = dbUser.tenants.map(ut => ({
-            id:   ut.tenant.id,
-            slug: ut.tenant.slug,
-            nombre: ut.tenant.nombre,
-            logo: ut.tenant.logo,
-            role: ut.role,
-          }))
+            const activeTenants = dbUser.tenants
+              .filter(ut => ut.tenant.activo)
+              .map(ut => ({ id: ut.tenant.id, slug: ut.tenant.slug, nombre: ut.tenant.nombre, logo: ut.tenant.logo, role: ut.role }))
 
-          // If super-admin and no tenants assigned, load all tenants
-          if (dbUser.isSuperAdmin && dbUser.tenants.length === 0) {
-            const allTenants = await prisma.tenant.findMany({ where: { activo: true } })
-            token.availableTenants = allTenants.map(t => ({
-              id: t.id, slug: t.slug, nombre: t.nombre, logo: t.logo, role: 'ADMIN',
-            }))
+            // Super-admin with no explicit assignments sees all tenants
+            if (dbUser.isSuperAdmin && activeTenants.length === 0) {
+              const all = await prisma.tenant.findMany({ where: { activo: true } })
+              token.availableTenants = all.map(t => ({ id: t.id, slug: t.slug, nombre: t.nombre, logo: t.logo, role: 'ADMIN' }))
+            } else {
+              token.availableTenants = activeTenants
+            }
           }
         } catch { /* ignore */ }
       }
