@@ -64,16 +64,20 @@ export function AdminSidebar({ session, role }: { session: Session; role?: strin
         <span className="text-xs font-semibold text-gray-600 bg-gray-100 border border-gray-200 rounded-full px-3 py-1">
           {panelLabel}
         </span>
-        {(session.user.availableTenants?.length ?? 0) > 1 && (
-          <Link
-            href="/seleccionar-empresa"
-            className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-            title="Cambiar empresa"
-          >
-            🔄
-          </Link>
-        )}
+        <Link
+          href="/seleccionar-empresa"
+          className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+          title="Cambiar empresa"
+        >
+          🔄
+        </Link>
       </div>
+
+      {tenantName && (
+        <div className="px-4 py-1.5 bg-blue-50 border-b border-blue-100 text-center">
+          <span className="text-xs font-semibold text-blue-700">{tenantName}</span>
+        </div>
+      )}
 
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
         {NAV_ITEMS.map(item => {

@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic'
+﻿export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
@@ -6,6 +6,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { sendMail, templateNuevaCotizacion } from '@/lib/mail'
 import { sendWhatsApp } from '@/lib/whatsapp'
+import { getActiveTenantId } from '@/lib/tenant'
 
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions)
@@ -13,10 +14,17 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url)
   const lineaId = searchParams.get('lineaId')
+  const tenantId = getActiveTenantId()
 
-  const where = session.user.role === 'ADMIN'
+  const tenantFilter = tenantId
+    ? { linea: { categoria: { presupuesto: { evento: { tenantId } } } } }
+    : {}
+
+  const userFilter = session.user.role === 'ADMIN'
     ? (lineaId ? { lineaId } : {})
     : { creadoPorId: session.user.id, ...(lineaId ? { lineaId } : {}) }
+
+  const where = { ...tenantFilter, ...userFilter }
 
   const cotizaciones = await prisma.cotizacion.findMany({
     where,
