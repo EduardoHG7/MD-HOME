@@ -57,15 +57,14 @@ export default function SeleccionarEmpresaPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tenantId: tenant.id }),
     })
-    // Redirect based on role in this tenant
+    // Full page reload to clear all cached data from previous tenant
     const role = tenant.role
-    if (role === 'ADMIN' || session?.user.isSuperAdmin) {
-      router.replace('/admin')
-    } else if (role === 'CONTABILIDAD') {
-      router.replace('/contabilidad')
-    } else {
-      router.replace('/usuario')
-    }
+    const dest = (role === 'ADMIN' || session?.user.isSuperAdmin)
+      ? '/admin'
+      : role === 'CONTABILIDAD'
+        ? '/contabilidad'
+        : '/usuario'
+    window.location.href = dest
   }
 
   return (
