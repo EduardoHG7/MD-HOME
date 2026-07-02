@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { cookies } from 'next/headers'
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
@@ -10,19 +9,18 @@ export async function POST(req: Request) {
   const { tenantId } = await req.json()
   if (!tenantId) return NextResponse.json({ error: 'tenantId requerido' }, { status: 400 })
 
-  // Verify the user has access to this tenant (or is super-admin)
   const available = session.user.availableTenants ?? []
   if (!session.user.isSuperAdmin && !available.find(t => t.id === tenantId)) {
     return NextResponse.json({ error: 'Sin acceso a esta empresa' }, { status: 403 })
   }
 
-  const cookieStore = cookies()
-  cookieStore.set('active_tenant_id', tenantId, {
+  // Use NextResponse.cookies to actually set the cookie (cookies() from next/headers is read-only in Route Handlers)
+  const res = NextResponse.json({ ok: true })
+  res.cookies.set('active_tenant_id', tenantId, {
     httpOnly: true,
     path: '/',
-    maxAge: 60 * 60 * 24 * 30, // 30 days
+    maxAge: 60 * 60 * 24 * 30,
     sameSite: 'lax',
   })
-
-  return NextResponse.json({ ok: true })
+  return res
 }
