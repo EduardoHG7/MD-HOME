@@ -1,9 +1,10 @@
-export const dynamic = 'force-dynamic'
+﻿export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getActiveTenantId } from '@/lib/tenant'
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -11,10 +12,19 @@ export async function GET() {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
 
-  const users = await prisma.user.findMany({
-    select: { id: true, name: true, email: true, role: true, createdAt: true },
-    orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
-  })
+  const tenantId = await getActiveTenantId()
+
+  // If there's an active tenant, only show users assigned to it
+  const users = tenantId
+    ? await prisma.user.findMany({
+        where: { tenants: { some: { tenantId } } },
+        select: { id: true, name: true, email: true, role: true, createdAt: true },
+        orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
+      })
+    : await prisma.user.findMany({
+        select: { id: true, name: true, email: true, role: true, createdAt: true },
+        orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
+      })
 
   return NextResponse.json(users)
 }
