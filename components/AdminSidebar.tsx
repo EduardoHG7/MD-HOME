@@ -54,10 +54,7 @@ export function AdminSidebar({ session, role }: { session: Session; role?: strin
   const sidebarContent = (
     <aside className="w-64 h-full bg-white border-r border-gray-200 flex flex-col">
       <div className="px-5 py-4 border-b border-gray-100 flex flex-col items-center gap-1">
-        <Image src={logoSrc} alt={logoAlt} width={160} height={80} className="object-contain max-h-16" priority />
-        {tenantName && (
-          <span className="text-xs text-gray-400">{tenantName}</span>
-        )}
+        <Image src={logoSrc} alt={logoAlt} width={200} height={100} className="object-contain max-h-24" priority />
       </div>
 
       <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between">
