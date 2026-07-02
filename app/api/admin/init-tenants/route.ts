@@ -24,7 +24,7 @@ export async function POST() {
   for (const t of TENANTS) {
     const tenant = await prisma.tenant.upsert({
       where:  { slug: t.slug },
-      update: { nombre: t.nombre },
+      update: { nombre: t.nombre, logo: t.logo },
       create: t,
     })
     createdTenants.push(tenant)
