@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { getActiveTenantId } from '@/lib/tenant'
 import PhoneEditor from '@/app/components/PhoneEditor'
 
 function getMesCalendario(year: number, month: number) {
@@ -14,20 +15,29 @@ function getMesCalendario(year: number, month: number) {
 
 export default async function AdminDashboard() {
   const session = await getServerSession(authOptions)
+  const tenantId = getActiveTenantId()
 
-  const [solicitudes, aplicantes, eventosData, eventosCount, usuario] = await Promise.all([
-    prisma.solicitud.findMany({ include: { tarifa: true, evento: true } }),
-    prisma.aplicante.count(),
+  const tenantFilter = tenantId ? { tenantId } : {}
+
+  const [solicitudes, aplicantes, eventosData, eventosCount, usuario, activeTenant] = await Promise.all([
+    prisma.solicitud.findMany({
+      where: tenantId ? { evento: { tenantId } } : {},
+      include: { tarifa: true, evento: true },
+    }),
+    prisma.aplicante.count(
+      tenantId ? { where: { asignaciones: { some: { evento: { tenantId } } } } } : undefined
+    ),
     prisma.evento.findMany({
-      where: { estado: { not: 'CANCELADO' } },
+      where: { estado: { not: 'CANCELADO' }, ...tenantFilter },
       orderBy: { fechaInicio: 'asc' },
       include: {
         _count: { select: { asignaciones: true } },
         solicitudes: { where: { estado: 'APROBADA' }, select: { numPersonas: true } },
       },
     }),
-    prisma.evento.count({ where: { estado: 'ACTIVO' } }),
+    prisma.evento.count({ where: { estado: 'ACTIVO', ...tenantFilter } }),
     session ? prisma.user.findUnique({ where: { id: session.user.id }, select: { telefono: true } }) : null,
+    tenantId ? prisma.tenant.findUnique({ where: { id: tenantId }, select: { nombre: true } }) : null,
   ])
 
   const pendientes = solicitudes.filter(s => s.estado === 'PENDIENTE').length
@@ -76,11 +86,13 @@ export default async function AdminDashboard() {
     }
   }
 
+  const tenantNombre = activeTenant?.nombre ?? 'tu empresa'
+
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Panel de Administración</h1>
-        <p className="text-gray-500 mt-1">Resumen general de Magic Dreams Productions</p>
+        <p className="text-gray-500 mt-1">Resumen general de {tenantNombre}</p>
       </div>
 
       {/* Stats */}
@@ -142,7 +154,6 @@ export default async function AdminDashboard() {
               const esHoy   = new Date(ev.fechaInicio) <= hoy && new Date(ev.fechaFin) >= hoy
               const personas = ev.solicitudes.reduce((a, s) => a + s.numPersonas, 0)
 
-              // Costo total del evento: suma costoTotal explícito o estima desde tarifa
               const costoEvento = solicitudes
                 .filter(s => s.estado === 'APROBADA' && s.eventoId === ev.id)
                 .reduce((acc, s) => {
@@ -201,7 +212,6 @@ export default async function AdminDashboard() {
 
           {/* Días */}
           <div className="grid grid-cols-7 gap-y-1">
-            {/* celdas vacías antes del primer día */}
             {Array.from({ length: primerDia }).map((_, i) => (
               <div key={`e-${i}`} />
             ))}
