@@ -15,7 +15,7 @@ export async function POST() {
 
   const TENANTS = [
     { nombre: 'Magic Dreams Productions', slug: 'magic-dreams',    logo: '/logo.png' },
-    { nombre: 'PanaTickets',              slug: 'panatickets',     logo: null },
+    { nombre: 'Panatickets',              slug: 'panatickets',     logo: null },
     { nombre: 'Master Events PTY',        slug: 'mastereventspty', logo: null },
     { nombre: 'Print Media PTY',          slug: 'printmediapty',   logo: null },
   ]
