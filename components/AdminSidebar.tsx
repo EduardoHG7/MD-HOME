@@ -6,6 +6,7 @@ import { signOut } from 'next-auth/react'
 import { Session } from 'next-auth'
 import Image from 'next/image'
 import { useState, useEffect } from 'react'
+import { useTenant } from '@/hooks/useTenant'
 
 const ADMIN_NAV = [
   { href: '/admin',                label: 'Dashboard',       icon: '◉' },
@@ -27,16 +28,24 @@ const CONTABILIDAD_NAV = [
 
 export function AdminSidebar({ session, role }: { session: Session; role?: string }) {
   const efectiveRole = role ?? 'ADMIN'
-  const NAV_ITEMS = efectiveRole === 'CONTABILIDAD' ? CONTABILIDAD_NAV : ADMIN_NAV
-  const panelLabel = efectiveRole === 'CONTABILIDAD' ? 'Panel Contabilidad' : 'Panel Administrativo'
-  const rootHref   = efectiveRole === 'CONTABILIDAD' ? '/contabilidad' : '/admin'
-  const pathname = usePathname()
+  const rootHref     = efectiveRole === 'CONTABILIDAD' ? '/contabilidad' : '/admin'
+  const panelLabel   = efectiveRole === 'CONTABILIDAD' ? 'Panel Contabilidad' : 'Panel Administrativo'
+  const baseNav      = efectiveRole === 'CONTABILIDAD' ? CONTABILIDAD_NAV : ADMIN_NAV
+  const pathname     = usePathname()
   const [open, setOpen] = useState(false)
+  const { activeTenant } = useTenant()
 
-  // Close on route change
+  // Append Empresas link for super-admins
+  const NAV_ITEMS = session.user.isSuperAdmin
+    ? [...baseNav, { href: '/admin/tenants', label: 'Empresas', icon: '🏢' }]
+    : baseNav
+
+  // Logo: active tenant logo or fallback /logo.png
+  const logoSrc    = activeTenant?.logo ?? '/logo.png'
+  const logoAlt    = activeTenant?.nombre ?? 'Logo'
+  const tenantName = activeTenant?.nombre
+
   useEffect(() => { setOpen(false) }, [pathname])
-
-  // Prevent body scroll when open
   useEffect(() => {
     document.body.style.overflow = open ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
@@ -44,14 +53,26 @@ export function AdminSidebar({ session, role }: { session: Session; role?: strin
 
   const sidebarContent = (
     <aside className="w-64 h-full bg-white border-r border-gray-200 flex flex-col">
-      <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-center">
-        <Image src="/logo.png" alt="Magic Dreams Productions" width={160} height={80} className="object-contain" priority />
+      <div className="px-5 py-4 border-b border-gray-100 flex flex-col items-center gap-1">
+        <Image src={logoSrc} alt={logoAlt} width={160} height={80} className="object-contain max-h-16" priority />
+        {tenantName && (
+          <span className="text-xs text-gray-400">{tenantName}</span>
+        )}
       </div>
 
-      <div className="px-4 py-2 border-b border-gray-100">
+      <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between">
         <span className="text-xs font-semibold text-gray-600 bg-gray-100 border border-gray-200 rounded-full px-3 py-1">
           {panelLabel}
         </span>
+        {(session.user.availableTenants?.length ?? 0) > 1 && (
+          <Link
+            href="/seleccionar-empresa"
+            className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+            title="Cambiar empresa"
+          >
+            🔄
+          </Link>
+        )}
       </div>
 
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
@@ -94,12 +115,10 @@ export function AdminSidebar({ session, role }: { session: Session; role?: strin
 
   return (
     <>
-      {/* Desktop sidebar — always visible */}
       <div className="hidden lg:block fixed left-0 top-0 h-full w-64 z-30">
         {sidebarContent}
       </div>
 
-      {/* Mobile top bar */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-white border-b border-gray-200 flex items-center px-4 h-14">
         <button
           onClick={() => setOpen(true)}
@@ -113,20 +132,15 @@ export function AdminSidebar({ session, role }: { session: Session; role?: strin
           </svg>
         </button>
         <div className="flex-1 flex justify-center">
-          <Image src="/logo.png" alt="Magic Dreams" width={90} height={36} className="object-contain" priority />
+          <Image src={logoSrc} alt={logoAlt} width={90} height={36} className="object-contain max-h-9" priority />
         </div>
         <div className="w-10" />
       </div>
 
-      {/* Mobile drawer backdrop */}
       {open && (
-        <div
-          className="lg:hidden fixed inset-0 z-40 bg-black/40"
-          onClick={() => setOpen(false)}
-        />
+        <div className="lg:hidden fixed inset-0 z-40 bg-black/40" onClick={() => setOpen(false)} />
       )}
 
-      {/* Mobile drawer */}
       <div className={`lg:hidden fixed top-0 left-0 h-full w-64 z-50 transform transition-transform duration-300 ${open ? 'translate-x-0' : '-translate-x-full'}`}>
         {sidebarContent}
       </div>

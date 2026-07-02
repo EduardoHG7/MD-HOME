@@ -4,10 +4,16 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getActiveTenantId } from '@/lib/tenant'
 
 export async function GET() {
+  const tenantId = await getActiveTenantId()
+
   const eventos = await prisma.evento.findMany({
-    where: { estado: { not: 'CANCELADO' } },
+    where: {
+      estado: { not: 'CANCELADO' },
+      ...(tenantId ? { tenantId } : {}),
+    },
     orderBy: { fechaInicio: 'desc' },
     include: {
       _count: { select: { asignaciones: true } },
@@ -21,6 +27,7 @@ export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
+  const tenantId = await getActiveTenantId()
   const { nombre, descripcion, fechaInicio, fechaFin, tipoEvento, venueId, tieneSocio, nombreSocio } = await req.json()
 
   const evento = await prisma.evento.create({
@@ -32,6 +39,7 @@ export async function POST(req: Request) {
       venueId:     venueId     || null,
       tieneSocio:  tieneSocio  ?? false,
       nombreSocio: tieneSocio ? (nombreSocio || null) : null,
+      tenantId:    tenantId    || null,
     },
     include: { venue: true },
   })

@@ -7,16 +7,45 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Role: ADMIN | USER
-model User {
+model Tenant {
   id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  image     String?
-  telefono  String?
-  role      String   @default("USER")
+  nombre    String
+  slug      String   @unique
+  logo      String?
+  activo    Boolean  @default(true)
   createdAt DateTime @default(now())
 
+  usuarios UserTenant[]
+  eventos  Evento[]
+
+  @@map("tenants")
+}
+
+model UserTenant {
+  id       String @id @default(cuid())
+  userId   String
+  tenantId String
+  role     String @default("USER")
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tenantId])
+  @@map("user_tenants")
+}
+
+// Role: ADMIN | USER | CONTABILIDAD
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  image        String?
+  telefono     String?
+  role         String   @default("USER")
+  isSuperAdmin Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  tenants                  UserTenant[]
   solicitudes              Solicitud[]
   solicitudesAprobadas     Solicitud[]   @relation("SolicitudAprobador")
   facturas                 Factura[]
@@ -65,6 +94,7 @@ model Evento {
   estado           String   @default("ACTIVO")
   tipoEvento       String?  // PROPIO | CONTRATADO | COPRODUCCION
   venueId          String?
+  tenantId         String?
   tieneSocio       Boolean  @default(false)
   nombreSocio      String?
   createdAt        DateTime @default(now())
@@ -74,6 +104,7 @@ model Evento {
   facturas     Factura[]
   cajasMenuda  CajaMenuda[]
   venue        Venue?        @relation(fields: [venueId], references: [id])
+  tenant       Tenant?       @relation(fields: [tenantId], references: [id])
   presupuesto  Presupuesto?
 
   @@map("eventos")

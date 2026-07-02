@@ -42,10 +42,7 @@ export const authOptions: NextAuthOptions = {
 
   callbacks: {
     async signIn({ account }) {
-      // Login de aplicante via credentials — no tocar tabla users
       if (account?.provider === 'aplicante-credentials') return true
-
-      // Login Microsoft (admin/usuario)
       return true
     },
 
@@ -53,29 +50,53 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.role = (user as { role?: string }).role
       }
-      // Para Microsoft: guardar/actualizar usuario en BD
+
       if (account?.provider === 'azure-ad' && token.email) {
         try {
           const dbUser = await prisma.user.upsert({
             where:  { email: token.email as string },
             update: { name: token.name },
             create: {
-              email: token.email as string,
-              name:  token.name,
-              role:  token.email === process.env.ADMIN_EMAIL ? 'ADMIN' : 'USER',
+              email:        token.email as string,
+              name:         token.name,
+              role:         token.email === process.env.ADMIN_EMAIL ? 'ADMIN' : 'USER',
+              isSuperAdmin: token.email === process.env.ADMIN_EMAIL,
             },
+            include: { tenants: { include: { tenant: true } } },
           })
-          token.role = dbUser.role
-          token.dbId = dbUser.id
+
+          token.role         = dbUser.role
+          token.dbId         = dbUser.id
+          token.isSuperAdmin = dbUser.isSuperAdmin
+
+          // Build available tenants list
+          token.availableTenants = dbUser.tenants.map(ut => ({
+            id:   ut.tenant.id,
+            slug: ut.tenant.slug,
+            nombre: ut.tenant.nombre,
+            logo: ut.tenant.logo,
+            role: ut.role,
+          }))
+
+          // If super-admin and no tenants assigned, load all tenants
+          if (dbUser.isSuperAdmin && dbUser.tenants.length === 0) {
+            const allTenants = await prisma.tenant.findMany({ where: { activo: true } })
+            token.availableTenants = allTenants.map(t => ({
+              id: t.id, slug: t.slug, nombre: t.nombre, logo: t.logo, role: 'ADMIN',
+            }))
+          }
         } catch { /* ignore */ }
       }
+
       return token
     },
 
     async session({ session, token }) {
       if (session.user) {
-        session.user.role = (token.role as string) as 'ADMIN' | 'USER' | 'APLICANTE'
-        session.user.id   = (token.dbId as string) ?? (token.sub ?? '')
+        session.user.role          = (token.role as string) as 'ADMIN' | 'USER' | 'CONTABILIDAD' | 'APLICANTE'
+        session.user.id            = (token.dbId as string) ?? (token.sub ?? '')
+        session.user.isSuperAdmin  = (token.isSuperAdmin as boolean) ?? false
+        session.user.availableTenants = (token.availableTenants as never[]) ?? []
       }
       return session
     },

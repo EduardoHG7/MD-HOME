@@ -5,6 +5,7 @@ import { Session } from 'next-auth'
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useTenant } from '@/hooks/useTenant'
 
 const NAV_ITEMS = [
   { href: '/usuario',              label: '🏠 Inicio' },
@@ -15,20 +16,34 @@ const NAV_ITEMS = [
 
 export function UserNav({ session }: { session: Session }) {
   const pathname = usePathname()
+  const { activeTenant } = useTenant()
+
+  const logoSrc = activeTenant?.logo ?? '/logo.png'
+  const logoAlt = activeTenant?.nombre ?? 'Logo'
 
   return (
     <header className="border-b border-gray-200 bg-white">
       <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-        <Image
-          src="/logo.png"
-          alt="Magic Dreams Productions"
-          width={130}
-          height={65}
-          className="object-contain"
-          priority
-        />
+        <div className="flex items-center gap-2">
+          <Image
+            src={logoSrc}
+            alt={logoAlt}
+            width={130}
+            height={65}
+            className="object-contain max-h-12"
+            priority
+          />
+          {(session.user.availableTenants?.length ?? 0) > 1 && (
+            <Link
+              href="/seleccionar-empresa"
+              className="text-xs text-blue-600 hover:text-blue-800"
+              title="Cambiar empresa"
+            >
+              🔄
+            </Link>
+          )}
+        </div>
 
-        {/* Nav tabs */}
         <nav className="flex items-center gap-1">
           {NAV_ITEMS.map(item => (
             <Link
