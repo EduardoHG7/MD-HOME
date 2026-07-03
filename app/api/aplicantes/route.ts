@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic'
+﻿export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
@@ -16,7 +16,7 @@ export async function GET() {
   const tenantId = getActiveTenantId()
 
   const aplicantes = await prisma.aplicante.findMany({
-    where: tenantId ? { asignaciones: { some: { evento: { tenantId } } } } : {},
+    where: tenantId ? { tenantId } : {},
     include: {
       asignaciones: {
         where: tenantId ? { evento: { tenantId } } : {},
@@ -33,7 +33,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const { nombreCompleto, cedula, telefono, email, cuentaBancaria, banco, tipoCuenta, password, fotoPersonal, fotoCedula, fotoConCedula } = await req.json()
+  const { nombreCompleto, cedula, telefono, email, cuentaBancaria, banco, tipoCuenta, password, fotoPersonal, fotoCedula, fotoConCedula, tenantId } = await req.json()
 
   if (!password || password.length < 6) {
     return NextResponse.json({ error: 'La contrasena debe tener al menos 6 caracteres' }, { status: 400 })
@@ -50,6 +50,7 @@ export async function POST(req: Request) {
       nombreCompleto, cedula, telefono, email, cuentaBancaria,
       banco: banco || null, tipoCuenta: tipoCuenta || null, passwordHash,
       fotoPersonal: fotoPersonal || null, fotoCedula: fotoCedula || null, fotoConCedula: fotoConCedula || null,
+      tenantId: tenantId || null,
       terminosAceptados: true, terminosAceptadosAt: new Date(),
     },
   })

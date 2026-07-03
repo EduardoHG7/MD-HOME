@@ -1,4 +1,4 @@
-generator client {
+﻿generator client {
   provider = "prisma-client-js"
 }
 
@@ -15,8 +15,10 @@ model Tenant {
   activo    Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  usuarios UserTenant[]
-  eventos  Evento[]
+  usuarios    UserTenant[]
+  eventos     Evento[]
+  puestos     Puesto[]
+  aplicantes  Aplicante[]
 
   @@map("tenants")
 }
@@ -345,9 +347,12 @@ model Factura {
 
 model Puesto {
   id        String   @id @default(cuid())
-  nombre    String   @unique
+  nombre    String
+  tenantId  String?
   activo    Boolean  @default(true)
   createdAt DateTime @default(now())
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
 
   @@map("puestos")
 }
@@ -371,8 +376,10 @@ model Aplicante {
   fotoPersonal        String?
   fotoCedula          String?
   fotoConCedula       String?
+  tenantId            String?
   createdAt           DateTime  @default(now())
 
+  tenant       Tenant?               @relation(fields: [tenantId], references: [id])
   asignaciones AsignacionAplicante[]
 
   @@map("aplicantes")
