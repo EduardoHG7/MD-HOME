@@ -86,9 +86,29 @@ export default function RegistroAplicantePage() {
   const inputConCedula = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    fetch('/api/empresas-publicas').then(r => r.json()).then(data => {
-      if (Array.isArray(data)) setTenants(data)
-    })
+    fetch('/api/empresas-publicas')
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          setTenants(data)
+        } else {
+          // Fallback estático mientras se resuelve el endpoint
+          setTenants([
+            { id: 'fallback-md',   nombre: 'Magic Dreams Productions', logo: '/logo.png' },
+            { id: 'fallback-pt',   nombre: 'Panatickets',              logo: '/logo_panatickets.png' },
+            { id: 'fallback-me',   nombre: 'Master Events PTY',        logo: '/logo_masterevents.png' },
+            { id: 'fallback-pm',   nombre: 'Print Media PTY',          logo: '/logo_printmedia.png' },
+          ])
+        }
+      })
+      .catch(() => {
+        setTenants([
+          { id: 'fallback-md',   nombre: 'Magic Dreams Productions', logo: '/logo.png' },
+          { id: 'fallback-pt',   nombre: 'Panatickets',              logo: '/logo_panatickets.png' },
+          { id: 'fallback-me',   nombre: 'Master Events PTY',        logo: '/logo_masterevents.png' },
+          { id: 'fallback-pm',   nombre: 'Print Media PTY',          logo: '/logo_printmedia.png' },
+        ])
+      })
   }, [])
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
