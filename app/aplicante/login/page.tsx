@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import { signIn } from 'next-auth/react'
@@ -35,9 +35,15 @@ export default function AplicanteLoginPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4 py-12">
       <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
+        <div className="text-center mb-6">
           <Image src="/logo.png" alt="Magic Dreams Productions" width={160} height={80} className="mx-auto object-contain" priority />
           <p className="text-gray-500 text-sm mt-3 tracking-widest uppercase">Portal de Aplicantes</p>
+        </div>
+
+        <div className="flex items-center justify-center gap-4 mb-6">
+          <Image src="/logo_panatickets.png"  alt="Panatickets"     width={64} height={32} className="object-contain max-h-8 opacity-70 hover:opacity-100 transition-opacity" />
+          <Image src="/logo_masterevents.png" alt="Master Events"   width={64} height={32} className="object-contain max-h-8 opacity-70 hover:opacity-100 transition-opacity" />
+          <Image src="/logo_printmedia.png"   alt="Print Media PTY" width={64} height={32} className="object-contain max-h-8 opacity-70 hover:opacity-100 transition-opacity" />
         </div>
 
         <div className="card p-7">
