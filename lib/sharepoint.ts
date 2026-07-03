@@ -1,6 +1,6 @@
-// Utilidad para subir archivos a SharePoint via Microsoft Graph API (app-only)
+﻿// Utilidad para subir archivos a SharePoint via Microsoft Graph API (app-only)
 
-const TENANT_ID    = process.env.AZURE_AD_TENANT_ID!
+const TENANT_ID    = process.env.SHAREPOINT_TENANT_ID ?? process.env.AZURE_AD_TENANT_ID!
 const CLIENT_ID    = process.env.AZURE_AD_CLIENT_ID!
 const CLIENT_SECRET = process.env.AZURE_AD_CLIENT_SECRET!
 const SP_HOST      = process.env.SHAREPOINT_HOST!       // magicdreamspty.sharepoint.com
