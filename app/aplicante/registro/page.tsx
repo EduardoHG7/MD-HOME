@@ -86,7 +86,7 @@ export default function RegistroAplicantePage() {
   const inputConCedula = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    fetch('/api/tenants/publico').then(r => r.json()).then(data => {
+    fetch('/api/empresas-publicas').then(r => r.json()).then(data => {
       if (Array.isArray(data)) setTenants(data)
     })
   }, [])
