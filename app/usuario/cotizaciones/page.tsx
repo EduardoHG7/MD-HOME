@@ -252,10 +252,11 @@ function SubirFacturaSection({ cot, onUpdated }: { cot: Cotizacion; onUpdated: (
 
 /* ── Página principal ── */
 export default function CotizacionesPage() {
-  const [lineas,   setLineas]   = useState<Linea[]>([])
-  const [loading,  setLoading]  = useState(true)
-  const [selected, setSelected] = useState<Linea | null>(null)
-  const [showForm, setShowForm] = useState(false)
+  const [lineas,       setLineas]       = useState<Linea[]>([])
+  const [loading,      setLoading]      = useState(true)
+  const [selected,     setSelected]     = useState<Linea | null>(null)
+  const [showForm,     setShowForm]     = useState(false)
+  const [filtroEvento, setFiltroEvento] = useState<string>('')
 
   useEffect(() => {
     fetch('/api/mis-asignaciones').then(r => r.json()).then(d => { setLineas(Array.isArray(d) ? d : []); setLoading(false) })
@@ -289,6 +290,18 @@ export default function CotizacionesPage() {
     porEvento[ev.id].lineas.push(l)
   }
 
+  const eventosDisponibles = Object.values(porEvento).map(g => g.evento)
+  const gruposVisibles = Object.values(porEvento).filter(g => !filtroEvento || g.evento.id === filtroEvento)
+
+  function seleccionarFiltro(id: string) {
+    setFiltroEvento(id)
+    // Limpiar selección si la línea abierta no pertenece al evento filtrado
+    if (id && selected && selected.categoria.presupuesto.evento.id !== id) {
+      setSelected(null)
+      setShowForm(false)
+    }
+  }
+
   if (loading) return <div className="text-gray-400 animate-pulse text-center py-16">Cargando asignaciones...</div>
 
   return (
@@ -297,6 +310,29 @@ export default function CotizacionesPage() {
         <h1 className="text-2xl font-bold text-gray-900">Mis Subcategorías Asignadas</h1>
         <p className="text-gray-500 mt-1">Adjunta tu cotización para aprobación. Si es aprobada, sube la factura real.</p>
       </div>
+
+      {/* Filtro por evento */}
+      {eventosDisponibles.length > 1 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Evento:</span>
+          <button
+            onClick={() => seleccionarFiltro('')}
+            className={`text-xs px-3 py-1.5 rounded-full border-2 font-medium transition-all ${
+              !filtroEvento ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 text-gray-500 hover:border-gray-400'
+            }`}>
+            Todos
+          </button>
+          {eventosDisponibles.map(ev => (
+            <button key={ev.id}
+              onClick={() => seleccionarFiltro(ev.id)}
+              className={`text-xs px-3 py-1.5 rounded-full border-2 font-medium transition-all ${
+                filtroEvento === ev.id ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 text-gray-500 hover:border-gray-400'
+              }`}>
+              {ev.nombre}
+            </button>
+          ))}
+        </div>
+      )}
 
       {lineas.length === 0 ? (
         <div className="card p-12 text-center">
@@ -308,7 +344,7 @@ export default function CotizacionesPage() {
         <div className="grid grid-cols-5 gap-6">
           {/* Lista */}
           <div className="col-span-2 space-y-4">
-            {Object.values(porEvento).map(({ evento, lineas: evLineas }) => (
+            {gruposVisibles.map(({ evento, lineas: evLineas }) => (
               <div key={evento.id}>
                 <div className="flex items-center gap-2 mb-2">
                   <p className="font-semibold text-gray-900 text-sm">{evento.nombre}</p>
