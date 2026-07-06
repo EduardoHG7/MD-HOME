@@ -3,14 +3,17 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatDate } from '@/lib/utils'
+import { DocumentosEvento } from '@/components/DocumentosEvento'
 
 interface Venue  { id: string; nombre: string; direccion: string | null }
+interface Usuario { id: string; name: string | null; email: string }
 interface Evento {
   id: string; nombre: string; descripcion: string | null
   fechaInicio: string; fechaFin: string; estado: string
   tipoEvento: string | null; venueId: string | null
   tieneSocio: boolean; nombreSocio: string | null
   montajeInicio: string | null; desmontajeFin: string | null
+  docsResponsableId: string | null
   venue: Venue | null
   _count: { asignaciones: number }
 }
@@ -49,18 +52,21 @@ type FormState = {
   nombre: string; descripcion: string; fechaInicio: string; fechaFin: string
   tipoEvento: string; venueId: string; tieneSocio: boolean; nombreSocio: string
   estado: string; montajeInicio: string; desmontajeFin: string
+  docsResponsableId: string
 }
 
 const emptyForm: FormState = {
   nombre: '', descripcion: '', fechaInicio: '', fechaFin: '',
   tipoEvento: '', venueId: '', tieneSocio: false, nombreSocio: '',
   estado: 'ACTIVO', montajeInicio: '', desmontajeFin: '',
+  docsResponsableId: '',
 }
 
 // ── Componente fuera del padre para evitar re-mount en cada keystroke ──
-function EventoForm({ values, venues, onChange }: {
+function EventoForm({ values, venues, usuarios, onChange }: {
   values: FormState
   venues: Venue[]
+  usuarios: Usuario[]
   onChange: (v: Partial<FormState>) => void
 }) {
   return (
@@ -160,6 +166,18 @@ function EventoForm({ values, venues, onChange }: {
         </select>
       </div>
 
+      {/* Responsable de documentación */}
+      <div>
+        <label className="label">📁 Responsable de documentación</label>
+        <p className="text-gray-400 text-xs mb-1">Esta persona podrá subir contrato, seguro, fianza y otros documentos legales del evento.</p>
+        <select className="input" value={values.docsResponsableId} onChange={e => onChange({ docsResponsableId: e.target.value })}>
+          <option value="">Sin responsable asignado</option>
+          {usuarios.map(u => (
+            <option key={u.id} value={u.id}>{u.name ?? u.email} — {u.email}</option>
+          ))}
+        </select>
+      </div>
+
       {/* Socio externo */}
       <div>
         <label className="label">¿Tiene socio externo?</label>
@@ -190,8 +208,10 @@ export default function EventosPage() {
   const router = useRouter()
   const [eventos,  setEventos]  = useState<Evento[]>([])
   const [venues,   setVenues]   = useState<Venue[]>([])
+  const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [showForm, setShowForm] = useState(false)
   const [editing,  setEditing]  = useState<Evento | null>(null)
+  const [verDocs,  setVerDocs]  = useState<Evento | null>(null)
   const [loading,  setLoading]  = useState(false)
   const [form,     setForm]     = useState<FormState>(emptyForm)
   const [editForm, setEditForm] = useState<FormState>(emptyForm)
@@ -199,6 +219,7 @@ export default function EventosPage() {
   useEffect(() => {
     fetch('/api/eventos').then(r => r.json()).then(setEventos)
     fetch('/api/venues').then(r => r.json()).then(d => setVenues(Array.isArray(d) ? d : []))
+    fetch('/api/usuarios/lista').then(r => r.json()).then(d => setUsuarios(Array.isArray(d) ? d : []))
   }, [])
 
   function openEdit(ev: Evento) {
@@ -215,6 +236,7 @@ export default function EventosPage() {
       nombreSocio:   ev.nombreSocio ?? '',
       montajeInicio: ev.montajeInicio ? toInputDate(ev.montajeInicio) : '',
       desmontajeFin: ev.desmontajeFin ? toInputDate(ev.desmontajeFin) : '',
+      docsResponsableId: ev.docsResponsableId ?? '',
     })
   }
 
@@ -267,7 +289,7 @@ export default function EventosPage() {
         <div className="card p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Crear Evento</h2>
           <form onSubmit={handleCreate} className="space-y-4">
-            <EventoForm values={form} venues={venues} onChange={v => setForm(f => ({ ...f, ...v }))} />
+            <EventoForm values={form} venues={venues} usuarios={usuarios} onChange={v => setForm(f => ({ ...f, ...v }))} />
             <button type="submit" disabled={loading} className="btn-primary">
               {loading ? 'Creando...' : 'Crear Evento'}
             </button>
@@ -314,6 +336,9 @@ export default function EventosPage() {
               <button onClick={() => router.push(`/admin/eventos/${ev.id}/presupuesto`)}
                 className="p-2 rounded-xl border border-amber-200 hover:border-amber-400 hover:bg-amber-50 transition-all text-amber-600 text-xs font-medium px-3"
                 title="Ver presupuesto">💰 Presupuesto</button>
+              <button onClick={() => setVerDocs(ev)}
+                className="p-2 rounded-xl border border-blue-200 hover:border-blue-400 hover:bg-blue-50 transition-all text-blue-600 text-xs font-medium px-3"
+                title="Documentos legales">📁 Documentos</button>
               <button onClick={() => openEdit(ev)}
                 className="p-2 rounded-xl border border-gray-200 hover:border-gray-400 hover:bg-gray-50 transition-all text-gray-500"
                 title="Editar evento">✏️</button>
@@ -329,6 +354,29 @@ export default function EventosPage() {
         )}
       </div>
 
+      {/* Modal documentos */}
+      {verDocs && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="card p-6 w-full max-w-lg shadow-2xl my-4">
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="text-lg font-bold text-gray-900">📁 Documentos del evento</h2>
+              <button onClick={() => setVerDocs(null)} className="text-gray-400 hover:text-gray-700 text-xl">✕</button>
+            </div>
+            <p className="text-gray-500 text-sm mb-4">{verDocs.nombre}</p>
+            {verDocs.docsResponsableId ? (
+              <p className="text-xs text-gray-400 mb-3">
+                Responsable: {usuarios.find(u => u.id === verDocs.docsResponsableId)?.name
+                  ?? usuarios.find(u => u.id === verDocs.docsResponsableId)?.email
+                  ?? '(usuario)'}
+              </p>
+            ) : (
+              <p className="text-xs text-amber-600 mb-3">⚠️ Sin responsable asignado — edita el evento para asignar uno.</p>
+            )}
+            <DocumentosEvento eventoId={verDocs.id} puedeSubir={true} />
+          </div>
+        </div>
+      )}
+
       {/* Modal edición */}
       {editing && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 overflow-y-auto">
@@ -338,7 +386,7 @@ export default function EventosPage() {
               <button onClick={() => setEditing(null)} className="text-gray-400 hover:text-gray-700 text-xl">✕</button>
             </div>
             <form onSubmit={handleEdit} className="space-y-4">
-              <EventoForm values={editForm} venues={venues} onChange={v => setEditForm(f => ({ ...f, ...v }))} />
+              <EventoForm values={editForm} venues={venues} usuarios={usuarios} onChange={v => setEditForm(f => ({ ...f, ...v }))} />
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setEditing(null)} className="btn-ghost flex-1">Cancelar</button>
                 <button type="submit" disabled={loading} className="btn-primary flex-1">

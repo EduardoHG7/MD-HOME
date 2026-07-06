@@ -57,8 +57,27 @@ model User {
   cajasMenuda              CajaMenuda[]
   cajasMenudaAprobadas     CajaMenuda[]  @relation("CajaMenudaAprobador")
   cajasMenudaPagadas       CajaMenuda[]  @relation("CajaMenudaPagador")
+  eventosDocsAsignados     Evento[]      @relation("EventoDocsResponsable")
+  documentosSubidos        EventoDocumento[]
 
   @@map("users")
+}
+
+// TipoDocumento: CONTRATO | SEGURO | FIANZA | PERMISO | OTRO
+model EventoDocumento {
+  id            String   @id @default(cuid())
+  eventoId      String
+  tipo          String
+  nombre        String?
+  archivoPath   String
+  archivoNombre String
+  subidoPorId   String
+  createdAt     DateTime @default(now())
+
+  evento    Evento @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+  subidoPor User   @relation(fields: [subidoPorId], references: [id])
+
+  @@map("evento_documentos")
 }
 
 // TipoTarifa: DIARIA | QUINCENAL | MENSUAL
@@ -101,6 +120,7 @@ model Evento {
   nombreSocio      String?
   montajeInicio    DateTime?
   desmontajeFin    DateTime?
+  docsResponsableId String?
   createdAt        DateTime @default(now())
 
   solicitudes  Solicitud[]
@@ -110,6 +130,8 @@ model Evento {
   venue        Venue?        @relation(fields: [venueId], references: [id])
   tenant       Tenant?       @relation(fields: [tenantId], references: [id])
   presupuesto  Presupuesto?
+  docsResponsable User?      @relation("EventoDocsResponsable", fields: [docsResponsableId], references: [id])
+  documentos   EventoDocumento[]
 
   @@map("eventos")
 }

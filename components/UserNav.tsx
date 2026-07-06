@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { href: '/usuario/solicitar',    label: '📋 Solicitudes' },
   { href: '/usuario/cotizaciones', label: '💰 Cotizaciones' },
   { href: '/usuario/facturas',     label: '🧾 Facturas' },
+  { href: '/usuario/documentos',   label: '📁 Documentos' },
 ]
 
 export function UserNav({ session }: { session: Session }) {
