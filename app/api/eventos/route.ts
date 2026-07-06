@@ -28,18 +28,21 @@ export async function POST(req: Request) {
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const tenantId = getActiveTenantId()
-  const { nombre, descripcion, fechaInicio, fechaFin, tipoEvento, venueId, tieneSocio, nombreSocio } = await req.json()
+  const { nombre, descripcion, fechaInicio, fechaFin, tipoEvento, venueId, tieneSocio, nombreSocio, estado, montajeInicio, desmontajeFin } = await req.json()
 
   const evento = await prisma.evento.create({
     data: {
       nombre, descripcion,
       fechaInicio: new Date(fechaInicio),
       fechaFin:    new Date(fechaFin),
+      estado:      estado || 'ACTIVO',
       tipoEvento:  tipoEvento  || null,
       venueId:     venueId     || null,
       tieneSocio:  tieneSocio  ?? false,
       nombreSocio: tieneSocio ? (nombreSocio || null) : null,
       tenantId:    tenantId    || null,
+      montajeInicio: montajeInicio ? new Date(montajeInicio) : null,
+      desmontajeFin: desmontajeFin ? new Date(desmontajeFin) : null,
     },
     include: { venue: true },
   })

@@ -10,6 +10,7 @@ interface Evento {
   fechaInicio: string; fechaFin: string; estado: string
   tipoEvento: string | null; venueId: string | null
   tieneSocio: boolean; nombreSocio: string | null
+  montajeInicio: string | null; desmontajeFin: string | null
   venue: Venue | null
   _count: { asignaciones: number }
 }
@@ -26,10 +27,20 @@ const TIPO_LABELS: Record<string, string> = {
   COPRODUCCION: 'Co-producción',
 }
 
+const ESTADOS = ['POR_INICIAR', 'ACTIVO', 'COMPLETADO', 'CANCELADO']
+
+const ESTADO_LABELS: Record<string, string> = {
+  POR_INICIAR: 'Por iniciar',
+  ACTIVO:      'Activo',
+  COMPLETADO:  'Completado',
+  CANCELADO:   'Cancelado',
+}
+
 const ESTADO_STYLES: Record<string, string> = {
-  ACTIVO:     'bg-green-100 text-green-700',
-  COMPLETADO: 'bg-gray-100 text-gray-600',
-  CANCELADO:  'bg-red-100 text-red-600',
+  POR_INICIAR: 'bg-blue-100 text-blue-700',
+  ACTIVO:      'bg-green-100 text-green-700',
+  COMPLETADO:  'bg-gray-100 text-gray-600',
+  CANCELADO:   'bg-red-100 text-red-600',
 }
 
 function toInputDate(iso: string) { return iso.split('T')[0] }
@@ -37,20 +48,20 @@ function toInputDate(iso: string) { return iso.split('T')[0] }
 type FormState = {
   nombre: string; descripcion: string; fechaInicio: string; fechaFin: string
   tipoEvento: string; venueId: string; tieneSocio: boolean; nombreSocio: string
-  estado?: string
+  estado: string; montajeInicio: string; desmontajeFin: string
 }
 
 const emptyForm: FormState = {
   nombre: '', descripcion: '', fechaInicio: '', fechaFin: '',
   tipoEvento: '', venueId: '', tieneSocio: false, nombreSocio: '',
+  estado: 'ACTIVO', montajeInicio: '', desmontajeFin: '',
 }
 
 // ── Componente fuera del padre para evitar re-mount en cada keystroke ──
-function EventoForm({ values, venues, onChange, showEstado = false }: {
+function EventoForm({ values, venues, onChange }: {
   values: FormState
   venues: Venue[]
   onChange: (v: Partial<FormState>) => void
-  showEstado?: boolean
 }) {
   return (
     <div className="space-y-4">
@@ -76,6 +87,47 @@ function EventoForm({ values, venues, onChange, showEstado = false }: {
             onChange={e => onChange({ fechaFin: e.target.value })} />
         </div>
       </div>
+
+      {/* Estado */}
+      <div>
+        <label className="label">Estado</label>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {ESTADOS.map(op => (
+            <button key={op} type="button"
+              onClick={() => onChange({ estado: op })}
+              className={`py-2 px-2 rounded-xl border-2 text-xs font-semibold transition-all ${
+                values.estado === op
+                  ? 'border-gray-900 bg-gray-50 text-gray-900'
+                  : 'border-gray-200 text-gray-500 hover:border-gray-300'
+              }`}>
+              {ESTADO_LABELS[op]}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Montaje / desmontaje — habilitado con estado Por iniciar */}
+      {values.estado === 'POR_INICIAR' && (
+        <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 space-y-3">
+          <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Montaje y desmontaje</p>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="label">Inicio de montaje</label>
+              <input type="date" className="input" value={values.montajeInicio}
+                max={values.fechaInicio || undefined}
+                onChange={e => onChange({ montajeInicio: e.target.value })} />
+              <p className="text-xs text-gray-400 mt-1">🔴 Días de montaje en rojo</p>
+            </div>
+            <div>
+              <label className="label">Fin de desmontaje</label>
+              <input type="date" className="input" value={values.desmontajeFin}
+                min={values.fechaFin || undefined}
+                onChange={e => onChange({ desmontajeFin: e.target.value })} />
+              <p className="text-xs text-gray-400 mt-1">🟠 Días de desmontaje en naranja</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tipo de evento */}
       <div>
@@ -129,26 +181,6 @@ function EventoForm({ values, venues, onChange, showEstado = false }: {
             value={values.nombreSocio} onChange={e => onChange({ nombreSocio: e.target.value })} />
         )}
       </div>
-
-      {/* Estado (solo en edición) */}
-      {showEstado && (
-        <div>
-          <label className="label">Estado</label>
-          <div className="flex gap-2">
-            {['ACTIVO', 'COMPLETADO', 'CANCELADO'].map(op => (
-              <button key={op} type="button"
-                onClick={() => onChange({ estado: op })}
-                className={`flex-1 py-2 rounded-xl border-2 text-xs font-semibold transition-all ${
-                  values.estado === op
-                    ? 'border-gray-900 bg-gray-50 text-gray-900'
-                    : 'border-gray-200 text-gray-500 hover:border-gray-300'
-                }`}>
-                {op}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   )
 }
@@ -162,7 +194,7 @@ export default function EventosPage() {
   const [editing,  setEditing]  = useState<Evento | null>(null)
   const [loading,  setLoading]  = useState(false)
   const [form,     setForm]     = useState<FormState>(emptyForm)
-  const [editForm, setEditForm] = useState<FormState>({ ...emptyForm, estado: '' })
+  const [editForm, setEditForm] = useState<FormState>(emptyForm)
 
   useEffect(() => {
     fetch('/api/eventos').then(r => r.json()).then(setEventos)
@@ -172,15 +204,17 @@ export default function EventosPage() {
   function openEdit(ev: Evento) {
     setEditing(ev)
     setEditForm({
-      nombre:      ev.nombre,
-      descripcion: ev.descripcion ?? '',
-      fechaInicio: toInputDate(ev.fechaInicio),
-      fechaFin:    toInputDate(ev.fechaFin),
-      estado:      ev.estado,
-      tipoEvento:  ev.tipoEvento ?? '',
-      venueId:     ev.venueId ?? '',
-      tieneSocio:  ev.tieneSocio,
-      nombreSocio: ev.nombreSocio ?? '',
+      nombre:        ev.nombre,
+      descripcion:   ev.descripcion ?? '',
+      fechaInicio:   toInputDate(ev.fechaInicio),
+      fechaFin:      toInputDate(ev.fechaFin),
+      estado:        ev.estado,
+      tipoEvento:    ev.tipoEvento ?? '',
+      venueId:       ev.venueId ?? '',
+      tieneSocio:    ev.tieneSocio,
+      nombreSocio:   ev.nombreSocio ?? '',
+      montajeInicio: ev.montajeInicio ? toInputDate(ev.montajeInicio) : '',
+      desmontajeFin: ev.desmontajeFin ? toInputDate(ev.desmontajeFin) : '',
     })
   }
 
@@ -250,7 +284,7 @@ export default function EventosPage() {
                 <div className="flex items-center gap-2 flex-wrap mb-0.5">
                   <p className="font-semibold text-gray-900">{ev.nombre}</p>
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_STYLES[ev.estado] ?? ''}`}>
-                    {ev.estado}
+                    {ESTADO_LABELS[ev.estado] ?? ev.estado}
                   </span>
                   {ev.tipoEvento && (
                     <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
@@ -267,6 +301,8 @@ export default function EventosPage() {
                 <div className="flex flex-wrap items-center gap-3 text-gray-400 text-xs mt-1">
                   <span>📅 {formatDate(ev.fechaInicio)} – {formatDate(ev.fechaFin)}</span>
                   {ev.venue && <span>📍 {ev.venue.nombre}</span>}
+                  {ev.montajeInicio && <span className="text-red-500">🔴 Montaje: {formatDate(ev.montajeInicio)}</span>}
+                  {ev.desmontajeFin && <span className="text-orange-500">🟠 Desmontaje hasta: {formatDate(ev.desmontajeFin)}</span>}
                 </div>
               </div>
               <div className="text-right shrink-0">
@@ -302,7 +338,7 @@ export default function EventosPage() {
               <button onClick={() => setEditing(null)} className="text-gray-400 hover:text-gray-700 text-xl">✕</button>
             </div>
             <form onSubmit={handleEdit} className="space-y-4">
-              <EventoForm values={editForm} venues={venues} onChange={v => setEditForm(f => ({ ...f, ...v }))} showEstado />
+              <EventoForm values={editForm} venues={venues} onChange={v => setEditForm(f => ({ ...f, ...v }))} />
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setEditing(null)} className="btn-ghost flex-1">Cancelar</button>
                 <button type="submit" disabled={loading} className="btn-primary flex-1">

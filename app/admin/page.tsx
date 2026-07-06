@@ -74,15 +74,33 @@ export default async function AdminDashboard() {
   const MESES  = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
   const DIAS   = ['Do','Lu','Ma','Mi','Ju','Vi','Sá']
 
-  // Marcar qué días tienen eventos
-  const diasConEvento = new Set<number>()
+  // Marcar días por tipo: montaje (rojo), evento (verde), desmontaje (naranja)
+  const diasEvento     = new Set<number>()
+  const diasMontaje    = new Set<number>()
+  const diasDesmontaje = new Set<number>()
+
+  const addDays = (set: Set<number>, desde: Date, hasta: Date) => {
+    for (let d = new Date(desde); d <= hasta; d.setDate(d.getDate() + 1)) {
+      if (d.getFullYear() === year && d.getMonth() === month) set.add(d.getDate())
+    }
+  }
+
   for (const ev of eventosData) {
     const inicio = new Date(ev.fechaInicio)
     const fin    = new Date(ev.fechaFin)
-    for (let d = new Date(inicio); d <= fin; d.setDate(d.getDate() + 1)) {
-      if (d.getFullYear() === year && d.getMonth() === month) {
-        diasConEvento.add(d.getDate())
-      }
+    addDays(diasEvento, inicio, fin)
+
+    if (ev.montajeInicio) {
+      const mDesde = new Date(ev.montajeInicio)
+      const mHasta = new Date(inicio)
+      mHasta.setDate(mHasta.getDate() - 1)
+      if (mDesde <= mHasta) addDays(diasMontaje, mDesde, mHasta)
+    }
+    if (ev.desmontajeFin) {
+      const dDesde = new Date(fin)
+      dDesde.setDate(dDesde.getDate() + 1)
+      const dHasta = new Date(ev.desmontajeFin)
+      if (dDesde <= dHasta) addDays(diasDesmontaje, dDesde, dHasta)
     }
   }
 
@@ -218,11 +236,17 @@ export default async function AdminDashboard() {
             {Array.from({ length: diasEnMes }).map((_, i) => {
               const dia      = i + 1
               const esHoyDia = dia === hoy.getDate()
-              const tieneEv  = diasConEvento.has(dia)
+              const color = diasEvento.has(dia)
+                ? 'bg-green-500 text-white'
+                : diasMontaje.has(dia)
+                  ? 'bg-red-500 text-white'
+                  : diasDesmontaje.has(dia)
+                    ? 'bg-orange-400 text-white'
+                    : 'text-gray-600 hover:bg-gray-50'
               return (
                 <div key={dia} className="flex items-center justify-center aspect-square">
                   <div className={`w-8 h-8 flex items-center justify-center rounded-full text-sm font-medium transition-all
-                    ${esHoyDia ? 'bg-gray-900 text-white' : tieneEv ? 'bg-amber-100 text-amber-700' : 'text-gray-600 hover:bg-gray-50'}
+                    ${color} ${esHoyDia ? 'ring-2 ring-gray-900 ring-offset-1' : ''}
                   `}>
                     {dia}
                   </div>
@@ -232,12 +256,18 @@ export default async function AdminDashboard() {
           </div>
 
           {/* Leyenda */}
-          <div className="flex gap-4 mt-4 pt-4 border-t border-gray-100">
+          <div className="flex gap-3 flex-wrap mt-4 pt-4 border-t border-gray-100">
             <div className="flex items-center gap-1.5 text-xs text-gray-500">
-              <div className="w-3 h-3 rounded-full bg-gray-900" /> Hoy
+              <div className="w-3 h-3 rounded-full border-2 border-gray-900" /> Hoy
             </div>
             <div className="flex items-center gap-1.5 text-xs text-gray-500">
-              <div className="w-3 h-3 rounded-full bg-amber-100 border border-amber-300" /> Con evento
+              <div className="w-3 h-3 rounded-full bg-red-500" /> Montaje
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-gray-500">
+              <div className="w-3 h-3 rounded-full bg-green-500" /> Evento
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-gray-500">
+              <div className="w-3 h-3 rounded-full bg-orange-400" /> Desmontaje
             </div>
           </div>
 

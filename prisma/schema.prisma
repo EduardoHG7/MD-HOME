@@ -86,7 +86,7 @@ model Venue {
 }
 
 // TipoEvento: PROPIO | CONTRATADO | COPRODUCCION
-// EstadoEvento: ACTIVO | COMPLETADO | CANCELADO
+// EstadoEvento: POR_INICIAR | ACTIVO | COMPLETADO | CANCELADO
 model Evento {
   id               String   @id @default(cuid())
   nombre           String
@@ -99,6 +99,8 @@ model Evento {
   tenantId         String?
   tieneSocio       Boolean  @default(false)
   nombreSocio      String?
+  montajeInicio    DateTime?
+  desmontajeFin    DateTime?
   createdAt        DateTime @default(now())
 
   solicitudes  Solicitud[]
