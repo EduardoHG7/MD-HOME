@@ -129,6 +129,7 @@ export default function PatrocinadoresPage() {
   const [editing,        setEditing]        = useState<Patrocinador | null>(null)
   const [editNombre,     setEditNombre]     = useState('')
   const [editCategoria,  setEditCategoria]  = useState('')
+  const [editContrato,   setEditContrato]   = useState<File | null>(null)
   const [loading,        setLoading]        = useState(false)
   const [search,         setSearch]         = useState('')
   const [filtroCat,      setFiltroCat]      = useState('')
@@ -146,15 +147,30 @@ export default function PatrocinadoresPage() {
     e.preventDefault()
     if (!editing) return
     setLoading(true)
+
+    let contratoPayload = null
+    if (editContrato) {
+      const base64 = await fileToBase64(editContrato)
+      contratoPayload = { base64, mimeType: editContrato.type, fileName: editContrato.name }
+    }
+
     const res = await fetch(`/api/patrocinadores/${editing.id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nombre: editNombre, categoria: editCategoria || null }),
+      body: JSON.stringify({ nombre: editNombre, categoria: editCategoria || null, contrato: contratoPayload }),
     })
     if (res.ok) {
       const updated = await res.json()
-      setPatrocinadores(prev => prev.map(p => p.id === updated.id ? { ...p, nombre: updated.nombre, categoria: updated.categoria } : p))
-      if (selected?.id === editing.id) setSelected(s => s ? { ...s, nombre: updated.nombre, categoria: updated.categoria } : s)
+      const merge = (p: Patrocinador) => ({
+        ...p,
+        nombre: updated.nombre,
+        categoria: updated.categoria,
+        contratoPath: updated.contratoPath ?? p.contratoPath,
+        contratoNombre: updated.contratoNombre ?? p.contratoNombre,
+      })
+      setPatrocinadores(prev => prev.map(p => p.id === updated.id ? merge(p) : p))
+      if (selected?.id === editing.id) setSelected(s => s ? merge(s) : s)
       setEditing(null)
+      setEditContrato(null)
     }
     setLoading(false)
   }
@@ -322,10 +338,38 @@ export default function PatrocinadoresPage() {
                   {CATEGORIAS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
                 </select>
               </div>
+              <div>
+                <label className="label">📝 Contrato</label>
+                {editing.contratoPath && !editContrato && (
+                  <p className="text-xs text-gray-400 mb-1.5">
+                    Ya tiene contrato:{' '}
+                    <a href={`/api/fotos?path=${encodeURIComponent(editing.contratoPath)}`}
+                      target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
+                      {editing.contratoNombre ?? 'ver'}
+                    </a>
+                    {' '}— al subir uno nuevo lo reemplaza
+                  </p>
+                )}
+                <label className={`block border-2 border-dashed rounded-xl p-3 cursor-pointer transition-all text-center ${
+                  editContrato ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-gray-400'
+                }`}>
+                  {editContrato ? (
+                    <span className="flex items-center justify-center gap-2 text-green-700 text-sm font-medium">
+                      📎 {editContrato.name}
+                      <button type="button" onClick={e => { e.preventDefault(); e.stopPropagation(); setEditContrato(null) }}
+                        className="text-red-400 hover:text-red-600 ml-1">✕</button>
+                    </span>
+                  ) : (
+                    <span className="text-gray-500 text-sm">📎 {editing.contratoPath ? 'Reemplazar contrato' : 'Adjuntar contrato'} (PDF, Word o imagen)</span>
+                  )}
+                  <input type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" className="hidden"
+                    onChange={e => { const f = e.target.files?.[0]; if (f) setEditContrato(f); e.target.value = '' }} />
+                </label>
+              </div>
               <div className="flex gap-2">
-                <button type="button" onClick={() => setEditing(null)} className="btn-ghost flex-1">Cancelar</button>
+                <button type="button" onClick={() => { setEditing(null); setEditContrato(null) }} className="btn-ghost flex-1">Cancelar</button>
                 <button type="submit" disabled={loading} className="btn-primary flex-1">
-                  {loading ? '...' : 'Guardar'}
+                  {loading ? (editContrato ? '📤 Subiendo...' : '...') : 'Guardar'}
                 </button>
               </div>
             </form>
