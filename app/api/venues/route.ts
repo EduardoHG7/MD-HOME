@@ -4,11 +4,24 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getActiveTenantId } from '@/lib/tenant'
 
 export async function GET() {
+  const tenantId = getActiveTenantId()
+
   const venues = await prisma.venue.findMany({
     where: { activo: true },
     orderBy: { nombre: 'asc' },
+    include: {
+      eventos: {
+        where: {
+          estado: { not: 'CANCELADO' },
+          ...(tenantId ? { tenantId } : {}),
+        },
+        select: { id: true, nombre: true, fechaInicio: true, fechaFin: true, estado: true },
+        orderBy: { fechaInicio: 'desc' },
+      },
+    },
   })
   return NextResponse.json(venues)
 }
