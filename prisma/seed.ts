@@ -3,10 +3,16 @@ import { PrismaClient } from '@prisma/client'
 const prisma = new PrismaClient()
 
 async function main() {
-  // Seed tarifas
-  await prisma.tarifa.upsert({ where: { tipo: 'DIARIA' },    update: {}, create: { tipo: 'DIARIA',    precioPorDia: 25 } })
-  await prisma.tarifa.upsert({ where: { tipo: 'QUINCENAL' }, update: {}, create: { tipo: 'QUINCENAL', precioPorDia: 20 } })
-  await prisma.tarifa.upsert({ where: { tipo: 'MENSUAL' },   update: {}, create: { tipo: 'MENSUAL',   precioPorDia: 15 } })
+  // Seed tarifas (sin tenant — cada empresa define las suyas desde la app)
+  const TARIFAS = [
+    { tipo: 'DIARIA',    precioPorDia: 25 },
+    { tipo: 'QUINCENAL', precioPorDia: 20 },
+    { tipo: 'MENSUAL',   precioPorDia: 15 },
+  ]
+  for (const t of TARIFAS) {
+    const existing = await prisma.tarifa.findFirst({ where: { tipo: t.tipo, tenantId: null } })
+    if (!existing) await prisma.tarifa.create({ data: t })
+  }
   console.log('✓ Tarifas inicializadas')
 
   // Seed tenants
@@ -18,7 +24,7 @@ async function main() {
   const ptTenant = await prisma.tenant.upsert({
     where:  { slug: 'panatickets' },
     update: {},
-    create: { nombre: 'PanaTickets', slug: 'panatickets', logo: '/logo-panatickets.png' },
+    create: { nombre: 'Panatickets', slug: 'panatickets', logo: '/logo_panatickets.png' },
   })
   console.log('✓ Tenants creados:', mdTenant.slug, ptTenant.slug)
 

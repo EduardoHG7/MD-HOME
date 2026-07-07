@@ -6,6 +6,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { sendMail, templateRespuestaSolicitud, templateNuevaSolicitud } from '@/lib/mail'
 import { sendWhatsApp } from '@/lib/whatsapp'
+import { getActiveTenantId } from '@/lib/tenant'
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
@@ -17,7 +18,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   let tarifaId: string | undefined
   if (tipoTarifa) {
-    const tarifa = await prisma.tarifa.findUnique({ where: { tipo: tipoTarifa } })
+    const tenantId = getActiveTenantId()
+    const tarifa = await prisma.tarifa.findFirst({ where: { tipo: tipoTarifa, tenantId: tenantId ?? null } })
     if (tarifa) tarifaId = tarifa.id
   }
 
