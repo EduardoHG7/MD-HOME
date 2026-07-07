@@ -13,14 +13,7 @@ export default async function AdminDashboard() {
 
   const tenantFilter = tenantId ? { tenantId } : {}
 
-  const [solicitudes, aplicantes, eventosData, usuario, activeTenant] = await Promise.all([
-    prisma.solicitud.findMany({
-      where: tenantId ? { evento: { tenantId } } : {},
-      select: { estado: true },
-    }),
-    prisma.aplicante.count(
-      tenantId ? { where: { OR: [{ tenantId }, { asignaciones: { some: { evento: { tenantId } } } }] } } : undefined
-    ),
+  const [eventosData, usuario, activeTenant] = await Promise.all([
     prisma.evento.findMany({
       where: { estado: { not: 'CANCELADO' }, ...tenantFilter },
       orderBy: { fechaInicio: 'asc' },
@@ -33,9 +26,6 @@ export default async function AdminDashboard() {
     session ? prisma.user.findUnique({ where: { id: session.user.id }, select: { telefono: true } }) : null,
     tenantId ? prisma.tenant.findUnique({ where: { id: tenantId }, select: { nombre: true } }) : null,
   ])
-
-  const pendientes = solicitudes.filter(s => s.estado === 'PENDIENTE').length
-  const aprobadas  = solicitudes.filter(s => s.estado === 'APROBADA').length
 
   const eventosActivos      = eventosData.filter(e => e.estado === 'ACTIVO').length
   const eventosPorConfirmar = eventosData.filter(e => e.estado === 'POR_CONFIRMAR').length
@@ -50,9 +40,6 @@ export default async function AdminDashboard() {
     : 0
 
   const stats = [
-    { label: 'Solicitudes Pendientes',  value: pendientes,          icon: '⏳', border: 'border-l-yellow-400', text: 'text-yellow-600' },
-    { label: 'Solicitudes Aprobadas',   value: aprobadas,           icon: '✓',  border: 'border-l-green-400',  text: 'text-green-600' },
-    { label: 'Aplicantes Registrados',  value: aplicantes,          icon: '👥', border: 'border-l-gray-400',   text: 'text-gray-900' },
     { label: 'Eventos Activos',         value: eventosActivos,      icon: '🎪', border: 'border-l-amber-400',  text: 'text-amber-600' },
     { label: 'Eventos Por Confirmar',   value: eventosPorConfirmar, icon: '❔', border: 'border-l-purple-400', text: 'text-purple-600' },
     { label: 'Eventos Por Iniciar',     value: eventosPorIniciar,   icon: '🚀', border: 'border-l-blue-400',   text: 'text-blue-600' },
@@ -96,9 +83,7 @@ export default async function AdminDashboard() {
       <PhoneEditor telefono={usuario?.telefono ?? null} />
 
       {/* Calendario */}
-      <div className="max-w-md">
-        <CalendarioEventos eventos={eventosCalendario} />
-      </div>
+      <CalendarioEventos eventos={eventosCalendario} />
     </div>
   )
 }
