@@ -59,6 +59,7 @@ export default function AplicantesAdminPage() {
   const [aplicantes,  setAplicantes]  = useState<Aplicante[]>([])
   const [selected,    setSelected]    = useState<Aplicante | null>(null)
   const [search,      setSearch]      = useState('')
+  const [filtro,      setFiltro]      = useState<'' | 'ACTIVOS' | 'NO_APTOS'>('')
   const [copied,      setCopied]      = useState(false)
   const [showBanForm, setShowBanForm] = useState(false)
   const [motivoBan,   setMotivoBan]   = useState('')
@@ -133,10 +134,16 @@ export default function AplicantesAdminPage() {
     setCopied(true); setTimeout(() => setCopied(false), 2000)
   }
 
-  const filtered = aplicantes.filter(a =>
-    a.nombreCompleto.toLowerCase().includes(search.toLowerCase()) ||
-    a.cedula.includes(search) || a.email.toLowerCase().includes(search.toLowerCase())
-  )
+  const filtered = aplicantes.filter(a => {
+    const matchSearch =
+      a.nombreCompleto.toLowerCase().includes(search.toLowerCase()) ||
+      a.cedula.includes(search) || a.email.toLowerCase().includes(search.toLowerCase())
+    const matchFiltro =
+      filtro === 'ACTIVOS'  ? (a.activo && !a.noApto) :
+      filtro === 'NO_APTOS' ? a.noApto :
+      true
+    return matchSearch && matchFiltro
+  })
 
   const resumen = selected ? (() => {
     let totalDias = 0, totalHoras = 0, totalPago = 0
@@ -207,8 +214,25 @@ export default function AplicantesAdminPage() {
         </div>
       )}
 
-      <input className="input w-full max-w-sm" placeholder="Buscar por nombre, cedula o correo..."
-        value={search} onChange={e => setSearch(e.target.value)} />
+      <div className="flex gap-3 flex-wrap items-center">
+        <input className="input w-full max-w-sm" placeholder="Buscar por nombre, cedula o correo..."
+          value={search} onChange={e => setSearch(e.target.value)} />
+        <div className="flex gap-1.5">
+          {([
+            { value: '',         label: 'Todos' },
+            { value: 'ACTIVOS',  label: '✅ Activos' },
+            { value: 'NO_APTOS', label: '🚫 No aptos' },
+          ] as const).map(op => (
+            <button key={op.value}
+              onClick={() => setFiltro(op.value)}
+              className={`text-xs px-3 py-1.5 rounded-full border-2 font-medium transition-all ${
+                filtro === op.value ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 text-gray-500 hover:border-gray-400'
+              }`}>
+              {op.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* En móvil: si hay seleccionado, mostrar botón de vuelta y ocultar la lista */}
