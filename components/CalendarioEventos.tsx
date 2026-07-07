@@ -33,31 +33,42 @@ export function CalendarioEventos({ eventos }: { eventos: EventoCalendario[] }) 
   const diasEvento     = new Set<number>()
   const diasMontaje    = new Set<number>()
   const diasDesmontaje = new Set<number>()
+  // Detalle por día para el tooltip: "Montaje Tini", "Evento Tini", etc.
+  const detalleDia = new Map<number, { tipo: string; nombre: string }[]>()
 
   // Las fechas se guardan a medianoche UTC — usar día UTC para no correr un día en UTC-5
-  const addDays = (set: Set<number>, desde: Date, hasta: Date) => {
+  const addDays = (set: Set<number>, desde: Date, hasta: Date, tipo: string, nombre: string) => {
     for (let d = new Date(desde); d <= hasta; d.setUTCDate(d.getUTCDate() + 1)) {
-      if (d.getUTCFullYear() === year && d.getUTCMonth() === month) set.add(d.getUTCDate())
+      if (d.getUTCFullYear() === year && d.getUTCMonth() === month) {
+        const dia = d.getUTCDate()
+        set.add(dia)
+        if (!detalleDia.has(dia)) detalleDia.set(dia, [])
+        detalleDia.get(dia)!.push({ tipo, nombre })
+      }
     }
   }
 
   for (const ev of eventos) {
     const inicio = new Date(ev.fechaInicio)
     const fin    = new Date(ev.fechaFin)
-    addDays(diasEvento, inicio, fin)
+    addDays(diasEvento, inicio, fin, 'Evento', ev.nombre)
 
     if (ev.montajeInicio) {
       const mDesde = new Date(ev.montajeInicio)
       const mHasta = new Date(inicio)
       mHasta.setUTCDate(mHasta.getUTCDate() - 1)
-      if (mDesde <= mHasta) addDays(diasMontaje, mDesde, mHasta)
+      if (mDesde <= mHasta) addDays(diasMontaje, mDesde, mHasta, 'Montaje', ev.nombre)
     }
     if (ev.desmontajeFin) {
       const dDesde = new Date(fin)
       dDesde.setUTCDate(dDesde.getUTCDate() + 1)
       const dHasta = new Date(ev.desmontajeFin)
-      if (dDesde <= dHasta) addDays(diasDesmontaje, dDesde, dHasta)
+      if (dDesde <= dHasta) addDays(diasDesmontaje, dDesde, dHasta, 'Desmontaje', ev.nombre)
     }
+  }
+
+  const TIPO_DOT: Record<string, string> = {
+    Montaje: 'bg-red-500', Evento: 'bg-green-500', Desmontaje: 'bg-orange-400',
   }
 
   const esMesActual = year === hoy.getFullYear() && month === hoy.getMonth()
@@ -114,13 +125,27 @@ export function CalendarioEventos({ eventos }: { eventos: EventoCalendario[] }) 
               : diasDesmontaje.has(dia)
                 ? 'bg-orange-400 text-white'
                 : 'text-gray-600 hover:bg-gray-50'
+          const detalle = detalleDia.get(dia) ?? []
           return (
-            <div key={dia} className="flex items-center justify-center h-10">
+            <div key={dia} className="relative group flex items-center justify-center h-10">
               <div className={`w-8 h-8 flex items-center justify-center rounded-full text-sm font-medium transition-all
                 ${color} ${esHoyDia ? 'ring-2 ring-gray-900 ring-offset-1' : ''}
               `}>
                 {dia}
               </div>
+              {detalle.length > 0 && (
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block z-20 pointer-events-none">
+                  <div className="bg-gray-900 text-white text-xs rounded-xl px-3 py-2 shadow-lg whitespace-nowrap space-y-1">
+                    {detalle.map((d, i) => (
+                      <div key={i} className="flex items-center gap-1.5">
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${TIPO_DOT[d.tipo] ?? 'bg-gray-400'}`} />
+                        <span>{d.tipo} {d.nombre}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="w-2 h-2 bg-gray-900 rotate-45 mx-auto -mt-1" />
+                </div>
+              )}
             </div>
           )
         })}
