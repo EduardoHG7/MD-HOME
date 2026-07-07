@@ -82,6 +82,7 @@ export default function PatrocinadoresPage() {
   const [editCategoria,  setEditCategoria]  = useState('')
   const [loading,        setLoading]        = useState(false)
   const [search,         setSearch]         = useState('')
+  const [filtroCat,      setFiltroCat]      = useState('')
 
   useEffect(() => {
     fetch('/api/patrocinadores').then(r => r.json()).then(d => setPatrocinadores(Array.isArray(d) ? d : []))
@@ -118,7 +119,10 @@ export default function PatrocinadoresPage() {
     }
   }
 
-  const filtered = patrocinadores.filter(p => p.nombre.toLowerCase().includes(search.toLowerCase()))
+  const filtered = patrocinadores.filter(p =>
+    p.nombre.toLowerCase().includes(search.toLowerCase()) &&
+    (!filtroCat || p.categoria === filtroCat)
+  )
   const selectedTotal = selected?.patrocinios.reduce((s, p) => s + (p.montoUsd ?? 0), 0) ?? 0
 
   return (
@@ -135,8 +139,28 @@ export default function PatrocinadoresPage() {
 
       {showForm && <CreateForm onCreated={handleCreated} />}
 
-      <input className="input max-w-sm" placeholder="Buscar patrocinador..."
-        value={search} onChange={e => setSearch(e.target.value)} />
+      <div className="flex gap-3 flex-wrap items-center">
+        <input className="input max-w-sm" placeholder="Buscar patrocinador..."
+          value={search} onChange={e => setSearch(e.target.value)} />
+        <div className="flex gap-1.5 flex-wrap">
+          <button
+            onClick={() => setFiltroCat('')}
+            className={`text-xs px-3 py-1.5 rounded-full border-2 font-medium transition-all ${
+              !filtroCat ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 text-gray-500 hover:border-gray-400'
+            }`}>
+            Todos
+          </button>
+          {CATEGORIAS.map(c => (
+            <button key={c.value}
+              onClick={() => setFiltroCat(filtroCat === c.value ? '' : c.value)}
+              className={`text-xs px-3 py-1.5 rounded-full border-2 font-medium transition-all ${
+                filtroCat === c.value ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 text-gray-500 hover:border-gray-400'
+              }`}>
+              {c.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className="grid grid-cols-5 gap-6">
         {/* Lista */}
