@@ -30,20 +30,22 @@ const TIPO_LABELS: Record<string, string> = {
   COPRODUCCION: 'Co-producción',
 }
 
-const ESTADOS = ['POR_INICIAR', 'ACTIVO', 'COMPLETADO', 'CANCELADO']
+const ESTADOS = ['POR_CONFIRMAR', 'POR_INICIAR', 'ACTIVO', 'COMPLETADO', 'CANCELADO']
 
 const ESTADO_LABELS: Record<string, string> = {
-  POR_INICIAR: 'Por iniciar',
-  ACTIVO:      'Activo',
-  COMPLETADO:  'Completado',
-  CANCELADO:   'Cancelado',
+  POR_CONFIRMAR: 'Por confirmar',
+  POR_INICIAR:   'Por iniciar',
+  ACTIVO:        'Activo',
+  COMPLETADO:    'Completado',
+  CANCELADO:     'Cancelado',
 }
 
 const ESTADO_STYLES: Record<string, string> = {
-  POR_INICIAR: 'bg-blue-100 text-blue-700',
-  ACTIVO:      'bg-green-100 text-green-700',
-  COMPLETADO:  'bg-gray-100 text-gray-600',
-  CANCELADO:   'bg-red-100 text-red-600',
+  POR_CONFIRMAR: 'bg-purple-100 text-purple-700',
+  POR_INICIAR:   'bg-blue-100 text-blue-700',
+  ACTIVO:        'bg-green-100 text-green-700',
+  COMPLETADO:    'bg-gray-100 text-gray-600',
+  CANCELADO:     'bg-red-100 text-red-600',
 }
 
 function toInputDate(iso: string) { return iso.split('T')[0] }
@@ -97,7 +99,7 @@ function EventoForm({ values, venues, usuarios, onChange }: {
       {/* Estado */}
       <div>
         <label className="label">Estado</label>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
           {ESTADOS.map(op => (
             <button key={op} type="button"
               onClick={() => onChange({ estado: op })}
@@ -215,9 +217,11 @@ export default function EventosPage() {
   const [loading,  setLoading]  = useState(false)
   const [form,     setForm]     = useState<FormState>(emptyForm)
   const [editForm, setEditForm] = useState<FormState>(emptyForm)
+  const [busqueda,     setBusqueda]     = useState('')
+  const [filtroEstado, setFiltroEstado] = useState('')
 
   useEffect(() => {
-    fetch('/api/eventos').then(r => r.json()).then(setEventos)
+    fetch('/api/eventos?incluirCancelados=1').then(r => r.json()).then(setEventos)
     fetch('/api/venues').then(r => r.json()).then(d => setVenues(Array.isArray(d) ? d : []))
     fetch('/api/usuarios/lista').then(r => r.json()).then(d => setUsuarios(Array.isArray(d) ? d : []))
   }, [])
@@ -272,6 +276,11 @@ export default function EventosPage() {
     setLoading(false)
   }
 
+  const eventosFiltrados = eventos.filter(ev =>
+    (!filtroEstado || ev.estado === filtroEstado) &&
+    (!busqueda.trim() || ev.nombre.toLowerCase().includes(busqueda.trim().toLowerCase()))
+  )
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -297,9 +306,37 @@ export default function EventosPage() {
         </div>
       )}
 
+      {/* Filtros */}
+      <div className="flex gap-3 flex-wrap items-center">
+        <input
+          className="input flex-1 min-w-[200px]"
+          placeholder="🔍 Buscar evento por nombre..."
+          value={busqueda}
+          onChange={e => setBusqueda(e.target.value)}
+        />
+        <div className="flex gap-1.5 flex-wrap">
+          <button
+            onClick={() => setFiltroEstado('')}
+            className={`text-xs px-3 py-1.5 rounded-full border-2 font-medium transition-all ${
+              !filtroEstado ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 text-gray-500 hover:border-gray-400'
+            }`}>
+            Todos
+          </button>
+          {ESTADOS.map(op => (
+            <button key={op}
+              onClick={() => setFiltroEstado(filtroEstado === op ? '' : op)}
+              className={`text-xs px-3 py-1.5 rounded-full border-2 font-medium transition-all ${
+                filtroEstado === op ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 text-gray-500 hover:border-gray-400'
+              }`}>
+              {ESTADO_LABELS[op]}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Lista */}
       <div className="space-y-3">
-        {eventos.map(ev => (
+        {eventosFiltrados.map(ev => (
           <div key={ev.id} className="card p-5 hover:shadow-md transition-shadow">
             <div className="flex items-start justify-between gap-3">
               <div className="flex-1 min-w-0">
@@ -345,11 +382,20 @@ export default function EventosPage() {
             </div>
           </div>
         ))}
-        {eventos.length === 0 && (
+        {eventosFiltrados.length === 0 && (
           <div className="card p-8 text-center">
             <p className="text-3xl mb-3">🎪</p>
-            <p className="text-gray-700 font-semibold">No hay eventos aún</p>
-            <p className="text-gray-400 text-sm mt-1">Crea el primero para comenzar.</p>
+            {eventos.length === 0 ? (
+              <>
+                <p className="text-gray-700 font-semibold">No hay eventos aún</p>
+                <p className="text-gray-400 text-sm mt-1">Crea el primero para comenzar.</p>
+              </>
+            ) : (
+              <>
+                <p className="text-gray-700 font-semibold">Sin resultados</p>
+                <p className="text-gray-400 text-sm mt-1">Ningún evento coincide con la búsqueda o el filtro.</p>
+              </>
+            )}
           </div>
         )}
       </div>

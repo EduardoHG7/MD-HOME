@@ -6,12 +6,14 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getActiveTenantId } from '@/lib/tenant'
 
-export async function GET() {
+export async function GET(req: Request) {
   const tenantId = getActiveTenantId()
+  const { searchParams } = new URL(req.url)
+  const incluirCancelados = searchParams.get('incluirCancelados') === '1'
 
   const eventos = await prisma.evento.findMany({
     where: {
-      estado: { not: 'CANCELADO' },
+      ...(incluirCancelados ? {} : { estado: { not: 'CANCELADO' } }),
       ...(tenantId ? { tenantId } : {}),
     },
     orderBy: { fechaInicio: 'desc' },
