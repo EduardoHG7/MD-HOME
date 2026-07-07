@@ -115,7 +115,7 @@ export function CalendarioEventos({ eventos }: { eventos: EventoCalendario[] }) 
                 ? 'bg-orange-400 text-white'
                 : 'text-gray-600 hover:bg-gray-50'
           return (
-            <div key={dia} className="flex items-center justify-center aspect-square">
+            <div key={dia} className="flex items-center justify-center h-10">
               <div className={`w-8 h-8 flex items-center justify-center rounded-full text-sm font-medium transition-all
                 ${color} ${esHoyDia ? 'ring-2 ring-gray-900 ring-offset-1' : ''}
               `}>
