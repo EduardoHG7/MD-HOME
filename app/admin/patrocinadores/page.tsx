@@ -1,12 +1,24 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { formatDate } from '@/lib/utils'
 
 interface Evento       { nombre: string; fechaInicio: string }
 interface Presupuesto  { evento: Evento }
 interface Patrocinio   { id: string; nombre: string; tipo: string | null; tipoPago: string | null; montoUsd: number; presupuesto: Presupuesto }
-interface Patrocinador { id: string; nombre: string; categoria: string | null; patrocinios: Patrocinio[] }
+interface Patrocinador {
+  id: string; nombre: string; categoria: string | null; patrocinios: Patrocinio[]
+  contratoPath: string | null; contratoNombre: string | null
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload  = () => resolve((reader.result as string).split(',')[1])
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
 
 const TIPO_LABELS: Record<string, string> = { ACTIVACION: 'Activación', BTL: 'BTL', BRANDING: 'Branding' }
 const PAGO_LABELS: Record<string, string> = { CANJE: 'Canje', EFECTIVO: 'Efectivo' }
@@ -30,19 +42,32 @@ function fmt(n: number) {
 function CreateForm({ onCreated }: { onCreated: (p: Patrocinador) => void }) {
   const [nombre,    setNombre]    = useState('')
   const [categoria, setCategoria] = useState('')
+  const [contrato,  setContrato]  = useState<File | null>(null)
   const [loading,   setLoading]   = useState(false)
+  const [error,     setError]     = useState('')
+  const fileRef = useRef<HTMLInputElement>(null)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setLoading(true)
+    setLoading(true); setError('')
+
+    let contratoPayload = null
+    if (contrato) {
+      const base64 = await fileToBase64(contrato)
+      contratoPayload = { base64, mimeType: contrato.type, fileName: contrato.name }
+    }
+
     const res = await fetch('/api/patrocinadores', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nombre, categoria: categoria || null }),
+      body: JSON.stringify({ nombre, categoria: categoria || null, contrato: contratoPayload }),
     })
     if (res.ok) {
       const p = await res.json()
       onCreated({ ...p, patrocinios: [] })
-      setNombre(''); setCategoria('')
+      setNombre(''); setCategoria(''); setContrato(null)
+    } else {
+      const data = await res.json().catch(() => null)
+      setError(data?.error ?? 'Error al crear el patrocinador')
     }
     setLoading(false)
   }
@@ -64,8 +89,32 @@ function CreateForm({ onCreated }: { onCreated: (p: Patrocinador) => void }) {
             </select>
           </div>
         </div>
+
+        <div>
+          <label className="label">📝 Contrato (opcional)</label>
+          <div
+            onClick={() => fileRef.current?.click()}
+            className={`border-2 border-dashed rounded-xl p-4 cursor-pointer transition-all text-center ${
+              contrato ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-gray-400'
+            }`}>
+            {contrato ? (
+              <div className="flex items-center justify-center gap-2 text-green-700 text-sm font-medium">
+                <span>📎</span><span>{contrato.name}</span>
+                <button type="button" onClick={e => { e.stopPropagation(); setContrato(null) }}
+                  className="text-red-400 hover:text-red-600 ml-2">✕</button>
+              </div>
+            ) : (
+              <p className="text-gray-500 text-sm">📎 Haz clic para adjuntar el contrato (PDF, Word o imagen)</p>
+            )}
+          </div>
+          <input ref={fileRef} type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) setContrato(f); e.target.value = '' }} />
+        </div>
+
+        {error && <p className="text-red-500 text-sm">{error}</p>}
+
         <button type="submit" disabled={loading} className="btn-primary">
-          {loading ? 'Guardando...' : 'Crear Patrocinador'}
+          {loading ? (contrato ? '📤 Subiendo contrato...' : 'Guardando...') : 'Crear Patrocinador'}
         </button>
       </form>
     </div>
@@ -173,6 +222,7 @@ export default function PatrocinadoresPage() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-semibold text-gray-900">{p.nombre}</p>
                     {p.categoria && <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">{CAT_LABELS[p.categoria] ?? p.categoria}</span>}
+                    {p.contratoPath && <span className="text-xs" title={`Contrato: ${p.contratoNombre ?? ''}`}>📝</span>}
                   </div>
                   <p className="text-gray-400 text-xs mt-0.5">{p.patrocinios.length} evento(s) · {fmt(p.patrocinios.reduce((s, x) => s + (x.montoUsd ?? 0), 0))}</p>
                 </div>
@@ -200,7 +250,16 @@ export default function PatrocinadoresPage() {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-lg font-bold text-gray-900">{selected.nombre}</h3>
-                  {selected.categoria && <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full mt-1 inline-block">{CAT_LABELS[selected.categoria] ?? selected.categoria}</span>}
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    {selected.categoria && <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">{CAT_LABELS[selected.categoria] ?? selected.categoria}</span>}
+                    {selected.contratoPath && (
+                      <a href={`/api/fotos?path=${encodeURIComponent(selected.contratoPath)}`}
+                        target="_blank" rel="noopener noreferrer"
+                        className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full hover:bg-green-200 transition-colors">
+                        📝 Ver contrato
+                      </a>
+                    )}
+                  </div>
                 </div>
                 <div className="text-right">
                   <p className="text-xs text-gray-400">Monto total acumulado</p>

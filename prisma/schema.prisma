@@ -292,12 +292,14 @@ model TicketZona {
 }
 
 model Patrocinador {
-  id        String   @id @default(cuid())
-  nombre    String
-  categoria String?  // ALCOHOL | BANCO | COMIDA_RAPIDA | AEROLINEA | HOTEL | MODA | RENTAL_CAR
-  tenantId  String?
-  activo    Boolean  @default(true)
-  createdAt DateTime @default(now())
+  id             String   @id @default(cuid())
+  nombre         String
+  categoria      String?  // ALCOHOL | BANCO | COMIDA_RAPIDA | AEROLINEA | HOTEL | MODA | RENTAL_CAR
+  tenantId       String?
+  contratoPath   String?
+  contratoNombre String?
+  activo         Boolean  @default(true)
+  createdAt      DateTime @default(now())
 
   tenant      Tenant? @relation(fields: [tenantId], references: [id])
   patrocinios Patrocinio[]
