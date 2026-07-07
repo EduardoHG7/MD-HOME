@@ -8,7 +8,11 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatDate(date: Date | string): string {
-  return format(new Date(date), "d 'de' MMMM yyyy", { locale: es })
+  // Las fechas de eventos se guardan a medianoche UTC; usar el día UTC
+  // evita que en zonas UTC-5 (Panamá) se muestre el día anterior.
+  const d = new Date(date)
+  const utcDay = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+  return format(utcDay, "d 'de' MMMM yyyy", { locale: es })
 }
 
 export function formatDateTime(date: Date | string): string {

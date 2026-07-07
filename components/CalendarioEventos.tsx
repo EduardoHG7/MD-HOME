@@ -34,9 +34,10 @@ export function CalendarioEventos({ eventos }: { eventos: EventoCalendario[] }) 
   const diasMontaje    = new Set<number>()
   const diasDesmontaje = new Set<number>()
 
+  // Las fechas se guardan a medianoche UTC — usar día UTC para no correr un día en UTC-5
   const addDays = (set: Set<number>, desde: Date, hasta: Date) => {
-    for (let d = new Date(desde); d <= hasta; d.setDate(d.getDate() + 1)) {
-      if (d.getFullYear() === year && d.getMonth() === month) set.add(d.getDate())
+    for (let d = new Date(desde); d <= hasta; d.setUTCDate(d.getUTCDate() + 1)) {
+      if (d.getUTCFullYear() === year && d.getUTCMonth() === month) set.add(d.getUTCDate())
     }
   }
 
@@ -48,12 +49,12 @@ export function CalendarioEventos({ eventos }: { eventos: EventoCalendario[] }) 
     if (ev.montajeInicio) {
       const mDesde = new Date(ev.montajeInicio)
       const mHasta = new Date(inicio)
-      mHasta.setDate(mHasta.getDate() - 1)
+      mHasta.setUTCDate(mHasta.getUTCDate() - 1)
       if (mDesde <= mHasta) addDays(diasMontaje, mDesde, mHasta)
     }
     if (ev.desmontajeFin) {
       const dDesde = new Date(fin)
-      dDesde.setDate(dDesde.getDate() + 1)
+      dDesde.setUTCDate(dDesde.getUTCDate() + 1)
       const dHasta = new Date(ev.desmontajeFin)
       if (dDesde <= dHasta) addDays(diasDesmontaje, dDesde, dHasta)
     }
@@ -65,8 +66,8 @@ export function CalendarioEventos({ eventos }: { eventos: EventoCalendario[] }) 
   const eventosDelMes = eventos.filter(ev => {
     const desde = new Date(ev.montajeInicio ?? ev.fechaInicio)
     const hasta = new Date(ev.desmontajeFin ?? ev.fechaFin)
-    const inicioMes = new Date(year, month, 1)
-    const finMes    = new Date(year, month + 1, 0, 23, 59, 59)
+    const inicioMes = new Date(Date.UTC(year, month, 1))
+    const finMes    = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59))
     return desde <= finMes && hasta >= inicioMes
   })
 
@@ -150,7 +151,7 @@ export function CalendarioEventos({ eventos }: { eventos: EventoCalendario[] }) 
               <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
               <span className="text-gray-700 font-medium truncate">{ev.nombre}</span>
               <span className="text-gray-400 shrink-0 ml-auto">
-                {new Date(ev.fechaInicio).getDate()}/{new Date(ev.fechaInicio).getMonth() + 1}
+                {new Date(ev.fechaInicio).getUTCDate()}/{new Date(ev.fechaInicio).getUTCMonth() + 1}
               </span>
             </div>
           ))}
