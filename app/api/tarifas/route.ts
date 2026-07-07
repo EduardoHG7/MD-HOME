@@ -4,9 +4,15 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getActiveTenantId } from '@/lib/tenant'
 
 export async function GET() {
-  const tarifas = await prisma.tarifa.findMany({ orderBy: { tipo: 'asc' } })
+  const tenantId = getActiveTenantId()
+
+  const tarifas = await prisma.tarifa.findMany({
+    where: tenantId ? { tenantId } : {},
+    orderBy: { tipo: 'asc' },
+  })
   return NextResponse.json(tarifas)
 }
 
@@ -16,13 +22,16 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
 
+  const tenantId = getActiveTenantId()
   const { tipo, precioPorDia } = await req.json()
 
-  const tarifa = await prisma.tarifa.upsert({
-    where: { tipo },
-    update: { precioPorDia },
-    create: { tipo, precioPorDia },
+  const existing = await prisma.tarifa.findFirst({
+    where: { tipo, tenantId: tenantId ?? null },
   })
+
+  const tarifa = existing
+    ? await prisma.tarifa.update({ where: { id: existing.id }, data: { precioPorDia } })
+    : await prisma.tarifa.create({ data: { tipo, precioPorDia, tenantId: tenantId ?? null } })
 
   return NextResponse.json(tarifa)
 }

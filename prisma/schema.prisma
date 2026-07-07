@@ -15,10 +15,13 @@ model Tenant {
   activo    Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  usuarios    UserTenant[]
-  eventos     Evento[]
-  puestos     Puesto[]
-  aplicantes  Aplicante[]
+  usuarios       UserTenant[]
+  eventos        Evento[]
+  puestos        Puesto[]
+  aplicantes     Aplicante[]
+  venues         Venue[]
+  tarifas        Tarifa[]
+  patrocinadores Patrocinador[]
 
   @@map("tenants")
 }
@@ -83,10 +86,12 @@ model EventoDocumento {
 // TipoTarifa: DIARIA | QUINCENAL | MENSUAL
 model Tarifa {
   id           String   @id @default(cuid())
-  tipo         String   @unique
+  tipo         String
   precioPorDia Float
+  tenantId     String?
   updatedAt    DateTime @updatedAt
 
+  tenant      Tenant? @relation(fields: [tenantId], references: [id])
   solicitudes Solicitud[]
 
   @@map("tarifas")
@@ -94,11 +99,13 @@ model Tarifa {
 
 model Venue {
   id        String   @id @default(cuid())
-  nombre    String   @unique
+  nombre    String
   direccion String?
+  tenantId  String?
   activo    Boolean  @default(true)
   createdAt DateTime @default(now())
 
+  tenant  Tenant? @relation(fields: [tenantId], references: [id])
   eventos Evento[]
 
   @@map("venues")
@@ -286,11 +293,13 @@ model TicketZona {
 
 model Patrocinador {
   id        String   @id @default(cuid())
-  nombre    String   @unique
+  nombre    String
   categoria String?  // ALCOHOL | BANCO | COMIDA_RAPIDA | AEROLINEA | HOTEL | MODA | RENTAL_CAR
+  tenantId  String?
   activo    Boolean  @default(true)
   createdAt DateTime @default(now())
 
+  tenant      Tenant? @relation(fields: [tenantId], references: [id])
   patrocinios Patrocinio[]
 
   @@map("patrocinadores")

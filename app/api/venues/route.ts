@@ -10,7 +10,7 @@ export async function GET() {
   const tenantId = getActiveTenantId()
 
   const venues = await prisma.venue.findMany({
-    where: { activo: true },
+    where: { activo: true, ...(tenantId ? { tenantId } : {}) },
     orderBy: { nombre: 'asc' },
     include: {
       eventos: {
@@ -31,9 +31,12 @@ export async function POST(req: Request) {
   if (!session || session.user.role !== 'ADMIN') {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
+  const tenantId = getActiveTenantId()
   const { nombre, direccion } = await req.json()
   if (!nombre?.trim()) return NextResponse.json({ error: 'Nombre requerido' }, { status: 400 })
 
-  const venue = await prisma.venue.create({ data: { nombre: nombre.trim(), direccion: direccion?.trim() || null } })
+  const venue = await prisma.venue.create({
+    data: { nombre: nombre.trim(), direccion: direccion?.trim() || null, tenantId: tenantId ?? null },
+  })
   return NextResponse.json(venue, { status: 201 })
 }
