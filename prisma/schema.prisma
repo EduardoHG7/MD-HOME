@@ -40,7 +40,7 @@ model UserTenant {
   @@map("user_tenants")
 }
 
-// Role: ADMIN | USER | CONTABILIDAD
+// Role: ADMIN | USER | CONTABILIDAD | OPERACIONES
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -49,6 +49,7 @@ model User {
   telefono     String?
   role         String   @default("USER")
   isSuperAdmin Boolean  @default(false)
+  firmaImagen  String?  // Data URL (PNG) de la firma para estampar en contratos
   createdAt    DateTime @default(now())
 
   tenants                  UserTenant[]
@@ -63,8 +64,53 @@ model User {
   cajasMenudaPagadas       CajaMenuda[]  @relation("CajaMenudaPagador")
   eventosDocsAsignados     Evento[]      @relation("EventoDocsResponsable")
   documentosSubidos        EventoDocumento[]
+  contratosSubidos         EventoContrato[] @relation("ContratoSubidor")
+  contratosFirmados        EventoContrato[] @relation("ContratoFirmante")
 
   @@map("users")
+}
+
+// EstadoContrato: PENDIENTE_FIRMA | FIRMADO
+model EventoContrato {
+  id            String    @id @default(cuid())
+  eventoId      String    @unique
+  archivoPath   String    // PDF original en SharePoint
+  archivoNombre String
+  firmadoPath   String?   // PDF con la firma del gerente general estampada
+  estado        String    @default("PENDIENTE_FIRMA")
+  subidoPorId   String
+  firmadoPorId  String?
+  firmadoAt     DateTime?
+  createdAt     DateTime  @default(now())
+
+  evento     Evento @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+  subidoPor  User   @relation("ContratoSubidor", fields: [subidoPorId], references: [id])
+  firmadoPor User?  @relation("ContratoFirmante", fields: [firmadoPorId], references: [id])
+
+  @@map("evento_contratos")
+}
+
+// Datos fiscales para el formulario de comprobantes electrónicos (Panatickets)
+// organizacion: JURIDICA | NATURAL
+model FormularioComprobantes {
+  id              String   @id @default(cuid())
+  eventoId        String   @unique
+  razonSocial     String?
+  nombreComercial String?
+  rucDv           String?
+  direccion       String?
+  provincia       String?
+  distrito        String?
+  corregimiento   String?
+  telefonos       String?
+  organizacion    String?
+  correoEnvio     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  evento Evento @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+
+  @@map("formularios_comprobantes")
 }
 
 // TipoDocumento: CONTRATO | SEGURO | FIANZA | PERMISO | OTRO
@@ -140,6 +186,8 @@ model Evento {
   presupuesto  Presupuesto?
   docsResponsable User?      @relation("EventoDocsResponsable", fields: [docsResponsableId], references: [id])
   documentos   EventoDocumento[]
+  contrato     EventoContrato?
+  formularioComprobantes FormularioComprobantes?
   tenants      EventoTenant[]
 
   @@map("eventos")

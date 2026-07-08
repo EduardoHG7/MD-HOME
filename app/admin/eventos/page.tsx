@@ -423,12 +423,21 @@ export default function EventosPage() {
               </div>
             </div>
             <div className="flex items-center gap-2 mt-3 flex-wrap">
-              <button onClick={() => router.push(`/admin/eventos/${ev.id}/presupuesto`)}
-                className="p-2 rounded-xl border border-amber-200 hover:border-amber-400 hover:bg-amber-50 transition-all text-amber-600 text-xs font-medium px-3"
-                title="Ver presupuesto">💰 Presupuesto</button>
-              <button onClick={() => setVerDocs(ev)}
-                className="p-2 rounded-xl border border-blue-200 hover:border-blue-400 hover:bg-blue-50 transition-all text-blue-600 text-xs font-medium px-3"
-                title="Documentos legales">📁 Documentos</button>
+              {/* En Panatickets el presupuesto se reemplaza por el expediente de documentos */}
+              {activeTenant?.slug === 'panatickets' ? (
+                <button onClick={() => router.push(`/admin/eventos/${ev.id}/documentos`)}
+                  className="p-2 rounded-xl border border-blue-200 hover:border-blue-400 hover:bg-blue-50 transition-all text-blue-600 text-xs font-medium px-3"
+                  title="Documentos, formulario y contrato del evento">📁 Documentos</button>
+              ) : (
+                <>
+                  <button onClick={() => router.push(`/admin/eventos/${ev.id}/presupuesto`)}
+                    className="p-2 rounded-xl border border-amber-200 hover:border-amber-400 hover:bg-amber-50 transition-all text-amber-600 text-xs font-medium px-3"
+                    title="Ver presupuesto">💰 Presupuesto</button>
+                  <button onClick={() => setVerDocs(ev)}
+                    className="p-2 rounded-xl border border-blue-200 hover:border-blue-400 hover:bg-blue-50 transition-all text-blue-600 text-xs font-medium px-3"
+                    title="Documentos legales">📁 Documentos</button>
+                </>
+              )}
               <button onClick={() => openEdit(ev)}
                 className="p-2 rounded-xl border border-gray-200 hover:border-gray-400 hover:bg-gray-50 transition-all text-gray-500"
                 title="Editar evento">✏️</button>

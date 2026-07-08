@@ -15,7 +15,7 @@ declare module 'next-auth' {
       name?:             string | null
       email?:            string | null
       image?:            string | null
-      role:              'ADMIN' | 'USER' | 'APLICANTE' | 'CONTABILIDAD'
+      role:              'ADMIN' | 'USER' | 'APLICANTE' | 'CONTABILIDAD' | 'OPERACIONES'
       isSuperAdmin:      boolean
       availableTenants:  TenantInfo[]
     }

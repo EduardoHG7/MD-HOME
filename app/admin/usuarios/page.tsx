@@ -15,12 +15,14 @@ interface User {
 const ROLE_LABELS: Record<string, string> = {
   ADMIN:        '👑 Admin',
   CONTABILIDAD: '📊 Contabilidad',
+  OPERACIONES:  '🎪 Operaciones',
   USER:         '👤 Usuario',
 }
 
 const ROLE_STYLES: Record<string, string> = {
   ADMIN:        'bg-gray-900 text-white border-gray-900',
   CONTABILIDAD: 'bg-blue-700 text-white border-blue-700',
+  OPERACIONES:  'bg-amber-600 text-white border-amber-600',
   USER:         'bg-gray-100 text-gray-600 border-gray-200',
 }
 
@@ -52,6 +54,7 @@ export default function UsuariosAdminPage() {
 
   const admins       = users.filter(u => u.role === 'ADMIN')
   const contabilidad = users.filter(u => u.role === 'CONTABILIDAD')
+  const operaciones  = users.filter(u => u.role === 'OPERACIONES')
   const normales     = users.filter(u => u.role === 'USER')
 
   return (
@@ -87,6 +90,14 @@ export default function UsuariosAdminPage() {
       {contabilidad.length > 0 && (
         <Section title="Contabilidad">
           {contabilidad.map(u => (
+            <UserRow key={u.id} user={u} isSelf={false} loading={loading === u.id} onSetRole={r => setRole(u, r)} />
+          ))}
+        </Section>
+      )}
+
+      {operaciones.length > 0 && (
+        <Section title="Operaciones">
+          {operaciones.map(u => (
             <UserRow key={u.id} user={u} isSelf={false} loading={loading === u.id} onSetRole={r => setRole(u, r)} />
           ))}
         </Section>
@@ -170,7 +181,7 @@ function UserRow({ user, isSelf, loading, onSetRole }: {
           </button>
           {menuOpen && (
             <div className="absolute right-0 mt-1 w-44 bg-white border border-gray-200 rounded-xl shadow-lg z-10 overflow-hidden">
-              {['ADMIN', 'CONTABILIDAD', 'USER'].filter(r => r !== user.role).map(r => (
+              {['ADMIN', 'CONTABILIDAD', 'OPERACIONES', 'USER'].filter(r => r !== user.role).map(r => (
                 <button key={r} onClick={() => { onSetRole(r); setMenuOpen(false) }}
                   className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 transition-all">
                   {ROLE_LABELS[r]}

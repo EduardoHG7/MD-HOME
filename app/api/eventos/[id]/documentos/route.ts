@@ -7,7 +7,11 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { uploadToSharePoint } from '@/lib/sharepoint'
 
-const TIPOS_VALIDOS = ['CONTRATO', 'SEGURO', 'FIANZA', 'PERMISO', 'OTRO']
+const TIPOS_VALIDOS = [
+  'CONTRATO', 'SEGURO', 'FIANZA', 'PERMISO', 'OTRO',
+  // Checklist de documentos por evento (Panatickets)
+  'AVISO_OPERACIONES', 'CEDULA_REP_LEGAL', 'CIERRE', 'GASTOS', 'PLANILLA',
+]
 
 async function puedeGestionar(eventoId: string, userId: string, role: string) {
   if (role === 'ADMIN') return true

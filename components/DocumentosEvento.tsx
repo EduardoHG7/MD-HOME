@@ -13,6 +13,11 @@ export const TIPOS_DOC = [
   { value: 'SEGURO',   label: '🛡️ Seguro' },
   { value: 'FIANZA',   label: '🏦 Fianza' },
   { value: 'PERMISO',  label: '📋 Permiso' },
+  { value: 'AVISO_OPERACIONES', label: '🏛️ Aviso de operaciones' },
+  { value: 'CEDULA_REP_LEGAL',  label: '🪪 Cédula rep. legal' },
+  { value: 'CIERRE',            label: '🧾 Cierre' },
+  { value: 'GASTOS',            label: '💸 Gastos' },
+  { value: 'PLANILLA',          label: '👥 Planilla' },
   { value: 'OTRO',     label: '📎 Otro' },
 ]
 
