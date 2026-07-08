@@ -14,7 +14,7 @@ export async function GET() {
 
   const tenantId = getActiveTenantId()
 
-  const tenantFilter = tenantId ? { evento: { tenantId } } : {}
+  const tenantFilter = tenantId ? { evento: { tenants: { some: { tenantId } } } } : {}
   const userFilter   = session.user.role === 'ADMIN' || session.user.role === 'CONTABILIDAD'
     ? {}
     : { solicitanteId: session.user.id }

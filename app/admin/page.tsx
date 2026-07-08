@@ -11,7 +11,7 @@ export default async function AdminDashboard() {
   const session = await getServerSession(authOptions)
   const tenantId = getActiveTenantId()
 
-  const tenantFilter = tenantId ? { tenantId } : {}
+  const tenantFilter = tenantId ? { tenants: { some: { tenantId } } } : {}
 
   const [eventosData, usuario, activeTenant] = await Promise.all([
     prisma.evento.findMany({

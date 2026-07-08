@@ -13,7 +13,7 @@ export async function GET() {
   const tenantId = getActiveTenantId()
 
   const tenantFilter = tenantId
-    ? { OR: [{ evento: { tenantId } }, { eventoId: null }] }
+    ? { OR: [{ evento: { tenants: { some: { tenantId } } } }, { eventoId: null }] }
     : {}
   const userFilter = session.user.role === 'ADMIN' ? {} : { creadoPorId: session.user.id }
 

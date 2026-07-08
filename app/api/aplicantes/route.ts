@@ -16,10 +16,10 @@ export async function GET() {
   const tenantId = getActiveTenantId()
 
   const aplicantes = await prisma.aplicante.findMany({
-    where: tenantId ? { OR: [{ tenantId }, { asignaciones: { some: { evento: { tenantId } } } }] } : {},
+    where: tenantId ? { OR: [{ tenantId }, { asignaciones: { some: { evento: { tenants: { some: { tenantId } } } } } }] } : {},
     include: {
       asignaciones: {
-        where: tenantId ? { evento: { tenantId } } : {},
+        where: tenantId ? { evento: { tenants: { some: { tenantId } } } } : {},
         include: {
           evento:    true,
           solicitud: { include: { tarifa: true } },

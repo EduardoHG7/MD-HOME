@@ -17,7 +17,7 @@ export async function GET(req: Request) {
   const tenantId = getActiveTenantId()
 
   const tenantFilter = tenantId
-    ? { linea: { categoria: { presupuesto: { evento: { tenantId } } } } }
+    ? { linea: { categoria: { presupuesto: { evento: { tenants: { some: { tenantId } } } } } } }
     : {}
 
   const userFilter = session.user.role === 'ADMIN'

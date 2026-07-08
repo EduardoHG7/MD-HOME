@@ -14,12 +14,13 @@ export async function GET(req: Request) {
   const eventos = await prisma.evento.findMany({
     where: {
       ...(incluirCancelados ? {} : { estado: { not: 'CANCELADO' } }),
-      ...(tenantId ? { tenantId } : {}),
+      ...(tenantId ? { tenants: { some: { tenantId } } } : {}),
     },
     orderBy: { fechaInicio: 'desc' },
     include: {
       _count: { select: { asignaciones: true } },
       venue: true,
+      tenants: { select: { tenantId: true } },
     },
   })
   return NextResponse.json(eventos)
@@ -30,7 +31,12 @@ export async function POST(req: Request) {
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const tenantId = getActiveTenantId()
-  const { nombre, descripcion, fechaInicio, fechaFin, tipoEvento, venueId, tieneSocio, nombreSocio, estado, montajeInicio, desmontajeFin, docsResponsableId } = await req.json()
+  const { nombre, descripcion, fechaInicio, fechaFin, tipoEvento, venueId, tieneSocio, nombreSocio, estado, montajeInicio, desmontajeFin, docsResponsableId, tenantIds } = await req.json()
+
+  // Empresas a las que pertenece el evento: las seleccionadas o la activa
+  const ids: string[] = Array.isArray(tenantIds) && tenantIds.length > 0
+    ? tenantIds
+    : (tenantId ? [tenantId] : [])
 
   const evento = await prisma.evento.create({
     data: {
@@ -42,12 +48,13 @@ export async function POST(req: Request) {
       venueId:     venueId     || null,
       tieneSocio:  tieneSocio  ?? false,
       nombreSocio: tieneSocio ? (nombreSocio || null) : null,
-      tenantId:    tenantId    || null,
+      tenantId:    ids[0] ?? null,
       montajeInicio: montajeInicio ? new Date(montajeInicio) : null,
       desmontajeFin: desmontajeFin ? new Date(desmontajeFin) : null,
       docsResponsableId: docsResponsableId || null,
+      tenants: { create: ids.map(id => ({ tenantId: id })) },
     },
-    include: { venue: true },
+    include: { venue: true, tenants: { select: { tenantId: true } } },
   })
   return NextResponse.json(evento, { status: 201 })
 }

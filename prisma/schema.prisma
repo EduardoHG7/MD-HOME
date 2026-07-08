@@ -22,6 +22,7 @@ model Tenant {
   venues         Venue[]
   tarifas        Tarifa[]
   patrocinadores Patrocinador[]
+  eventosAsignados EventoTenant[]
 
   @@map("tenants")
 }
@@ -139,8 +140,22 @@ model Evento {
   presupuesto  Presupuesto?
   docsResponsable User?      @relation("EventoDocsResponsable", fields: [docsResponsableId], references: [id])
   documentos   EventoDocumento[]
+  tenants      EventoTenant[]
 
   @@map("eventos")
+}
+
+// Un evento puede pertenecer a varias empresas del holding
+model EventoTenant {
+  id       String @id @default(cuid())
+  eventoId String
+  tenantId String
+
+  evento Evento @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([eventoId, tenantId])
+  @@map("evento_tenants")
 }
 
 model Presupuesto {

@@ -23,7 +23,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
 
-  const { nombre, descripcion, fechaInicio, fechaFin, estado, tipoEvento, venueId, tieneSocio, nombreSocio, montajeInicio, desmontajeFin, docsResponsableId } = await req.json()
+  const { nombre, descripcion, fechaInicio, fechaFin, estado, tipoEvento, venueId, tieneSocio, nombreSocio, montajeInicio, desmontajeFin, docsResponsableId, tenantIds } = await req.json()
 
   const evento = await prisma.evento.update({
     where: { id: params.id },
@@ -40,8 +40,15 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       ...(montajeInicio !== undefined && { montajeInicio: montajeInicio ? new Date(montajeInicio) : null }),
       ...(desmontajeFin !== undefined && { desmontajeFin: desmontajeFin ? new Date(desmontajeFin) : null }),
       ...(docsResponsableId !== undefined && { docsResponsableId: docsResponsableId || null }),
+      ...(Array.isArray(tenantIds) && tenantIds.length > 0 && {
+        tenantId: tenantIds[0],
+        tenants: {
+          deleteMany: {},
+          create: tenantIds.map((id: string) => ({ tenantId: id })),
+        },
+      }),
     },
-    include: { _count: { select: { asignaciones: true } }, venue: true },
+    include: { _count: { select: { asignaciones: true } }, venue: true, tenants: { select: { tenantId: true } } },
   })
 
   return NextResponse.json(evento)

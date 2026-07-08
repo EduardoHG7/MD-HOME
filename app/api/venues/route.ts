@@ -16,7 +16,7 @@ export async function GET() {
       eventos: {
         where: {
           estado: { not: 'CANCELADO' },
-          ...(tenantId ? { tenantId } : {}),
+          ...(tenantId ? { tenants: { some: { tenantId } } } : {}),
         },
         select: { id: true, nombre: true, fechaInicio: true, fechaFin: true, estado: true },
         orderBy: { fechaInicio: 'desc' },

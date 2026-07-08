@@ -20,7 +20,7 @@ export default async function UsuarioDashboard() {
     prisma.solicitud.findMany({
       where: {
         solicitanteId: session.user.id,
-        ...(tenantId ? { evento: { tenantId } } : {}),
+        ...(tenantId ? { evento: { tenants: { some: { tenantId } } } } : {}),
       },
       include: {
         tarifa: true,
@@ -32,7 +32,7 @@ export default async function UsuarioDashboard() {
     prisma.evento.findMany({
       where: {
         estado: { not: 'CANCELADO' },
-        ...(tenantId ? { tenantId } : {}),
+        ...(tenantId ? { tenants: { some: { tenantId } } } : {}),
       },
       orderBy: { fechaInicio: 'asc' },
     }),

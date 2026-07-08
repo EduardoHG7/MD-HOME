@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { formatDate } from '@/lib/utils'
 import { DocumentosEvento } from '@/components/DocumentosEvento'
+import { useTenant } from '@/hooks/useTenant'
 
 interface Venue  { id: string; nombre: string; direccion: string | null }
 interface Usuario { id: string; name: string | null; email: string }
@@ -15,6 +17,7 @@ interface Evento {
   montajeInicio: string | null; desmontajeFin: string | null
   docsResponsableId: string | null
   venue: Venue | null
+  tenants?: { tenantId: string }[]
   _count: { asignaciones: number }
 }
 
@@ -55,6 +58,7 @@ type FormState = {
   tipoEvento: string; venueId: string; tieneSocio: boolean; nombreSocio: string
   estado: string; montajeInicio: string; desmontajeFin: string
   docsResponsableId: string
+  tenantIds: string[]
 }
 
 const emptyForm: FormState = {
@@ -62,15 +66,25 @@ const emptyForm: FormState = {
   tipoEvento: '', venueId: '', tieneSocio: false, nombreSocio: '',
   estado: 'ACTIVO', montajeInicio: '', desmontajeFin: '',
   docsResponsableId: '',
+  tenantIds: [],
 }
 
+interface TenantOption { id: string; nombre: string }
+
 // ── Componente fuera del padre para evitar re-mount en cada keystroke ──
-function EventoForm({ values, venues, usuarios, onChange }: {
+function EventoForm({ values, venues, usuarios, tenantsDisponibles, onChange }: {
   values: FormState
   venues: Venue[]
   usuarios: Usuario[]
+  tenantsDisponibles: TenantOption[]
   onChange: (v: Partial<FormState>) => void
 }) {
+  function toggleTenant(id: string) {
+    const next = values.tenantIds.includes(id)
+      ? values.tenantIds.filter(t => t !== id)
+      : [...values.tenantIds, id]
+    onChange({ tenantIds: next })
+  }
   return (
     <div className="space-y-4">
       <div>
@@ -78,6 +92,33 @@ function EventoForm({ values, venues, usuarios, onChange }: {
         <input className="input" required value={values.nombre}
           onChange={e => onChange({ nombre: e.target.value })} />
       </div>
+
+      {/* Empresas del evento */}
+      {tenantsDisponibles.length > 1 && (
+        <div>
+          <label className="label">🏢 Empresas del evento *</label>
+          <p className="text-gray-400 text-xs mb-2">El evento aparecerá en todas las empresas que selecciones.</p>
+          <div className="grid grid-cols-2 gap-2">
+            {tenantsDisponibles.map(t => {
+              const checked = values.tenantIds.includes(t.id)
+              return (
+                <button key={t.id} type="button"
+                  onClick={() => toggleTenant(t.id)}
+                  className={`flex items-center gap-2 p-2.5 rounded-xl border-2 text-xs font-medium text-left transition-all ${
+                    checked
+                      ? 'border-gray-900 bg-gray-50 text-gray-900'
+                      : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                  }`}>
+                  <span className={`w-4 h-4 rounded flex items-center justify-center text-white text-xs shrink-0 ${checked ? 'bg-gray-900' : 'border border-gray-300 bg-white'}`}>
+                    {checked ? '✓' : ''}
+                  </span>
+                  {t.nombre}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
       <div>
         <label className="label">Descripción (opcional)</label>
         <input className="input" placeholder="Descripción breve..."
@@ -208,6 +249,9 @@ function EventoForm({ values, venues, usuarios, onChange }: {
 // ── Página principal ──
 export default function EventosPage() {
   const router = useRouter()
+  const { data: session } = useSession()
+  const { activeTenant } = useTenant()
+  const tenantsDisponibles: TenantOption[] = (session?.user?.availableTenants ?? []).map(t => ({ id: t.id, nombre: t.nombre }))
   const [eventos,  setEventos]  = useState<Evento[]>([])
   const [venues,   setVenues]   = useState<Venue[]>([])
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
@@ -226,6 +270,14 @@ export default function EventosPage() {
     fetch('/api/usuarios/lista').then(r => r.json()).then(d => setUsuarios(Array.isArray(d) ? d : []))
   }, [])
 
+  // Pre-seleccionar la empresa activa al crear
+  useEffect(() => {
+    if (activeTenant && form.tenantIds.length === 0) {
+      setForm(f => f.tenantIds.length === 0 ? { ...f, tenantIds: [activeTenant.id] } : f)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTenant])
+
   function openEdit(ev: Evento) {
     setEditing(ev)
     setEditForm({
@@ -241,6 +293,7 @@ export default function EventosPage() {
       montajeInicio: ev.montajeInicio ? toInputDate(ev.montajeInicio) : '',
       desmontajeFin: ev.desmontajeFin ? toInputDate(ev.desmontajeFin) : '',
       docsResponsableId: ev.docsResponsableId ?? '',
+      tenantIds: ev.tenants?.map(t => t.tenantId) ?? (activeTenant ? [activeTenant.id] : []),
     })
   }
 
@@ -298,7 +351,7 @@ export default function EventosPage() {
         <div className="card p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Crear Evento</h2>
           <form onSubmit={handleCreate} className="space-y-4">
-            <EventoForm values={form} venues={venues} usuarios={usuarios} onChange={v => setForm(f => ({ ...f, ...v }))} />
+            <EventoForm values={form} venues={venues} usuarios={usuarios} tenantsDisponibles={tenantsDisponibles} onChange={v => setForm(f => ({ ...f, ...v }))} />
             <button type="submit" disabled={loading} className="btn-primary">
               {loading ? 'Creando...' : 'Crear Evento'}
             </button>
@@ -432,7 +485,7 @@ export default function EventosPage() {
               <button onClick={() => setEditing(null)} className="text-gray-400 hover:text-gray-700 text-xl">✕</button>
             </div>
             <form onSubmit={handleEdit} className="space-y-4">
-              <EventoForm values={editForm} venues={venues} usuarios={usuarios} onChange={v => setEditForm(f => ({ ...f, ...v }))} />
+              <EventoForm values={editForm} venues={venues} usuarios={usuarios} tenantsDisponibles={tenantsDisponibles} onChange={v => setEditForm(f => ({ ...f, ...v }))} />
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setEditing(null)} className="btn-ghost flex-1">Cancelar</button>
                 <button type="submit" disabled={loading} className="btn-primary flex-1">
