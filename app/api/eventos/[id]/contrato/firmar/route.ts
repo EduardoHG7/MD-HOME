@@ -7,15 +7,36 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { uploadToSharePoint, downloadFromSharePoint } from '@/lib/sharepoint'
 import { notificarPorRol } from '@/lib/notificaciones'
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
+import { PDFDocument, StandardFonts, rgb, degrees } from 'pdf-lib'
 
-// El admin (gerente general) firma el contrato: se estampa su firma en el PDF
-// y se notifica a operaciones y contabilidad.
-export async function POST(_req: Request, { params }: { params: { id: string } }) {
+// Posición del bloque de firma elegida con clic en el visor.
+// pagina: índice 0-based; xRatio/yRatio: 0..1 medidos desde la esquina superior
+// izquierda de esa página tal como se ve en el visor (el punto = centro de la firma).
+interface Colocacion {
+  pagina: number
+  xRatio: number
+  yRatio: number
+}
+
+// El admin (gerente general) firma el contrato: se estampa su firma en el bloque
+// que eligió con clic y una rúbrica en el margen de cada página; luego se notifica
+// a operaciones y contabilidad.
+export async function POST(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
   if (!session || session.user.role !== 'ADMIN') {
     return NextResponse.json({ error: 'Solo el administrador puede firmar contratos' }, { status: 403 })
   }
+
+  // El cuerpo es opcional: si no llega colocación, se usa la posición por defecto
+  // (bloque abajo-derecha de la última página).
+  let colocacion: Colocacion | null = null
+  try {
+    const body = await req.json()
+    if (body && typeof body.pagina === 'number' &&
+        typeof body.xRatio === 'number' && typeof body.yRatio === 'number') {
+      colocacion = body as Colocacion
+    }
+  } catch { /* sin cuerpo → posición por defecto */ }
 
   const contrato = await prisma.eventoContrato.findUnique({
     where: { eventoId: params.id },
@@ -49,21 +70,52 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       ? await pdf.embedJpg(firmaBytes)
       : await pdf.embedPng(firmaBytes)
 
-    // Estampar en la esquina inferior derecha de la última página
-    const page   = pdf.getPage(pdf.getPageCount() - 1)
-    const ancho  = 150
-    const alto   = (firmaImg.height / firmaImg.width) * ancho
-    const x      = page.getWidth() - ancho - 60
-    const fecha  = new Date().toLocaleString('es-PA', { dateStyle: 'long', timeStyle: 'short' })
+    const pages   = pdf.getPages()
+    const aspecto = firmaImg.height / firmaImg.width   // alto / ancho
+    const fecha   = new Date().toLocaleString('es-PA', { dateStyle: 'long', timeStyle: 'short' })
+    const nombre  = firmante.name ?? firmante.email
 
-    page.drawImage(firmaImg, { x, y: 80, width: ancho, height: alto })
-    page.drawLine({
-      start: { x, y: 76 }, end: { x: x + ancho, y: 76 },
+    // 1) Bloque de firma: donde el gerente hizo clic, o abajo-derecha de la última
+    //    página si no se envió colocación. El punto del clic = centro de la firma.
+    const anchoBloque = 150
+    const altoBloque  = aspecto * anchoBloque
+
+    let pageBloque = pages[pages.length - 1]
+    let x: number, y: number
+    if (colocacion && pages[colocacion.pagina]) {
+      pageBloque = pages[colocacion.pagina]
+      x = colocacion.xRatio * pageBloque.getWidth()  - anchoBloque / 2
+      // yRatio viene desde arriba; pdf-lib mide desde abajo → invertir
+      y = (1 - colocacion.yRatio) * pageBloque.getHeight() - altoBloque / 2
+    } else {
+      x = pageBloque.getWidth() - anchoBloque - 60
+      y = 80
+    }
+    // Mantener el bloque dentro de la página (deja aire para el texto de abajo)
+    x = Math.max(20, Math.min(x, pageBloque.getWidth()  - anchoBloque - 20))
+    y = Math.max(40, Math.min(y, pageBloque.getHeight() - altoBloque - 20))
+
+    pageBloque.drawImage(firmaImg, { x, y, width: anchoBloque, height: altoBloque })
+    pageBloque.drawLine({
+      start: { x, y: y - 4 }, end: { x: x + anchoBloque, y: y - 4 },
       thickness: 0.8, color: rgb(0.2, 0.2, 0.2),
     })
-    page.drawText(firmante.name ?? firmante.email, { x, y: 64, size: 9, font, color: rgb(0.15, 0.15, 0.15) })
-    page.drawText('Gerente General - Panatickets, S.A.', { x, y: 52, size: 8, font, color: rgb(0.35, 0.35, 0.35) })
-    page.drawText(`Firmado: ${fecha}`, { x, y: 41, size: 8, font, color: rgb(0.35, 0.35, 0.35) })
+    pageBloque.drawText(nombre, { x, y: y - 16, size: 9, font, color: rgb(0.15, 0.15, 0.15) })
+    pageBloque.drawText('Gerente General - Panatickets, S.A.', { x, y: y - 28, size: 8, font, color: rgb(0.35, 0.35, 0.35) })
+    pageBloque.drawText(`Firmado: ${fecha}`, { x, y: y - 39, size: 8, font, color: rgb(0.35, 0.35, 0.35) })
+
+    // 2) Rúbrica en el margen derecho de CADA página (rotada 90° CCW, centrada
+    //    verticalmente). Tras rotar 90°, la imagen de ancho w × alto h dibujada en
+    //    el ancla (rx, ry) ocupa: horizontal [rx - h, rx], vertical [ry, ry + w].
+    const anchoRub = 64
+    const altoRub  = aspecto * anchoRub
+    for (const page of pages) {
+      const rx = page.getWidth() - 6            // borde derecho de la rúbrica ≈ margen
+      const ry = page.getHeight() / 2 - anchoRub / 2  // centrada en vertical
+      page.drawImage(firmaImg, {
+        x: rx, y: ry, width: anchoRub, height: altoRub, rotate: degrees(90),
+      })
+    }
 
     const firmadoBytes = Buffer.from(await pdf.save())
     const firmadoPath  = contrato.archivoPath.replace(/\.pdf$/i, '') + '-FIRMADO.pdf'

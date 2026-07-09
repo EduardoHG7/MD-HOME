@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { FirmaPad } from '@/components/FirmaPad'
+import { FirmarContrato } from '@/components/FirmarContrato'
 import type { EventoDoc } from '@/components/DocumentosEvento'
 
 interface Contrato {
@@ -164,10 +165,10 @@ function SeccionContrato({ eventoId, contrato, onChange }: {
   onChange: (c: Contrato | null) => void
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
-  const [subiendo,  setSubiendo]  = useState(false)
-  const [firmando,  setFirmando]  = useState(false)
-  const [verFirma,  setVerFirma]  = useState(false)
-  const [error,     setError]     = useState('')
+  const [subiendo,     setSubiendo]     = useState(false)
+  const [mostrarFirma, setMostrarFirma] = useState(false)
+  const [verFirma,     setVerFirma]     = useState(false)
+  const [error,        setError]        = useState('')
 
   async function subir(file: File) {
     if (file.type !== 'application/pdf') { setError('El contrato debe ser un PDF'); return }
@@ -185,19 +186,6 @@ function SeccionContrato({ eventoId, contrato, onChange }: {
     } catch {
       setError('Error de conexión')
     } finally { setSubiendo(false) }
-  }
-
-  async function firmar() {
-    if (!confirm('¿Firmar este contrato como Gerente General? Se estampará tu firma en el PDF y se notificará a operaciones y contabilidad.')) return
-    setFirmando(true); setError('')
-    try {
-      const res  = await fetch(`/api/eventos/${eventoId}/contrato/firmar`, { method: 'POST' })
-      const data = await res.json()
-      if (!res.ok) { setError(data.error ?? 'Error al firmar'); return }
-      onChange(data)
-    } catch {
-      setError('Error de conexión')
-    } finally { setFirmando(false) }
   }
 
   const firmado = contrato?.estado === 'FIRMADO'
@@ -248,8 +236,8 @@ function SeccionContrato({ eventoId, contrato, onChange }: {
 
           <div className="flex flex-wrap items-center gap-3">
             {!firmado && (
-              <button onClick={firmar} disabled={firmando} className="btn-primary text-sm">
-                {firmando ? '✍️ Firmando...' : '✍️ Firmar contrato'}
+              <button onClick={() => setMostrarFirma(true)} className="btn-primary text-sm">
+                ✍️ Firmar contrato
               </button>
             )}
             <button onClick={() => fileRef.current?.click()} disabled={subiendo}
@@ -276,6 +264,15 @@ function SeccionContrato({ eventoId, contrato, onChange }: {
 
       <input ref={fileRef} type="file" accept=".pdf" className="hidden"
         onChange={e => { const f = e.target.files?.[0]; if (f) subir(f); e.target.value = '' }} />
+
+      {mostrarFirma && contrato && (
+        <FirmarContrato
+          eventoId={eventoId}
+          pdfPath={contrato.archivoPath}
+          onCerrar={() => setMostrarFirma(false)}
+          onFirmado={c => { onChange(c as Contrato); setMostrarFirma(false) }}
+        />
+      )}
     </div>
   )
 }

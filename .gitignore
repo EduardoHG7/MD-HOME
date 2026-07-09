@@ -43,3 +43,6 @@ Thumbs.db
 *.njsproj
 *.sln
 *.sw?
+.vercel
+.env.vercel
+*.tmp
