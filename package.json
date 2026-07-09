@@ -23,6 +23,7 @@
     "next-auth": "^4.24.7",
     "otplib": "^12.0.1",
     "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^3.11.174",
     "prisma": "^5.14.0",
     "qrcode": "^1.5.3",
     "react": "^18",
