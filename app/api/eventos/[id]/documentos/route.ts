@@ -17,9 +17,22 @@ async function puedeGestionar(eventoId: string, userId: string, role: string) {
   if (role === 'ADMIN') return true
   const evento = await prisma.evento.findUnique({
     where: { id: eventoId },
-    select: { docsResponsableId: true },
+    select: {
+      docsResponsableId: true,
+      tenants: { select: { tenant: { select: { id: true, slug: true } } } },
+    },
   })
-  return evento?.docsResponsableId === userId
+  if (!evento) return false
+  if (evento.docsResponsableId === userId) return true
+
+  // En Panatickets la documentación la suben los usuarios: cualquier usuario
+  // que pertenezca a la empresa puede gestionar documentos de sus eventos.
+  const pana = evento.tenants.find(t => t.tenant.slug === 'panatickets')
+  if (!pana) return false
+  const pertenece = await prisma.userTenant.findUnique({
+    where: { userId_tenantId: { userId, tenantId: pana.tenant.id } },
+  })
+  return Boolean(pertenece)
 }
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
