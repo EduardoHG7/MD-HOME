@@ -7,6 +7,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { uploadToSharePoint } from '@/lib/sharepoint'
 import { notificarPorRol } from '@/lib/notificaciones'
+import { notificarExpedienteListo } from '@/lib/expediente'
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
@@ -73,6 +74,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       ['ADMIN'],
       `📝 *Contrato nuevo por firmar*\n\nEvento: ${evento.nombre}\nSubido por: ${session.user.name ?? session.user.email}\n\nEntra a firmarlo: ${appUrl}/admin/eventos/${params.id}/documentos`
     )
+
+    await notificarExpedienteListo(params.id)
 
     return NextResponse.json(contrato, { status: 201 })
   } catch (err) {

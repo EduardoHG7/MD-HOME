@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { notificarExpedienteListo } from '@/lib/expediente'
 
 const CAMPOS = [
   'razonSocial', 'nombreComercial', 'rucDv', 'direccion', 'provincia',
@@ -37,5 +38,6 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     create: { eventoId: params.id, ...data },
     update: data,
   })
+  await notificarExpedienteListo(params.id)
   return NextResponse.json(formulario)
 }

@@ -6,6 +6,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { uploadToSharePoint } from '@/lib/sharepoint'
+import { notificarExpedienteListo } from '@/lib/expediente'
 
 const TIPOS_VALIDOS = [
   'CONTRATO', 'SEGURO', 'FIANZA', 'PERMISO', 'OTRO',
@@ -87,6 +88,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       },
       include: { subidoPor: { select: { name: true, email: true } } },
     })
+    await notificarExpedienteListo(params.id)
     return NextResponse.json(doc, { status: 201 })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Error al subir documento'

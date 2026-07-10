@@ -175,6 +175,7 @@ model Evento {
   montajeInicio    DateTime?
   desmontajeFin    DateTime?
   docsResponsableId String?
+  expedienteNotificado Boolean @default(false) // ya se avisó a admin que el expediente Panatickets está listo para firma
   createdAt        DateTime @default(now())
 
   solicitudes  Solicitud[]
