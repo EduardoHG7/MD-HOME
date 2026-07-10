@@ -438,6 +438,10 @@ export default function EventosPage() {
                     title="Documentos legales">📁 Documentos</button>
                 </>
               )}
+              {/* Consolidado de eventuales asignados (todas las empresas) */}
+              <button onClick={() => router.push(`/admin/eventos/${ev.id}/asignados`)}
+                className="p-2 rounded-xl border border-violet-200 hover:border-violet-400 hover:bg-violet-50 transition-all text-violet-600 text-xs font-medium px-3"
+                title="Consolidado de asignados: días, asistencia y pago">👥 Asignados</button>
               <button onClick={() => openEdit(ev)}
                 className="p-2 rounded-xl border border-gray-200 hover:border-gray-400 hover:bg-gray-50 transition-all text-gray-500"
                 title="Editar evento">✏️</button>
