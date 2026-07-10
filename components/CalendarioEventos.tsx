@@ -84,6 +84,15 @@ export function CalendarioEventos({ eventos }: { eventos: EventoCalendario[] }) 
 
   return (
     <div className="card p-5">
+      {/* Descargar Gantt a Excel del mes visible */}
+      <div className="flex justify-end mb-2">
+        <a href={`/api/eventos/calendario-excel?year=${year}&month=${month}`}
+          className="text-xs px-3 py-1.5 rounded-xl border-2 border-green-200 bg-green-50 text-green-700 hover:border-green-400 font-semibold transition-all"
+          title="Descargar el calendario del mes como Gantt en Excel">
+          ⬇️ Excel (Gantt)
+        </a>
+      </div>
+
       {/* Header con navegación */}
       <div className="flex items-center justify-between mb-4">
         <button onClick={() => cambiarMes(-1)}
