@@ -14,6 +14,49 @@ export interface EventoCalendario {
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 const DIAS  = ['Do','Lu','Ma','Mi','Ju','Vi','Sá']
 
+// Menú de descarga del Gantt: mes visible o rangos que arrancan en ese mes
+function DescargarGantt({ year, month }: { year: number; month: number }) {
+  const [abierto, setAbierto] = useState(false)
+
+  const fin = (n: number) => {
+    const t = month + (n - 1)
+    return { y: year + Math.floor(t / 12), m: ((t % 12) + 12) % 12 }
+  }
+  const url = (n: number) => {
+    const e = fin(n)
+    return `/api/eventos/calendario-excel?year=${year}&month=${month}&endYear=${e.y}&endMonth=${e.m}`
+  }
+  const opciones: { n: number; label: string }[] = [
+    { n: 1,  label: 'Solo este mes' },
+    { n: 3,  label: 'Este mes + 2 (3 meses)' },
+    { n: 6,  label: 'Este mes + 5 (6 meses)' },
+    { n: 12, label: 'Este mes + 11 (12 meses)' },
+  ]
+
+  return (
+    <div className="flex justify-end mb-2 relative">
+      <button onClick={() => setAbierto(v => !v)}
+        className="text-xs px-3 py-1.5 rounded-xl border-2 border-green-200 bg-green-50 text-green-700 hover:border-green-400 font-semibold transition-all"
+        title="Descargar el calendario como Gantt en Excel">
+        ⬇️ Excel (Gantt) ▾
+      </button>
+      {abierto && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setAbierto(false)} />
+          <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-[200px]">
+            {opciones.map(o => (
+              <a key={o.n} href={url(o.n)} onClick={() => setAbierto(false)}
+                className="block px-3 py-2 text-xs text-gray-700 hover:bg-green-50 hover:text-green-700">
+                {o.label}
+              </a>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 export function CalendarioEventos({ eventos }: { eventos: EventoCalendario[] }) {
   const hoy = new Date()
   const [year,  setYear]  = useState(hoy.getFullYear())
@@ -84,14 +127,8 @@ export function CalendarioEventos({ eventos }: { eventos: EventoCalendario[] }) 
 
   return (
     <div className="card p-5">
-      {/* Descargar Gantt a Excel del mes visible */}
-      <div className="flex justify-end mb-2">
-        <a href={`/api/eventos/calendario-excel?year=${year}&month=${month}`}
-          className="text-xs px-3 py-1.5 rounded-xl border-2 border-green-200 bg-green-50 text-green-700 hover:border-green-400 font-semibold transition-all"
-          title="Descargar el calendario del mes como Gantt en Excel">
-          ⬇️ Excel (Gantt)
-        </a>
-      </div>
+      {/* Descargar Gantt a Excel: mes visible o varios meses */}
+      <DescargarGantt year={year} month={month} />
 
       {/* Header con navegación */}
       <div className="flex items-center justify-between mb-4">
