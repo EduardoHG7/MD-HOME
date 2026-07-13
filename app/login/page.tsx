@@ -4,6 +4,7 @@ import { signIn, useSession } from 'next-auth/react'
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
+import { esOperadorPanatickets } from '@/lib/permisos'
 
 export default function LoginPage() {
   const { data: session, status } = useSession()
@@ -11,7 +12,12 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (status === 'authenticated') {
-      router.push(session?.user?.role === 'ADMIN' ? '/admin' : '/usuario/solicitar')
+      const dest = session?.user?.role === 'ADMIN'
+        ? '/admin'
+        : esOperadorPanatickets(session?.user?.email, session?.user?.role)
+          ? '/admin/eventos'
+          : '/usuario/solicitar'
+      router.push(dest)
     }
   }, [status, session, router])
 

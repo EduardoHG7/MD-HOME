@@ -26,17 +26,19 @@ const CONTABILIDAD_NAV = [
   { href: '/contabilidad/solicitudes',  label: 'Solicitudes',  icon: '📋' },
 ]
 
-export function AdminSidebar({ session, role }: { session: Session; role?: string }) {
+export function AdminSidebar({ session, role, soloEventos }: { session: Session; role?: string; soloEventos?: boolean }) {
   const efectiveRole = role ?? 'ADMIN'
-  const rootHref     = efectiveRole === 'CONTABILIDAD' ? '/contabilidad' : '/admin'
-  const panelLabel   = efectiveRole === 'CONTABILIDAD' ? 'Panel Contabilidad' : 'Panel Administrativo'
-  const baseNav      = efectiveRole === 'CONTABILIDAD' ? CONTABILIDAD_NAV : ADMIN_NAV
+  const rootHref     = soloEventos ? '/admin/eventos' : efectiveRole === 'CONTABILIDAD' ? '/contabilidad' : '/admin'
+  const panelLabel   = soloEventos ? 'Panatickets' : efectiveRole === 'CONTABILIDAD' ? 'Panel Contabilidad' : 'Panel Administrativo'
+  const baseNav      = soloEventos
+    ? [{ href: '/admin/eventos', label: 'Eventos', icon: '🎪' }]
+    : efectiveRole === 'CONTABILIDAD' ? CONTABILIDAD_NAV : ADMIN_NAV
   const pathname     = usePathname()
   const [open, setOpen] = useState(false)
   const { activeTenant } = useTenant()
 
-  // Append Empresas link for super-admins
-  const NAV_ITEMS = session.user.isSuperAdmin
+  // Append Empresas link for super-admins (nunca para operadores acotados)
+  const NAV_ITEMS = session.user.isSuperAdmin && !soloEventos
     ? [...baseNav, { href: '/admin/tenants', label: 'Empresas', icon: '🏢' }]
     : baseNav
 

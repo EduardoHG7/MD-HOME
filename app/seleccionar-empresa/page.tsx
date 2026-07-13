@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import type { TenantInfo } from '@/types/next-auth'
+import { esOperadorPanatickets } from '@/lib/permisos'
 
 export default function SeleccionarEmpresaPage() {
   const { data: session, status } = useSession()
@@ -59,11 +60,15 @@ export default function SeleccionarEmpresaPage() {
     })
     // Full page reload to clear all cached data from previous tenant
     const role = tenant.role
+    const esPana = tenant.slug === 'panatickets' &&
+      esOperadorPanatickets(session?.user?.email, session?.user?.role)
     const dest = (role === 'ADMIN' || session?.user.isSuperAdmin)
       ? '/admin'
-      : role === 'CONTABILIDAD'
-        ? '/contabilidad'
-        : '/usuario'
+      : esPana
+        ? '/admin/eventos'
+        : role === 'CONTABILIDAD'
+          ? '/contabilidad'
+          : '/usuario'
     window.location.href = dest
   }
 

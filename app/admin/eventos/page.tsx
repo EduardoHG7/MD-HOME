@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react'
 import { formatDate } from '@/lib/utils'
 import { DocumentosEvento } from '@/components/DocumentosEvento'
 import { useTenant } from '@/hooks/useTenant'
+import { esOperadorPanatickets } from '@/lib/permisos'
 
 interface Venue  { id: string; nombre: string; direccion: string | null }
 interface Usuario { id: string; name: string | null; email: string }
@@ -251,6 +252,7 @@ export default function EventosPage() {
   const router = useRouter()
   const { data: session } = useSession()
   const { activeTenant } = useTenant()
+  const esPana = esOperadorPanatickets(session?.user?.email, session?.user?.role)
   const tenantsDisponibles: TenantOption[] = (session?.user?.availableTenants ?? []).map(t => ({ id: t.id, nombre: t.nombre }))
   const [eventos,  setEventos]  = useState<Evento[]>([])
   const [venues,   setVenues]   = useState<Venue[]>([])
@@ -438,13 +440,17 @@ export default function EventosPage() {
                     title="Documentos legales">📁 Documentos</button>
                 </>
               )}
-              {/* Consolidado de eventuales asignados (todas las empresas) */}
-              <button onClick={() => router.push(`/admin/eventos/${ev.id}/asignados`)}
-                className="p-2 rounded-xl border border-violet-200 hover:border-violet-400 hover:bg-violet-50 transition-all text-violet-600 text-xs font-medium px-3"
-                title="Consolidado de asignados: días, asistencia y pago">👥 Asignados</button>
-              <button onClick={() => openEdit(ev)}
-                className="p-2 rounded-xl border border-gray-200 hover:border-gray-400 hover:bg-gray-50 transition-all text-gray-500"
-                title="Editar evento">✏️</button>
+              {/* Consolidado de eventuales asignados (fuera del alcance del operador Panatickets) */}
+              {!esPana && (
+                <button onClick={() => router.push(`/admin/eventos/${ev.id}/asignados`)}
+                  className="p-2 rounded-xl border border-violet-200 hover:border-violet-400 hover:bg-violet-50 transition-all text-violet-600 text-xs font-medium px-3"
+                  title="Consolidado de asignados: días, asistencia y pago">👥 Asignados</button>
+              )}
+              {!esPana && (
+                <button onClick={() => openEdit(ev)}
+                  className="p-2 rounded-xl border border-gray-200 hover:border-gray-400 hover:bg-gray-50 transition-all text-gray-500"
+                  title="Editar evento">✏️</button>
+              )}
             </div>
           </div>
         ))}
