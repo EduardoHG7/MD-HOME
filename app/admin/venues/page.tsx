@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useSession } from 'next-auth/react'
 import { formatDate } from '@/lib/utils'
+import { esOperadorPanatickets } from '@/lib/permisos'
 
 interface EventoVenue {
   id: string; nombre: string; fechaInicio: string; fechaFin: string; estado: string
@@ -26,6 +28,8 @@ const ESTADO_LABELS: Record<string, string> = {
 }
 
 export default function VenuesPage() {
+  const { data: session } = useSession()
+  const esPana = esOperadorPanatickets(session?.user?.email, session?.user?.role)
   const [venues,   setVenues]   = useState<Venue[]>([])
   const [showForm, setShowForm] = useState(false)
   const [editing,  setEditing]  = useState<Venue | null>(null)
@@ -132,18 +136,20 @@ export default function VenuesPage() {
                   </div>
                   {v.direccion && <p className="text-gray-400 text-sm mt-0.5">📍 {v.direccion}</p>}
                 </button>
-                <div className="flex gap-2 shrink-0 ml-3">
-                  <button
-                    onClick={() => { setEditing(v); setEditForm({ nombre: v.nombre, direccion: v.direccion ?? '' }) }}
-                    className="p-2 rounded-xl border border-gray-200 hover:border-gray-400 hover:bg-gray-50 transition-all text-gray-500"
-                    title="Editar"
-                  >✏️</button>
-                  <button
-                    onClick={() => handleDelete(v.id)}
-                    className="p-2 rounded-xl border border-red-100 hover:border-red-300 hover:bg-red-50 transition-all text-red-400"
-                    title="Eliminar"
-                  >🗑</button>
-                </div>
+                {!esPana && (
+                  <div className="flex gap-2 shrink-0 ml-3">
+                    <button
+                      onClick={() => { setEditing(v); setEditForm({ nombre: v.nombre, direccion: v.direccion ?? '' }) }}
+                      className="p-2 rounded-xl border border-gray-200 hover:border-gray-400 hover:bg-gray-50 transition-all text-gray-500"
+                      title="Editar"
+                    >✏️</button>
+                    <button
+                      onClick={() => handleDelete(v.id)}
+                      className="p-2 rounded-xl border border-red-100 hover:border-red-300 hover:bg-red-50 transition-all text-red-400"
+                      title="Eliminar"
+                    >🗑</button>
+                  </div>
+                )}
               </div>
 
               {isOpen && numEventos > 0 && (

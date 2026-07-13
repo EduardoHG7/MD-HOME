@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getActiveTenantId } from '@/lib/tenant'
+import { esOperadorPanatickets } from '@/lib/permisos'
 
 export async function GET() {
   const tenantId = getActiveTenantId()
@@ -28,7 +29,10 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
-  if (!session || session.user.role !== 'ADMIN') {
+  // Admin o el operador Panatickets (que necesita agregar sus venues)
+  const permitido = session && (session.user.role === 'ADMIN' ||
+    esOperadorPanatickets(session.user.email, session.user.role))
+  if (!permitido) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
   const tenantId = getActiveTenantId()

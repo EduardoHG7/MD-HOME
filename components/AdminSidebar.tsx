@@ -31,7 +31,10 @@ export function AdminSidebar({ session, role, soloEventos }: { session: Session;
   const rootHref     = soloEventos ? '/admin/eventos' : efectiveRole === 'CONTABILIDAD' ? '/contabilidad' : '/admin'
   const panelLabel   = soloEventos ? 'Panatickets' : efectiveRole === 'CONTABILIDAD' ? 'Panel Contabilidad' : 'Panel Administrativo'
   const baseNav      = soloEventos
-    ? [{ href: '/admin/eventos', label: 'Eventos', icon: '🎪' }]
+    ? [
+        { href: '/admin/eventos', label: 'Eventos', icon: '🎪' },
+        { href: '/admin/venues',  label: 'Venues',  icon: '🏟️' },
+      ]
     : efectiveRole === 'CONTABILIDAD' ? CONTABILIDAD_NAV : ADMIN_NAV
   const pathname     = usePathname()
   const [open, setOpen] = useState(false)
