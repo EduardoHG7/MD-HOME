@@ -3,6 +3,7 @@ import AzureADProvider from 'next-auth/providers/azure-ad'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import { compare } from 'bcryptjs'
 import { prisma } from './prisma'
+import { esOperadorPanatickets } from './permisos'
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -89,6 +90,15 @@ export const authOptions: NextAuthOptions = {
             const activeTenants = dbUser.tenants
               .filter(ut => ut.tenant.activo)
               .map(ut => ({ id: ut.tenant.id, slug: ut.tenant.slug, nombre: ut.tenant.nombre, logo: ut.tenant.logo, role: ut.role }))
+
+            // Operador Panatickets (@panatickets.com sin ser admin): garantizar la
+            // empresa Panatickets en su contexto aunque no esté asignado como miembro,
+            // para que la UI y el filtro de datos queden acotados a Panatickets.
+            if (esOperadorPanatickets(token.email as string, dbUser.role) &&
+                !activeTenants.some(t => t.slug === 'panatickets')) {
+              const pana = await prisma.tenant.findFirst({ where: { slug: 'panatickets', activo: true } })
+              if (pana) activeTenants.unshift({ id: pana.id, slug: pana.slug, nombre: pana.nombre, logo: pana.logo, role: 'USER' })
+            }
 
             // Super-admin with no explicit assignments sees all tenants
             if (dbUser.isSuperAdmin && activeTenants.length === 0) {

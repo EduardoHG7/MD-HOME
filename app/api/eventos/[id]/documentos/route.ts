@@ -7,6 +7,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { uploadToSharePoint } from '@/lib/sharepoint'
 import { notificarExpedienteListo } from '@/lib/expediente'
+import { esOperadorPanatickets } from '@/lib/permisos'
 
 const TIPOS_VALIDOS = [
   'CONTRATO', 'SEGURO', 'FIANZA', 'PERMISO', 'OTRO',
@@ -14,7 +15,7 @@ const TIPOS_VALIDOS = [
   'AVISO_OPERACIONES', 'CEDULA_REP_LEGAL', 'CIERRE', 'GASTOS', 'PLANILLA',
 ]
 
-async function puedeGestionar(eventoId: string, userId: string, role: string) {
+async function puedeGestionar(eventoId: string, userId: string, role: string, email?: string | null) {
   if (role === 'ADMIN') return true
   const evento = await prisma.evento.findUnique({
     where: { id: eventoId },
@@ -26,10 +27,13 @@ async function puedeGestionar(eventoId: string, userId: string, role: string) {
   if (!evento) return false
   if (evento.docsResponsableId === userId) return true
 
-  // En Panatickets la documentación la suben los usuarios: cualquier usuario
-  // que pertenezca a la empresa puede gestionar documentos de sus eventos.
+  // Solo aplica al expediente de eventos Panatickets
   const pana = evento.tenants.find(t => t.tenant.slug === 'panatickets')
   if (!pana) return false
+
+  // Operador Panatickets identificado por correo @panatickets.com…
+  if (esOperadorPanatickets(email, role)) return true
+  // …o cualquier usuario que sea miembro de la empresa Panatickets
   const pertenece = await prisma.userTenant.findUnique({
     where: { userId_tenantId: { userId, tenantId: pana.tenant.id } },
   })
@@ -52,7 +56,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  if (!(await puedeGestionar(params.id, session.user.id, session.user.role))) {
+  if (!(await puedeGestionar(params.id, session.user.id, session.user.role, session.user.email))) {
     return NextResponse.json({ error: 'No eres el responsable de documentación de este evento' }, { status: 403 })
   }
 
@@ -100,7 +104,7 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  if (!(await puedeGestionar(params.id, session.user.id, session.user.role))) {
+  if (!(await puedeGestionar(params.id, session.user.id, session.user.role, session.user.email))) {
     return NextResponse.json({ error: 'Sin permiso' }, { status: 403 })
   }
 
