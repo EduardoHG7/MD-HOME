@@ -1,13 +1,12 @@
 import { prisma } from '@/lib/prisma'
+import { claveJornada } from '@/lib/jornada'
 
 // Consolidado de eventuales asignados a un evento: quién los solicitó,
 // días asignados vs escaneados, horas de entrada/salida y monto a pagar.
+// Los días se agrupan por jornada de 6am a 6am (ver lib/jornada).
 
 const TZ = 'America/Panama'
 
-// Clave de día local (YYYY-MM-DD) en zona horaria de Panamá
-const diaLocal = (ts: Date) =>
-  new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(ts)
 // Hora local HH:MM (24h) en Panamá
 const horaLocal = (ts: Date) =>
   new Intl.DateTimeFormat('es-PA', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false }).format(ts)
@@ -81,7 +80,7 @@ export async function getConsolidadoAsignados(
     // Agrupar escaneos por día local
     const porDia = new Map<string, { entrada: Date | null; salida: Date | null }>()
     for (const r of a.registros) {
-      const k = diaLocal(r.timestamp)
+      const k = claveJornada(r.timestamp)
       if (!porDia.has(k)) porDia.set(k, { entrada: null, salida: null })
       const slot = porDia.get(k)!
       if (r.tipo === 'ENTRADA') { if (!slot.entrada || r.timestamp < slot.entrada) slot.entrada = r.timestamp }

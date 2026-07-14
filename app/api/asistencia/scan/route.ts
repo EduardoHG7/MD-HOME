@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { validateQRToken } from '@/lib/qr-token'
+import { inicioJornada } from '@/lib/jornada'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -42,11 +43,11 @@ export async function GET(req: NextRequest) {
     )
   }
 
-  // Determine if this is ENTRADA or SALIDA
+  // Determine if this is ENTRADA or SALIDA (dentro de la jornada 6am–6am)
   const registrosHoy = await prisma.registroAsistencia.findMany({
     where: {
       asignacionId: asignacion.id,
-      timestamp: { gte: startOfToday() },
+      timestamp: { gte: inicioJornada() },
     },
     orderBy: { timestamp: 'asc' },
   })
@@ -84,12 +85,6 @@ export async function GET(req: NextRequest) {
       `${aplicante.nombreCompleto}\nEvento: ${asignacion.evento.nombre}\nHora: ${hora}`),
     { headers: { 'Content-Type': 'text/html' } }
   )
-}
-
-function startOfToday(): Date {
-  const d = new Date()
-  d.setHours(0, 0, 0, 0)
-  return d
 }
 
 function scanPage(type: 'success' | 'error' | 'warning', title: string, body: string): string {
