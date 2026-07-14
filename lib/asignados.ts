@@ -42,7 +42,10 @@ export interface Consolidado {
   }
 }
 
-export async function getConsolidadoAsignados(eventoId: string): Promise<Consolidado | null> {
+export async function getConsolidadoAsignados(
+  eventoId: string,
+  filtros?: { solicito?: string; funcion?: string },
+): Promise<Consolidado | null> {
   const evento = await prisma.evento.findUnique({
     where: { id: eventoId },
     select: { id: true, nombre: true },
@@ -106,7 +109,12 @@ export async function getConsolidadoAsignados(eventoId: string): Promise<Consoli
     }
   })
 
-  const totales = filas.reduce((t, f) => ({
+  // Filtros opcionales (por solicitante y/o función) — usados por el Excel
+  const filasFiltradas = filas.filter(f =>
+    (!filtros?.solicito || f.solicitante === filtros.solicito) &&
+    (!filtros?.funcion  || f.funcion === filtros.funcion))
+
+  const totales = filasFiltradas.reduce((t, f) => ({
     eventuales:     t.eventuales + 1,
     diasAsignados:  t.diasAsignados  + (f.diasAsignados ?? 0),
     diasEscaneados: t.diasEscaneados + f.diasEscaneados,
@@ -114,5 +122,5 @@ export async function getConsolidadoAsignados(eventoId: string): Promise<Consoli
     montoEscaneado: t.montoEscaneado + (f.montoEscaneado ?? 0),
   }), { eventuales: 0, diasAsignados: 0, diasEscaneados: 0, montoAsignado: 0, montoEscaneado: 0 })
 
-  return { evento, filas, totales }
+  return { evento, filas: filasFiltradas, totales }
 }

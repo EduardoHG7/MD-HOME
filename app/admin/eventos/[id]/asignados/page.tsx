@@ -24,6 +24,8 @@ export default function AsignadosPage() {
   const [data, setData]       = useState<Consolidado | null>(null)
   const [loading, setLoading] = useState(true)
   const [abierto, setAbierto] = useState<Set<string>>(new Set())
+  const [fSolicito, setFSolicito] = useState('')
+  const [fFuncion,  setFFuncion]  = useState('')
 
   const cargar = useCallback(async () => {
     const r = await fetch(`/api/eventos/${id}/asignados`).then(x => x.json())
@@ -38,7 +40,28 @@ export default function AsignadosPage() {
   if (loading) return <p className="text-gray-400 text-center py-10">Cargando asignados...</p>
   if (!data)   return <p className="text-gray-400 text-center py-10">Evento no encontrado.</p>
 
-  const { evento, filas, totales } = data
+  const { evento, filas } = data
+
+  // Opciones de los filtros (a partir de todas las filas)
+  const solicitantes = Array.from(new Set(filas.map(f => f.solicitante))).sort()
+  const funciones    = Array.from(new Set(filas.map(f => f.funcion))).sort()
+
+  // Filas filtradas y totales recalculados sobre lo filtrado
+  const filasFiltradas = filas.filter(f =>
+    (!fSolicito || f.solicitante === fSolicito) &&
+    (!fFuncion  || f.funcion === fFuncion))
+  const totales = filasFiltradas.reduce((t, f) => ({
+    eventuales:     t.eventuales + 1,
+    diasAsignados:  t.diasAsignados  + (f.diasAsignados ?? 0),
+    diasEscaneados: t.diasEscaneados + f.diasEscaneados,
+    montoAsignado:  t.montoAsignado  + (f.montoAsignado ?? 0),
+    montoEscaneado: t.montoEscaneado + (f.montoEscaneado ?? 0),
+  }), { eventuales: 0, diasAsignados: 0, diasEscaneados: 0, montoAsignado: 0, montoEscaneado: 0 })
+
+  const excelUrl = `/api/eventos/${id}/asignados-excel` +
+    (fSolicito || fFuncion
+      ? `?${new URLSearchParams({ ...(fSolicito ? { solicito: fSolicito } : {}), ...(fFuncion ? { funcion: fFuncion } : {}) }).toString()}`
+      : '')
 
   return (
     <div className="space-y-6 max-w-6xl">
@@ -50,14 +73,41 @@ export default function AsignadosPage() {
           <h1 className="text-2xl font-bold text-gray-900 mt-2">👥 Asignados — consolidado</h1>
           <p className="text-gray-500 mt-1">{evento.nombre}</p>
         </div>
-        <a href={`/api/eventos/${id}/asignados-excel`}
+        <a href={excelUrl}
           className="text-xs px-3 py-2 rounded-xl border-2 border-green-200 bg-green-50 text-green-700 hover:border-green-400 font-semibold transition-all whitespace-nowrap">
           ⬇️ Excel
         </a>
       </div>
 
-      {filas.length === 0 ? (
-        <div className="card p-8 text-center text-gray-400">No hay eventuales asignados a este evento.</div>
+      {/* Filtros */}
+      {filas.length > 0 && (
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="label">Solicitó</label>
+            <select className="input" value={fSolicito} onChange={e => setFSolicito(e.target.value)}>
+              <option value="">Todos</option>
+              {solicitantes.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">Función</label>
+            <select className="input" value={fFuncion} onChange={e => setFFuncion(e.target.value)}>
+              <option value="">Todas</option>
+              {funciones.map(f => <option key={f} value={f}>{f}</option>)}
+            </select>
+          </div>
+          {(fSolicito || fFuncion) && (
+            <button onClick={() => { setFSolicito(''); setFFuncion('') }}
+              className="text-xs text-gray-500 hover:text-gray-800 underline pb-2">Limpiar filtros</button>
+          )}
+          <span className="text-xs text-gray-400 pb-2 ml-auto">{filasFiltradas.length} de {filas.length}</span>
+        </div>
+      )}
+
+      {filasFiltradas.length === 0 ? (
+        <div className="card p-8 text-center text-gray-400">
+          {filas.length === 0 ? 'No hay eventuales asignados a este evento.' : 'Ningún asignado coincide con el filtro.'}
+        </div>
       ) : (
         <div className="card p-0 overflow-x-auto">
           <table className="w-full text-sm">
@@ -75,7 +125,7 @@ export default function AsignadosPage() {
               </tr>
             </thead>
             <tbody>
-              {filas.map(f => {
+              {filasFiltradas.map(f => {
                 const incompleto = f.diasAsignados !== null && f.diasEscaneados < f.diasAsignados
                 const est = abierto.has(f.id)
                 return (

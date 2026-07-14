@@ -13,13 +13,17 @@ const C_ALERTA = 'FFFEF3C7' // ámbar claro: escaneó menos de lo asignado
 const C_BORDE  = 'FFE5E7EB'
 const money = (n: number | null) => (n === null ? '' : n)
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
   if (!session || session.user.role === 'APLICANTE') {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
 
-  const data = await getConsolidadoAsignados(params.id)
+  const { searchParams } = new URL(req.url)
+  const data = await getConsolidadoAsignados(params.id, {
+    solicito: searchParams.get('solicito') || undefined,
+    funcion:  searchParams.get('funcion')  || undefined,
+  })
   if (!data) return NextResponse.json({ error: 'Evento no encontrado' }, { status: 404 })
 
   const wb = new ExcelJS.Workbook()
