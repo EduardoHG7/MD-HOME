@@ -6,7 +6,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { uploadToSharePoint, downloadFromSharePoint } from '@/lib/sharepoint'
-import { notificarPorRol } from '@/lib/notificaciones'
+import { sendMail, templateContratoFirmado } from '@/lib/mail'
+import { CONTRATO_FROM, CONTRATO_INFO } from '@/lib/contrato-notif'
 import { PDFDocument, StandardFonts, rgb, degrees } from 'pdf-lib'
 
 // Posición del bloque de firma elegida con clic en el visor.
@@ -135,12 +136,23 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       },
     })
 
-    // Operaciones y contabilidad no tienen acceso a /admin: se les manda el PDF directo
+    // Aviso por correo a quien lo subió y a info@panatickets.com de que se firmó
     const appUrl = process.env.NEXTAUTH_URL ?? ''
-    notificarPorRol(
-      ['OPERACIONES', 'CONTABILIDAD'],
-      `✅ *Contrato firmado*\n\nEvento: ${contrato.evento.nombre}\nFirmado por: ${firmante.name ?? firmante.email}\n\nVer contrato: ${appUrl}/api/fotos?path=${encodeURIComponent(firmadoPath)}`
-    )
+    const destinatarios = [actualizado.subidoPor?.email, CONTRATO_INFO].filter((x): x is string => Boolean(x))
+    try {
+      await sendMail({
+        fromEmail: CONTRATO_FROM,
+        toEmails:  destinatarios,
+        subject:   `Contrato firmado — ${contrato.evento.nombre}`,
+        html: templateContratoFirmado({
+          eventoNombre: contrato.evento.nombre,
+          firmante:     firmante.name ?? firmante.email ?? '—',
+          url:          `${appUrl}/api/fotos?path=${encodeURIComponent(firmadoPath)}`,
+        }),
+      })
+    } catch (e) {
+      console.error('[contrato] Error enviando correo de contrato firmado:', e)
+    }
 
     return NextResponse.json(actualizado)
   } catch (err) {

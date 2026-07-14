@@ -44,6 +44,65 @@ export async function sendMail({
 
 /* ─── Templates ─── */
 
+// Contrato Panatickets subido: aviso a quien firma
+export function templateContratoPorFirmar({
+  eventoNombre, subidoPor, url,
+}: {
+  eventoNombre: string
+  subidoPor:    string
+  url:          string
+}) {
+  return `
+  <div style="font-family:sans-serif;max-width:560px;margin:0 auto;color:#111">
+    <div style="background:#b91c1c;padding:24px 32px;border-radius:12px 12px 0 0">
+      <h2 style="color:#fff;margin:0;font-size:18px">Panatickets</h2>
+    </div>
+    <div style="border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;padding:32px">
+      <h3 style="margin:0 0 16px;font-size:16px">📝 Contrato nuevo por firmar</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:14px">
+        <tr><td style="padding:8px 0;color:#6b7280;width:140px">Evento</td><td style="padding:8px 0;font-weight:600">${eventoNombre}</td></tr>
+        <tr><td style="padding:8px 0;color:#6b7280">Subido por</td><td style="padding:8px 0">${subidoPor}</td></tr>
+      </table>
+      <div style="margin-top:24px">
+        <a href="${url}" style="background:#b91c1c;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">
+          Firmar contrato →
+        </a>
+      </div>
+    </div>
+  </div>`
+}
+
+// Contrato Panatickets firmado: aviso a quien lo subió + info@panatickets.com
+export function templateContratoFirmado({
+  eventoNombre, firmante, url,
+}: {
+  eventoNombre: string
+  firmante:     string
+  url:          string
+}) {
+  return `
+  <div style="font-family:sans-serif;max-width:560px;margin:0 auto;color:#111">
+    <div style="background:#b91c1c;padding:24px 32px;border-radius:12px 12px 0 0">
+      <h2 style="color:#fff;margin:0;font-size:18px">Panatickets</h2>
+    </div>
+    <div style="border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;padding:32px">
+      <div style="border-left:4px solid #22c55e;padding-left:16px;margin-bottom:24px">
+        <h3 style="margin:0 0 4px;font-size:16px">✅ Contrato firmado</h3>
+        <p style="margin:0;color:#6b7280;font-size:14px">El contrato del evento ya fue firmado.</p>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:14px">
+        <tr><td style="padding:8px 0;color:#6b7280;width:140px">Evento</td><td style="padding:8px 0;font-weight:600">${eventoNombre}</td></tr>
+        <tr><td style="padding:8px 0;color:#6b7280">Firmado por</td><td style="padding:8px 0">${firmante}</td></tr>
+      </table>
+      <div style="margin-top:24px">
+        <a href="${url}" style="background:#111;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">
+          Ver contrato firmado →
+        </a>
+      </div>
+    </div>
+  </div>`
+}
+
 export function templateNuevaSolicitud({
   solicitanteNombre,
   solicitanteEmail,

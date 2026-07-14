@@ -6,8 +6,9 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { uploadToSharePoint } from '@/lib/sharepoint'
-import { notificarPorRol } from '@/lib/notificaciones'
 import { notificarExpedienteListo } from '@/lib/expediente'
+import { sendMail, templateContratoPorFirmar } from '@/lib/mail'
+import { CONTRATO_FROM, CONTRATO_DECO, CONTRATO_INFO } from '@/lib/contrato-notif'
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
@@ -69,11 +70,22 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       },
     })
 
+    // Aviso por correo a quien firma (deco) y a info@panatickets.com
     const appUrl = process.env.NEXTAUTH_URL ?? ''
-    notificarPorRol(
-      ['ADMIN'],
-      `📝 *Contrato nuevo por firmar*\n\nEvento: ${evento.nombre}\nSubido por: ${session.user.name ?? session.user.email}\n\nEntra a firmarlo: ${appUrl}/admin/eventos/${params.id}/documentos`
-    )
+    try {
+      await sendMail({
+        fromEmail: CONTRATO_FROM,
+        toEmails:  [CONTRATO_DECO, CONTRATO_INFO],
+        subject:   `Contrato nuevo por firmar — ${evento.nombre}`,
+        html: templateContratoPorFirmar({
+          eventoNombre: evento.nombre,
+          subidoPor:    session.user.name ?? session.user.email ?? '—',
+          url:          `${appUrl}/admin/eventos/${params.id}/documentos`,
+        }),
+      })
+    } catch (e) {
+      console.error('[contrato] Error enviando correo de contrato subido:', e)
+    }
 
     await notificarExpedienteListo(params.id)
 
