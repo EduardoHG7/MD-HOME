@@ -42,9 +42,19 @@ const FORM_VACIO: Formulario = {
   distrito: '', corregimiento: '', telefonos: '', organizacion: '', correoEnvio: '',
 }
 
+interface EventoExp {
+  nombre: string
+  logisticaAplica: boolean | null
+  cierreComentario: string | null
+  cierreAprobado: boolean
+  cierreAprobadoPor: string | null
+  cierreAprobadoEn: string | null
+}
+
 const SLOTS_SUBIDA = [
   { tipo: 'AVISO_OPERACIONES', icono: '🏛️', titulo: 'Aviso de operaciones',            nota: 'PDF o imagen — la IA lo usa para llenar el formulario' },
   { tipo: 'CEDULA_REP_LEGAL',  icono: '🪪', titulo: 'Cédula del representante legal',  nota: 'PDF o imagen — la IA lo usa para llenar el formulario' },
+  { tipo: 'LOGISTICA',         icono: '🚚', titulo: 'Logística',                       nota: 'Marca si aplica; si aplica, sube el documento' },
   { tipo: 'CIERRE',            icono: '🧾', titulo: 'Cierre',                          nota: 'Adjunta el cierre en imagen o PDF' },
   { tipo: 'GASTOS',            icono: '💸', titulo: 'Gastos',                          nota: 'Uber, aguas, transporte… puedes subir varios' },
   { tipo: 'PLANILLA',          icono: '👥', titulo: 'Planilla',                        nota: 'Se genera de los eventuales asignados; sube aquí la versión firmada' },
@@ -69,7 +79,7 @@ export function ExpedienteDocumentos({ eventoId, puedeFirmar, basePath, volverHr
 }) {
   const router = useRouter()
 
-  const [evento,   setEvento]   = useState<{ nombre: string } | null>(null)
+  const [evento,   setEvento]   = useState<EventoExp | null>(null)
   const [docs,     setDocs]     = useState<EventoDoc[]>([])
   const [contrato, setContrato] = useState<Contrato | null>(null)
   const [form,     setForm]     = useState<Formulario>(FORM_VACIO)
@@ -97,11 +107,15 @@ export function ExpedienteDocumentos({ eventoId, puedeFirmar, basePath, volverHr
   useEffect(() => { cargar() }, [cargar])
 
   const tiene = (tipo: string) => docs.some(d => d.tipo === tipo)
+  const logisticaOk = evento?.logisticaAplica === false ||
+    (evento?.logisticaAplica === true && tiene('LOGISTICA'))
   const checklist = [
     { label: 'Aviso de operaciones', ok: tiene('AVISO_OPERACIONES') },
     { label: 'Cédula rep. legal',    ok: tiene('CEDULA_REP_LEGAL') },
+    { label: 'Logística',            ok: logisticaOk },
     { label: 'Formulario',           ok: Boolean(form.razonSocial && form.rucDv) },
     { label: 'Cierre',               ok: tiene('CIERRE') },
+    { label: 'Cierre aprobado',      ok: Boolean(evento?.cierreAprobado) },
     { label: 'Gastos',               ok: tiene('GASTOS') },
     { label: 'Planilla',             ok: tiene('PLANILLA') },
     { label: 'Contrato firmado',     ok: contrato?.estado === 'FIRMADO' },
@@ -146,19 +160,39 @@ export function ExpedienteDocumentos({ eventoId, puedeFirmar, basePath, volverHr
       {/* Documentos por slot */}
       <div className="space-y-4">
         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Documentos</h2>
-        {SLOTS_SUBIDA.map(slot => (
-          <SlotDocumento key={slot.tipo} eventoId={eventoId} slot={slot}
-            docs={docs.filter(d => d.tipo === slot.tipo)}
-            onSubido={doc => setDocs(prev => [doc, ...prev])}
-            onEliminado={docId => setDocs(prev => prev.filter(d => d.id !== docId))}
-            extra={slot.tipo === 'PLANILLA' ? (
-              <Link href={`${basePath}/planilla`}
-                className="text-xs px-3 py-1.5 rounded-xl border-2 border-gray-200 text-gray-600 hover:border-gray-400 font-medium transition-all whitespace-nowrap">
-                📄 Generar de asignados
-              </Link>
-            ) : null}
-          />
-        ))}
+        {SLOTS_SUBIDA.map(slot => {
+          const slotDocs = docs.filter(d => d.tipo === slot.tipo)
+          const onSubido    = (doc: EventoDoc) => setDocs(prev => [doc, ...prev])
+          const onEliminado = (docId: string)  => setDocs(prev => prev.filter(d => d.id !== docId))
+
+          if (slot.tipo === 'LOGISTICA') {
+            return (
+              <SlotLogistica key={slot.tipo} eventoId={eventoId} slot={slot}
+                aplica={evento?.logisticaAplica ?? null}
+                docs={slotDocs} onSubido={onSubido} onEliminado={onEliminado}
+                onAplica={aplica => setEvento(ev => ev ? { ...ev, logisticaAplica: aplica } : ev)} />
+            )
+          }
+          if (slot.tipo === 'CIERRE') {
+            return (
+              <SlotCierre key={slot.tipo} eventoId={eventoId} slot={slot}
+                docs={slotDocs} onSubido={onSubido} onEliminado={onEliminado}
+                esAdmin={puedeFirmar} evento={evento}
+                onCierre={campos => setEvento(ev => ev ? { ...ev, ...campos } : ev)} />
+            )
+          }
+          return (
+            <SlotDocumento key={slot.tipo} eventoId={eventoId} slot={slot}
+              docs={slotDocs} onSubido={onSubido} onEliminado={onEliminado}
+              extra={slot.tipo === 'PLANILLA' ? (
+                <Link href={`${basePath}/planilla`}
+                  className="text-xs px-3 py-1.5 rounded-xl border-2 border-gray-200 text-gray-600 hover:border-gray-400 font-medium transition-all whitespace-nowrap">
+                  📄 Generar de asignados
+                </Link>
+              ) : null}
+            />
+          )
+        })}
       </div>
 
       <SeccionFormulario eventoId={eventoId} form={form} setForm={setForm} basePath={basePath} />
@@ -365,6 +399,244 @@ function SlotDocumento({ eventoId, slot, docs, onSubido, onEliminado, extra }: {
         </div>
       )}
 
+      {error && <p className="text-red-500 text-xs mt-2">{error}</p>}
+      <input ref={fileRef} type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" className="hidden"
+        onChange={e => { const f = e.target.files?.[0]; if (f) subir(f); e.target.value = '' }} />
+    </div>
+  )
+}
+
+/* ------------------------------ Logística ------------------------------ */
+
+function SlotLogistica({ eventoId, slot, aplica, docs, onSubido, onEliminado, onAplica }: {
+  eventoId: string
+  slot: { tipo: string; icono: string; titulo: string; nota: string }
+  aplica: boolean | null
+  docs: EventoDoc[]
+  onSubido: (doc: EventoDoc) => void
+  onEliminado: (docId: string) => void
+  onAplica: (aplica: boolean) => void
+}) {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [subiendo,  setSubiendo]  = useState(false)
+  const [guardando, setGuardando] = useState(false)
+  const [error,     setError]     = useState('')
+
+  async function setAplica(v: boolean) {
+    setGuardando(true); setError('')
+    try {
+      const res = await fetch(`/api/eventos/${eventoId}/logistica`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ aplica: v }),
+      })
+      if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Error'); return }
+      onAplica(v)
+    } catch { setError('Error de conexión') } finally { setGuardando(false) }
+  }
+
+  async function subir(file: File) {
+    setSubiendo(true); setError('')
+    try {
+      const base64 = await fileToBase64(file)
+      const res = await fetch(`/api/eventos/${eventoId}/documentos`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tipo: 'LOGISTICA', nombre: null, base64, mimeType: file.type, fileName: file.name }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'Error al subir'); return }
+      onSubido(data)
+    } catch { setError('Error de conexión') } finally { setSubiendo(false) }
+  }
+
+  async function eliminar(docId: string) {
+    if (!confirm('¿Eliminar este documento?')) return
+    const res = await fetch(`/api/eventos/${eventoId}/documentos`, {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ documentoId: docId }),
+    })
+    if (res.ok) onEliminado(docId)
+  }
+
+  return (
+    <div className="card p-4">
+      <div className="flex items-center gap-3">
+        <span className="text-xl shrink-0">{aplica === true ? '🚚' : aplica === false ? '🚫' : slot.icono}</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-gray-900">{slot.titulo}</p>
+          <p className="text-xs text-gray-400">{slot.nota}</p>
+        </div>
+        <div className="flex gap-1 bg-gray-100 rounded-xl p-1 shrink-0">
+          <button onClick={() => setAplica(true)} disabled={guardando}
+            className={`text-xs px-3 py-1 rounded-lg font-medium transition-all ${aplica === true ? 'bg-white shadow-sm text-green-700' : 'text-gray-500 hover:text-gray-700'}`}>Aplica</button>
+          <button onClick={() => setAplica(false)} disabled={guardando}
+            className={`text-xs px-3 py-1 rounded-lg font-medium transition-all ${aplica === false ? 'bg-white shadow-sm text-gray-700' : 'text-gray-500 hover:text-gray-700'}`}>No aplica</button>
+        </div>
+      </div>
+
+      {aplica === null && <p className="text-xs text-amber-600 mt-2">Indica si la logística aplica a este evento.</p>}
+      {aplica === false && <p className="text-xs text-gray-400 mt-2">Marcado como <span className="font-medium">no aplica</span>.</p>}
+      {aplica === true && (
+        <div className="mt-3">
+          <button onClick={() => fileRef.current?.click()} disabled={subiendo}
+            className="text-xs px-3 py-1.5 rounded-xl border-2 border-gray-200 text-gray-600 hover:border-gray-400 font-medium transition-all">
+            {subiendo ? '📤 Subiendo...' : '📤 Subir documento de logística'}
+          </button>
+          {docs.length > 0 && (
+            <div className="mt-2 space-y-1.5">
+              {docs.map(doc => (
+                <div key={doc.id} className="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2">
+                  <p className="flex-1 text-xs text-gray-700 truncate">{doc.archivoNombre} · {new Date(doc.createdAt).toLocaleDateString('es-PA')}</p>
+                  <a href={verUrl(doc.archivoPath)} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline shrink-0">Ver</a>
+                  <button onClick={() => eliminar(doc.id)} className="text-xs text-red-400 hover:text-red-600 shrink-0">✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {error && <p className="text-red-500 text-xs mt-2">{error}</p>}
+      <input ref={fileRef} type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" className="hidden"
+        onChange={e => { const f = e.target.files?.[0]; if (f) subir(f); e.target.value = '' }} />
+    </div>
+  )
+}
+
+/* ------------------------------- Cierre ------------------------------- */
+
+function SlotCierre({ eventoId, slot, docs, onSubido, onEliminado, esAdmin, evento, onCierre }: {
+  eventoId: string
+  slot: { tipo: string; icono: string; titulo: string; nota: string }
+  docs: EventoDoc[]
+  onSubido: (doc: EventoDoc) => void
+  onEliminado: (docId: string) => void
+  esAdmin: boolean
+  evento: EventoExp | null
+  onCierre: (campos: Partial<EventoExp>) => void
+}) {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [subiendo,   setSubiendo]   = useState(false)
+  const [comentario, setComentario] = useState(evento?.cierreComentario ?? '')
+  const [guardando,  setGuardando]  = useState(false)
+  const [aprobando,  setAprobando]  = useState(false)
+  const [error,      setError]      = useState('')
+  const [msg,        setMsg]        = useState('')
+
+  useEffect(() => { setComentario(evento?.cierreComentario ?? '') }, [evento?.cierreComentario])
+
+  async function subir(file: File) {
+    setSubiendo(true); setError('')
+    try {
+      const base64 = await fileToBase64(file)
+      const res = await fetch(`/api/eventos/${eventoId}/documentos`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tipo: 'CIERRE', nombre: null, base64, mimeType: file.type, fileName: file.name }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'Error al subir'); return }
+      onSubido(data)
+    } catch { setError('Error de conexión') } finally { setSubiendo(false) }
+  }
+
+  async function eliminar(docId: string) {
+    if (!confirm('¿Eliminar este documento?')) return
+    const res = await fetch(`/api/eventos/${eventoId}/documentos`, {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ documentoId: docId }),
+    })
+    if (res.ok) onEliminado(docId)
+  }
+
+  async function guardarComentario() {
+    setGuardando(true); setError(''); setMsg('')
+    try {
+      const res = await fetch(`/api/eventos/${eventoId}/cierre`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comentario }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'Error'); return }
+      onCierre({ cierreComentario: data.cierreComentario })
+      setMsg('✅ Guardado')
+    } catch { setError('Error de conexión') } finally { setGuardando(false) }
+  }
+
+  async function toggleAprobado() {
+    const nuevo = !(evento?.cierreAprobado)
+    if (nuevo && !confirm('¿Aprobar el cierre de este evento?')) return
+    setAprobando(true); setError(''); setMsg('')
+    try {
+      const res = await fetch(`/api/eventos/${eventoId}/cierre`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ aprobado: nuevo }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'Error'); return }
+      onCierre({ cierreAprobado: data.cierreAprobado, cierreAprobadoPor: data.cierreAprobadoPor, cierreAprobadoEn: data.cierreAprobadoEn })
+    } catch { setError('Error de conexión') } finally { setAprobando(false) }
+  }
+
+  const aprobado = Boolean(evento?.cierreAprobado)
+
+  return (
+    <div className={`card p-4 border-2 ${aprobado ? 'border-green-200' : 'border-gray-200'}`}>
+      <div className="flex items-center gap-3">
+        <span className="text-xl shrink-0">{aprobado ? '✅' : slot.icono}</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-gray-900">{slot.titulo}</p>
+          <p className="text-xs text-gray-400">{slot.nota}</p>
+        </div>
+        <span className={`text-xs font-bold px-3 py-1 rounded-full shrink-0 ${aprobado ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+          {aprobado ? '✅ Aprobado' : 'Pendiente'}
+        </span>
+        <button onClick={() => fileRef.current?.click()} disabled={subiendo}
+          className="text-xs px-3 py-1.5 rounded-xl border-2 border-gray-200 text-gray-600 hover:border-gray-400 font-medium transition-all whitespace-nowrap">
+          {subiendo ? '📤 Subiendo...' : '📤 Subir'}
+        </button>
+      </div>
+
+      {docs.length > 0 && (
+        <div className="mt-3 space-y-1.5">
+          {docs.map(doc => (
+            <div key={doc.id} className="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2">
+              <p className="flex-1 text-xs text-gray-700 truncate">{doc.archivoNombre} · {new Date(doc.createdAt).toLocaleDateString('es-PA')}</p>
+              <a href={verUrl(doc.archivoPath)} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline shrink-0">Ver</a>
+              <button onClick={() => eliminar(doc.id)} className="text-xs text-red-400 hover:text-red-600 shrink-0">✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Comentario y aprobación (admin) */}
+      <div className="mt-3">
+        <label className="label">Comentario del cierre {!esAdmin && '(lo escribe el admin)'}</label>
+        {esAdmin ? (
+          <>
+            <textarea className="input" rows={2} value={comentario} onChange={e => setComentario(e.target.value)}
+              placeholder="Comentario del administrador sobre el cierre..." />
+            <div className="flex flex-wrap items-center gap-3 mt-2">
+              <button onClick={guardarComentario} disabled={guardando}
+                className="text-xs px-3 py-1.5 rounded-xl border-2 border-gray-200 text-gray-600 hover:border-gray-400 font-medium">
+                {guardando ? 'Guardando...' : '💾 Guardar comentario'}
+              </button>
+              <button onClick={toggleAprobado} disabled={aprobando}
+                className={`text-xs px-3 py-1.5 rounded-xl font-semibold border-2 transition-all ${aprobado ? 'border-gray-200 text-gray-500 hover:border-gray-400' : 'border-green-300 bg-green-50 text-green-700 hover:border-green-500'}`}>
+                {aprobando ? '...' : aprobado ? '↩️ Quitar aprobación' : '✅ Cierre aprobado'}
+              </button>
+              {msg && <span className="text-xs text-green-600">{msg}</span>}
+            </div>
+          </>
+        ) : (
+          <p className="text-sm text-gray-600 bg-gray-50 rounded-lg px-3 py-2">
+            {evento?.cierreComentario || <span className="text-gray-300">Sin comentario del admin aún.</span>}
+          </p>
+        )}
+      </div>
+
+      {aprobado && evento?.cierreAprobadoPor && (
+        <p className="text-xs text-green-600 mt-2">
+          Aprobado por {evento.cierreAprobadoPor}{evento.cierreAprobadoEn ? ` · ${new Date(evento.cierreAprobadoEn).toLocaleString('es-PA')}` : ''}
+        </p>
+      )}
       {error && <p className="text-red-500 text-xs mt-2">{error}</p>}
       <input ref={fileRef} type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" className="hidden"
         onChange={e => { const f = e.target.files?.[0]; if (f) subir(f); e.target.value = '' }} />

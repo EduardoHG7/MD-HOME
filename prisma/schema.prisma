@@ -176,6 +176,12 @@ model Evento {
   desmontajeFin    DateTime?
   docsResponsableId String?
   expedienteNotificado Boolean @default(false) // ya se avisó a admin que el expediente Panatickets está listo para firma
+  // Expediente Panatickets: logística (aplica/no aplica) y cierre (comentario + aprobación admin)
+  logisticaAplica  Boolean?
+  cierreComentario String?
+  cierreAprobado   Boolean  @default(false)
+  cierreAprobadoPor String?  // nombre o correo del admin que aprobó
+  cierreAprobadoEn DateTime?
   createdAt        DateTime @default(now())
 
   solicitudes  Solicitud[]

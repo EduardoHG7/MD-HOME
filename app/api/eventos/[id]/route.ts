@@ -11,7 +11,11 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
   const evento = await prisma.evento.findUnique({
     where: { id: params.id },
-    select: { id: true, nombre: true, tipoEvento: true, estado: true },
+    select: {
+      id: true, nombre: true, tipoEvento: true, estado: true,
+      logisticaAplica: true, cierreComentario: true, cierreAprobado: true,
+      cierreAprobadoPor: true, cierreAprobadoEn: true,
+    },
   })
   if (!evento) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   return NextResponse.json(evento)
