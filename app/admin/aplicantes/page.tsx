@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { formatDate, formatDateTime } from '@/lib/utils'
+import { claveJornada } from '@/lib/jornada'
 
 interface Registro  { tipo: string; timestamp: string }
 interface Tarifa    { tipo: string; precioPorDia: number }
@@ -29,12 +30,26 @@ function redondear(n: number) {
 }
 
 function agruparRegistrosPorDia(registros: Registro[]) {
-  const dias: Record<string, { entrada?: Registro; salida?: Registro }> = {}
+  // Agrupar por jornada de 6am a 6am (hora Panamá): un turno que pasa la
+  // medianoche cuenta como el día en que empezó.
+  const porJornada: Record<string, Registro[]> = {}
   for (const r of registros) {
-    const dia = new Date(r.timestamp).toISOString().slice(0, 10)
-    if (!dias[dia]) dias[dia] = {}
-    if (r.tipo === 'ENTRADA' && !dias[dia].entrada) dias[dia].entrada = r
-    if (r.tipo === 'SALIDA'  && !dias[dia].salida)  dias[dia].salida  = r
+    const k = claveJornada(new Date(r.timestamp))
+    if (!porJornada[k]) porJornada[k] = []
+    porJornada[k].push(r)
+  }
+  const dias: Record<string, { entrada?: Registro; salida?: Registro }> = {}
+  for (const k of Object.keys(porJornada)) {
+    const regs = porJornada[k].sort(
+      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    )
+    // Emparejar cronológicamente: entrada = primer escaneo, salida = último.
+    // Así el turno nocturno queda entrada→salida aunque cruce la medianoche.
+    if (regs.length === 1) {
+      dias[k] = regs[0].tipo === 'SALIDA' ? { salida: regs[0] } : { entrada: regs[0] }
+    } else {
+      dias[k] = { entrada: regs[0], salida: regs[regs.length - 1] }
+    }
   }
   return Object.entries(dias).sort(([a], [b]) => a.localeCompare(b))
 }
@@ -459,7 +474,7 @@ export default function AplicantesAdminPage() {
                                   : null
                                 return (
                                   <tr key={dia} className={`bg-white hover:bg-gray-50 ${horas && horas > cfg.horasBase ? 'bg-amber-50' : ''}`}>
-                                    <td className="px-4 py-2 text-gray-700 font-medium">{new Date(dia).toLocaleDateString('es-PA', { day:'2-digit', month:'short' })}</td>
+                                    <td className="px-4 py-2 text-gray-700 font-medium">{new Date(dia + 'T12:00:00').toLocaleDateString('es-PA', { day:'2-digit', month:'short' })}</td>
                                     <td className="px-3 py-2 text-green-600">{rec.entrada ? new Date(rec.entrada.timestamp).toLocaleTimeString('es-PA',{hour:'2-digit',minute:'2-digit'}) : '-'}</td>
                                     <td className="px-3 py-2 text-blue-600">{rec.salida  ? new Date(rec.salida.timestamp).toLocaleTimeString('es-PA',{hour:'2-digit',minute:'2-digit'}) : '-'}</td>
                                     <td className="px-3 py-2 text-right font-medium">
