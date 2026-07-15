@@ -1,8 +1,10 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useSession } from 'next-auth/react'
 import dynamic from 'next/dynamic'
 import { formatDate, formatCurrency, TARIFA_LABELS, ESTADO_COLORS, ESTADO_SOLICITUD_LABELS } from '@/lib/utils'
+import { esOperadorPanatickets } from '@/lib/permisos'
 
 const QrScanner = dynamic(() => import('@/components/QrScanner'), { ssr: false })
 
@@ -78,6 +80,8 @@ function agruparPorDia(registros: Registro[]) {
 }
 
 export default function SolicitarPage() {
+  const { data: session } = useSession()
+  const esPana = esOperadorPanatickets(session?.user?.email, session?.user?.role)
   const [mainTab, setMainTab] = useState<'personal' | 'caja_menuda'>('personal')
 
   const [eventos,     setEventos]     = useState<Evento[]>([])
@@ -403,8 +407,8 @@ export default function SolicitarPage() {
         )}
       </div>
 
-      {/* Main tabs */}
-      <div className="flex gap-1 bg-gray-100 rounded-2xl p-1 w-fit">
+      {/* Main tabs (el operador Panatickets solo ve Personal/eventuales) */}
+      <div className={`flex gap-1 bg-gray-100 rounded-2xl p-1 w-fit ${esPana ? 'hidden' : ''}`}>
         <button onClick={() => setMainTab('personal')}
           className={`px-5 py-2 rounded-xl text-sm font-medium transition-all ${mainTab === 'personal' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>
           👥 Personal

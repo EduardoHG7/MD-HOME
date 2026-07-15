@@ -58,6 +58,10 @@ export async function middleware(req: NextRequest) {
   if (esPana && pathname.startsWith('/admin') && !rutaOperadorOk) {
     return NextResponse.redirect(new URL('/admin/eventos', req.url))
   }
+  // El operador maneja eventuales, no cotizaciones ni facturas
+  if (esPana && (pathname.startsWith('/usuario/cotizaciones') || pathname.startsWith('/usuario/facturas'))) {
+    return NextResponse.redirect(new URL('/usuario/solicitar', req.url))
+  }
 
   return NextResponse.next()
 }

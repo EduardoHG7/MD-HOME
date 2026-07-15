@@ -6,6 +6,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useTenant } from '@/hooks/useTenant'
+import { esOperadorPanatickets } from '@/lib/permisos'
 
 const NAV_ITEMS = [
   { href: '/usuario',              label: '🏠 Inicio' },
@@ -15,9 +16,18 @@ const NAV_ITEMS = [
   { href: '/usuario/documentos',   label: '📁 Documentos' },
 ]
 
+// El operador Panatickets solo maneja eventuales (solicitudes), no cotizaciones
+const NAV_OPERADOR = [
+  { href: '/admin/eventos',        label: '🎪 Eventos' },
+  { href: '/usuario/solicitar',    label: '📋 Solicitudes' },
+  { href: '/usuario/documentos',   label: '📁 Documentos' },
+]
+
 export function UserNav({ session }: { session: Session }) {
   const pathname = usePathname()
   const { activeTenant } = useTenant()
+  const navItems = esOperadorPanatickets(session.user?.email, session.user?.role)
+    ? NAV_OPERADOR : NAV_ITEMS
 
   const logoSrc = activeTenant?.logo ?? '/logo.png'
   const logoAlt = activeTenant?.nombre ?? 'Logo'
@@ -46,7 +56,7 @@ export function UserNav({ session }: { session: Session }) {
         </div>
 
         <nav className="flex items-center gap-1">
-          {NAV_ITEMS.map(item => (
+          {navItems.map(item => (
             <Link
               key={item.href}
               href={item.href}
