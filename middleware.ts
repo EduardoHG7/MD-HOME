@@ -9,16 +9,23 @@ const PUBLIC_PATHS = [
   '/api/auth',
   '/api/tenants/seleccionar',
   '/api/asistencia',
+  '/api/upload/foto', // registro público de aplicantes: sube fotos antes de tener sesión
   '/_next',
   '/favicon',
   '/logo',
 ]
 
+// Coincidencia EXACTA (no de prefijo): abre solo esa ruta puntual, nunca sus
+// subrutas. /api/aplicantes (POST) es el registro público — su GET/PATCH por
+// id (/api/aplicantes/{id}) sigue requiriendo sesión, ya que ese GET no
+// valida el rol por su cuenta y expone datos personales del aplicante.
+const PUBLIC_EXACT_PATHS = ['/api/aplicantes']
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
 
   // Skip public paths
-  if (PUBLIC_PATHS.some(p => pathname.startsWith(p))) {
+  if (PUBLIC_PATHS.some(p => pathname.startsWith(p)) || PUBLIC_EXACT_PATHS.includes(pathname)) {
     return NextResponse.next()
   }
 
