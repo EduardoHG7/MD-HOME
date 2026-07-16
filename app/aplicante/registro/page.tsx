@@ -54,6 +54,40 @@ function fileToBase64(file: File): Promise<string> {
   })
 }
 
+// Las fotos de celular pueden pesar varios MB; el servidor (función serverless)
+// rechaza payloads grandes. Redimensionamos y re-comprimimos a JPEG en el
+// navegador antes de subir — si algo falla (formato no soportado por el
+// canvas, p. ej. HEIC en algunos navegadores), caemos al archivo original.
+function comprimirImagen(file: File, maxDim = 1600, calidad = 0.82): Promise<{ base64: string; mimeType: string }> {
+  return new Promise(resolve => {
+    const url = URL.createObjectURL(file)
+    const img = new window.Image()
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      let { width, height } = img
+      if (width > maxDim || height > maxDim) {
+        const ratio = Math.min(maxDim / width, maxDim / height)
+        width  = Math.round(width * ratio)
+        height = Math.round(height * ratio)
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')
+      if (!ctx) { fileToBase64(file).then(base64 => resolve({ base64, mimeType: file.type })); return }
+      ctx.drawImage(img, 0, 0, width, height)
+      const mimeType = 'image/jpeg'
+      const dataUrl = canvas.toDataURL(mimeType, calidad)
+      resolve({ base64: dataUrl.split(',')[1], mimeType })
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      fileToBase64(file).then(base64 => resolve({ base64, mimeType: file.type }))
+    }
+    img.src = url
+  })
+}
+
 export default function RegistroAplicantePage() {
   const [step,        setStep]        = useState<Step>('empresa')
   const [loading,     setLoading]     = useState(false)
@@ -134,15 +168,17 @@ export default function RegistroAplicantePage() {
     const preview = URL.createObjectURL(file)
     setFotos(prev => ({ ...prev, [tipo]: { preview, url: null, loading: true } }))
     try {
-      const base64 = await fileToBase64(file)
+      const { base64, mimeType } = await comprimirImagen(file)
       const res = await fetch('/api/upload/foto', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ base64, mimeType: file.type, cedula: form.cedula, tipo }),
+        body: JSON.stringify({ base64, mimeType, cedula: form.cedula, tipo }),
       })
-      const data = await res.json()
+      // La respuesta puede no ser JSON (p. ej. error de tamaño de la plataforma)
+      let data: { url?: string; error?: string } = {}
+      try { data = await res.json() } catch { data = { error: `Error del servidor (${res.status}). Intenta con otra foto.` } }
       if (!res.ok) throw new Error(data.error ?? 'Error al subir')
-      setFotos(prev => ({ ...prev, [tipo]: { preview, url: data.url, loading: false } }))
+      setFotos(prev => ({ ...prev, [tipo]: { preview, url: data.url ?? null, loading: false } }))
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Error'
       setFotos(prev => ({ ...prev, [tipo]: { preview: null, url: null, loading: false } }))
