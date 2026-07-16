@@ -10,6 +10,7 @@ const PUBLIC_PATHS = [
   '/api/tenants/seleccionar',
   '/api/asistencia',
   '/api/upload/foto', // registro público de aplicantes: sube fotos antes de tener sesión
+  '/api/empresas-publicas', // registro público: lista de empresas para elegir, sin datos sensibles
   '/_next',
   '/favicon',
   '/logo',
