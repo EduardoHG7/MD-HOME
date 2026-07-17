@@ -28,10 +28,11 @@ const CONTABILIDAD_NAV = [
 
 export function AdminSidebar({ session, role, soloEventos }: { session: Session; role?: string; soloEventos?: boolean }) {
   const efectiveRole = role ?? 'ADMIN'
-  const rootHref     = soloEventos ? '/admin/eventos' : efectiveRole === 'CONTABILIDAD' ? '/contabilidad' : '/admin'
+  const rootHref     = soloEventos ? '/admin' : efectiveRole === 'CONTABILIDAD' ? '/contabilidad' : '/admin'
   const panelLabel   = soloEventos ? 'Panatickets' : efectiveRole === 'CONTABILIDAD' ? 'Panel Contabilidad' : 'Panel Administrativo'
   const baseNav      = soloEventos
     ? [
+        { href: '/admin',             label: 'Dashboard',   icon: '◉' },
         { href: '/admin/eventos',     label: 'Eventos',     icon: '🎪' },
         { href: '/admin/venues',      label: 'Venues',      icon: '🏟️' },
         { href: '/usuario/solicitar', label: 'Solicitudes', icon: '📋' },

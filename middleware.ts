@@ -59,12 +59,14 @@ export async function middleware(req: NextRequest) {
   }
 
   // Operador Panatickets (usuario @panatickets.com): dentro de /admin solo puede
-  // ver Eventos y Venues; cualquier otra ruta admin lo manda a /admin/eventos.
+  // ver el Dashboard (raíz), Eventos y Venues; cualquier otra ruta admin lo
+  // manda al dashboard.
   const email = ((token.email as string | undefined) ?? '').toLowerCase()
   const esPana = token.role !== 'ADMIN' && email.endsWith('@panatickets.com')
-  const rutaOperadorOk = pathname.startsWith('/admin/eventos') || pathname.startsWith('/admin/venues')
+  const rutaOperadorOk = pathname === '/admin' ||
+    pathname.startsWith('/admin/eventos') || pathname.startsWith('/admin/venues')
   if (esPana && pathname.startsWith('/admin') && !rutaOperadorOk) {
-    return NextResponse.redirect(new URL('/admin/eventos', req.url))
+    return NextResponse.redirect(new URL('/admin', req.url))
   }
   // El operador maneja eventuales, no cotizaciones ni facturas
   if (esPana && (pathname.startsWith('/usuario/cotizaciones') || pathname.startsWith('/usuario/facturas'))) {

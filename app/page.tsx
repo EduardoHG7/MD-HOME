@@ -12,6 +12,6 @@ export default async function Home() {
   if (session.user.role === 'ADMIN') redirect('/admin')
   if (session.user.role === 'CONTABILIDAD') redirect('/contabilidad')
   // Operador Panatickets (usuario @panatickets.com): visual de admin en Eventos
-  if (esOperadorPanatickets(session.user.email, session.user.role)) redirect('/admin/eventos')
+  if (esOperadorPanatickets(session.user.email, session.user.role)) redirect('/admin')
   redirect('/usuario')
 }

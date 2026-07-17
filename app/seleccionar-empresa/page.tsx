@@ -62,13 +62,11 @@ export default function SeleccionarEmpresaPage() {
     const role = tenant.role
     const esPana = tenant.slug === 'panatickets' &&
       esOperadorPanatickets(session?.user?.email, session?.user?.role)
-    const dest = (role === 'ADMIN' || session?.user.isSuperAdmin)
+    const dest = (role === 'ADMIN' || session?.user.isSuperAdmin || esPana)
       ? '/admin'
-      : esPana
-        ? '/admin/eventos'
-        : role === 'CONTABILIDAD'
-          ? '/contabilidad'
-          : '/usuario'
+      : role === 'CONTABILIDAD'
+        ? '/contabilidad'
+        : '/usuario'
     window.location.href = dest
   }
 
