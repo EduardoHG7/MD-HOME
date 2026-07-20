@@ -41,6 +41,9 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     { h: 'Horas (por día)',  w: 34 },
     { h: 'A pagar (asignados)',  w: 17 },
     { h: 'A pagar (escaneados)', w: 18 },
+    { h: 'Banco',            w: 18 },
+    { h: 'Tipo de cuenta',   w: 14 },
+    { h: 'N° de cuenta',     w: 20 },
   ]
   const total = cols.length
 
@@ -73,6 +76,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       f.nombre, f.cedula, f.funcion, f.solicitante, f.tarifaTipo ?? '—',
       money(f.precioPorDia), f.diasAsignados ?? '—', f.diasEscaneados, horas,
       money(f.montoAsignado), money(f.montoEscaneado),
+      f.banco ?? '—', f.tipoCuenta ?? '—', f.cuentaBancaria,
     ]
     vals.forEach((v, i) => {
       const cell = row.getCell(i + 1)

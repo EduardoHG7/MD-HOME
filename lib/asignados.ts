@@ -18,6 +18,9 @@ export interface FilaAsignado {
   id: string
   nombre: string
   cedula: string
+  banco: string | null
+  tipoCuenta: string | null
+  cuentaBancaria: string
   funcion: string
   solicitante: string
   tarifaTipo: string | null
@@ -54,7 +57,7 @@ export async function getConsolidadoAsignados(
   const asignaciones = await prisma.asignacionAplicante.findMany({
     where: { eventoId, estado: { not: 'CANCELADA' } },
     include: {
-      aplicante: { select: { nombreCompleto: true, cedula: true } },
+      aplicante: { select: { nombreCompleto: true, cedula: true, banco: true, tipoCuenta: true, cuentaBancaria: true } },
       solicitud: {
         select: {
           funcion: true,
@@ -96,6 +99,9 @@ export async function getConsolidadoAsignados(
       id:             a.id,
       nombre:         a.aplicante.nombreCompleto,
       cedula:         a.aplicante.cedula,
+      banco:          a.aplicante.banco,
+      tipoCuenta:     a.aplicante.tipoCuenta,
+      cuentaBancaria: a.aplicante.cuentaBancaria,
       funcion:        a.funcion,
       solicitante:    a.solicitud.solicitante?.name ?? a.solicitud.solicitante?.email ?? '—',
       tarifaTipo:     a.solicitud.tarifa?.tipo ?? null,

@@ -5,7 +5,9 @@ import { useParams, useRouter } from 'next/navigation'
 
 interface DiaAsistencia { fecha: string; entrada: string | null; salida: string | null }
 interface Fila {
-  id: string; nombre: string; cedula: string; funcion: string; solicitante: string
+  id: string; nombre: string; cedula: string
+  banco: string | null; tipoCuenta: string | null; cuentaBancaria: string
+  funcion: string; solicitante: string
   tarifaTipo: string | null; precioPorDia: number | null
   diasAsignados: number | null; diasEscaneados: number; dias: DiaAsistencia[]
   montoAsignado: number | null; montoEscaneado: number | null
@@ -122,6 +124,7 @@ export default function AsignadosPage() {
                 <th className="px-3 py-3 text-center">Horas</th>
                 <th className="px-3 py-3 text-right">Pago asig.</th>
                 <th className="px-3 py-3 text-right">Pago escan.</th>
+                <th className="px-3 py-3">Cuenta bancaria</th>
               </tr>
             </thead>
             <tbody>
@@ -141,6 +144,7 @@ export default function AsignadosPage() {
                 <td className="px-3 py-3" />
                 <td className="px-3 py-3 text-right">{$(totales.montoAsignado)}</td>
                 <td className="px-3 py-3 text-right">{$(totales.montoEscaneado)}</td>
+                <td className="px-3 py-3" />
               </tr>
             </tfoot>
           </table>
@@ -184,10 +188,14 @@ function FilaEventual({ f, incompleto, abierto, onToggle }: {
         </td>
         <td className="px-3 py-3 text-right text-gray-700">{$(f.montoAsignado)}</td>
         <td className="px-3 py-3 text-right font-semibold text-gray-900">{$(f.montoEscaneado)}</td>
+        <td className="px-3 py-3 text-gray-600">
+          <p>{f.cuentaBancaria}</p>
+          <p className="text-xs text-gray-400">{f.banco ?? '—'}{f.tipoCuenta ? ` · ${f.tipoCuenta}` : ''}</p>
+        </td>
       </tr>
       {abierto && f.dias.length > 0 && (
         <tr className="bg-gray-50/70">
-          <td colSpan={9} className="px-4 py-2">
+          <td colSpan={10} className="px-4 py-2">
             <div className="flex flex-wrap gap-2">
               {f.dias.map((d, i) => (
                 <span key={i} className="text-xs bg-white border border-gray-200 rounded-lg px-2.5 py-1 text-gray-600">
