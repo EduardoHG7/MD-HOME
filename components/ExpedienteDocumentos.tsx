@@ -210,6 +210,7 @@ function SeccionContrato({ eventoId, contrato, onChange, puedeFirmar }: {
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [subiendo,     setSubiendo]     = useState(false)
+  const [eliminando,   setEliminando]   = useState(false)
   const [mostrarFirma, setMostrarFirma] = useState(false)
   const [verFirma,     setVerFirma]     = useState(false)
   const [error,        setError]        = useState('')
@@ -230,6 +231,19 @@ function SeccionContrato({ eventoId, contrato, onChange, puedeFirmar }: {
     } catch {
       setError('Error de conexión')
     } finally { setSubiendo(false) }
+  }
+
+  async function eliminar() {
+    if (!confirm('¿Eliminar el contrato de este evento? Se borrará el archivo y, si estaba firmado, la firma también.')) return
+    setEliminando(true); setError('')
+    try {
+      const res  = await fetch(`/api/eventos/${eventoId}/contrato`, { method: 'DELETE' })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'Error al eliminar'); return }
+      onChange(null)
+    } catch {
+      setError('Error de conexión')
+    } finally { setEliminando(false) }
   }
 
   const firmado = contrato?.estado === 'FIRMADO'
@@ -292,6 +306,10 @@ function SeccionContrato({ eventoId, contrato, onChange, puedeFirmar }: {
             <button onClick={() => fileRef.current?.click()} disabled={subiendo}
               className="text-xs px-3 py-1.5 rounded-xl border-2 border-gray-200 text-gray-600 hover:border-gray-400 font-medium transition-all">
               {subiendo ? 'Subiendo...' : firmado ? '🔄 Subir nueva versión (reinicia firma)' : '🔄 Reemplazar PDF'}
+            </button>
+            <button onClick={eliminar} disabled={eliminando}
+              className="text-xs px-3 py-1.5 rounded-xl border-2 border-red-100 text-red-500 hover:border-red-300 hover:bg-red-50 font-medium transition-all">
+              {eliminando ? 'Eliminando...' : '🗑 Eliminar contrato'}
             </button>
             {puedeFirmar && (
               <button onClick={() => setVerFirma(v => !v)}

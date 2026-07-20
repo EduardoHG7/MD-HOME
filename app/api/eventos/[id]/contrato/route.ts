@@ -9,6 +9,7 @@ import { uploadToSharePoint } from '@/lib/sharepoint'
 import { notificarExpedienteListo } from '@/lib/expediente'
 import { sendMail, templateContratoPorFirmar } from '@/lib/mail'
 import { CONTRATO_FROM, CONTRATO_DECO, CONTRATO_INFO } from '@/lib/contrato-notif'
+import { puedeGestionarExpediente } from '@/lib/expediente-permisos'
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
@@ -96,9 +97,24 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   }
 }
 
+// Eliminar el contrato del evento. Un contrato pendiente de firma lo puede
+// borrar cualquiera que gestione el expediente (admin o usuario/operador
+// Panatickets); uno ya FIRMADO — documento legal ejecutado — solo el admin.
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
-  if (!session || session.user.role !== 'ADMIN') {
+  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+  const contrato = await prisma.eventoContrato.findUnique({
+    where: { eventoId: params.id },
+    select: { estado: true },
+  })
+  if (!contrato) return NextResponse.json({ error: 'No hay contrato para eliminar' }, { status: 404 })
+
+  const esAdmin = session.user.role === 'ADMIN'
+  if (contrato.estado === 'FIRMADO' && !esAdmin) {
+    return NextResponse.json({ error: 'Solo el administrador puede eliminar un contrato ya firmado' }, { status: 403 })
+  }
+  if (!esAdmin && !(await puedeGestionarExpediente(params.id, session.user.id, session.user.role, session.user.email))) {
     return NextResponse.json({ error: 'Sin permiso' }, { status: 403 })
   }
 
