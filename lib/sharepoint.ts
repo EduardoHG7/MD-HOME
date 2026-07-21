@@ -1,4 +1,4 @@
-﻿// Utilidad para subir archivos a SharePoint via Microsoft Graph API (app-only)
+// Utilidad para subir archivos a SharePoint via Microsoft Graph API (app-only)
 
 const TENANT_ID    = process.env.SHAREPOINT_TENANT_ID ?? process.env.AZURE_AD_TENANT_ID!
 const CLIENT_ID    = process.env.AZURE_AD_CLIENT_ID!
@@ -8,11 +8,7 @@ const SP_SITE_PATH = process.env.SHAREPOINT_SITE_PATH!  // /sites/RegistrodeFact
 
 let cachedToken: { value: string; expiresAt: number } | null = null
 
-export async function getAppToken(): Promise<string> {
-  if (cachedToken && cachedToken.expiresAt > Date.now() + 60_000) {
-    return cachedToken.value
-  }
-
+async function fetchNewToken(): Promise<string> {
   const res = await fetch(
     `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`,
     {
@@ -40,11 +36,35 @@ export async function getAppToken(): Promise<string> {
   return cachedToken.value
 }
 
+export async function getAppToken(): Promise<string> {
+  if (cachedToken && cachedToken.expiresAt > Date.now() + 60_000) {
+    return cachedToken.value
+  }
+  return fetchNewToken()
+}
+
+/**
+ * Llama a Graph con el token cacheado. Si Graph responde 401 (el token quedó
+ * inválido pese a que nuestro reloj local lo daba por vigente — puede pasar
+ * si una función serverless queda "tibia" mucho tiempo), se pide un token
+ * nuevo forzado y se reintenta una sola vez antes de rendirse.
+ */
+async function graphFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  const doFetch = (token: string) =>
+    fetch(url, { ...init, headers: { ...(init.headers ?? {}), Authorization: `Bearer ${token}` } })
+
+  let res = await doFetch(await getAppToken())
+  if (res.status === 401) {
+    cachedToken = null // invalida el caché: fetchNewToken pide uno nuevo sí o sí
+    res = await doFetch(await fetchNewToken())
+  }
+  return res
+}
+
 export async function getSiteId(): Promise<string> {
-  const token = await getAppToken()
-  const url   = `https://graph.microsoft.com/v1.0/sites/${SP_HOST}:${SP_SITE_PATH}`
-  const res   = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-  const data  = await res.json()
+  const url = `https://graph.microsoft.com/v1.0/sites/${SP_HOST}:${SP_SITE_PATH}`
+  const res = await graphFetch(url)
+  const data = await res.json()
   if (!res.ok) {
     throw new Error(`SharePoint Site ID error (${res.status}): ${JSON.stringify(data)}`)
   }
@@ -62,19 +82,15 @@ export async function uploadToSharePoint(
   buffer: Buffer,
   mimeType: string
 ): Promise<string> {
-  const token  = await getAppToken()
   const siteId = await getSiteId()
 
   // @microsoft.graph.conflictBehavior=replace → sobreescribe si ya existe el archivo
   const uploadUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:/${folderPath}:/content?@microsoft.graph.conflictBehavior=replace`
 
-  const res = await fetch(uploadUrl, {
+  const res = await graphFetch(uploadUrl, {
     method:  'PUT',
-    headers: {
-      Authorization:  `Bearer ${token}`,
-      'Content-Type': mimeType,
-    },
-    body: new Uint8Array(buffer),
+    headers: { 'Content-Type': mimeType },
+    body:    new Uint8Array(buffer),
   })
 
   if (!res.ok) {
@@ -82,7 +98,7 @@ export async function uploadToSharePoint(
     throw new Error(`Error subiendo a SharePoint: ${err}`)
   }
 
-  const data = await res.json()
+  await res.json()
   // Retornar solo la ruta dentro del drive (para usar con el proxy interno)
   return folderPath
 }
@@ -91,11 +107,10 @@ export async function uploadToSharePoint(
  * Descarga el contenido de un archivo de SharePoint usando token de app
  */
 export async function downloadFromSharePoint(filePath: string): Promise<{ buffer: ArrayBuffer; contentType: string }> {
-  const token  = await getAppToken()
   const siteId = await getSiteId()
 
   const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:/${filePath}:/content`
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+  const res = await graphFetch(url)
 
   if (!res.ok) {
     throw new Error(`Error descargando de SharePoint (${res.status})`)
@@ -105,4 +120,3 @@ export async function downloadFromSharePoint(filePath: string): Promise<{ buffer
   const contentType = res.headers.get('content-type') ?? 'image/jpeg'
   return { buffer, contentType }
 }
-
