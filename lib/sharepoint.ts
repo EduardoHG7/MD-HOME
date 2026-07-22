@@ -113,7 +113,9 @@ export async function downloadFromSharePoint(filePath: string): Promise<{ buffer
   const res = await graphFetch(url)
 
   if (!res.ok) {
-    throw new Error(`Error descargando de SharePoint (${res.status})`)
+    const err = await res.text()
+    console.error(`[sharepoint] Error descargando "${filePath}" (${res.status}):`, err)
+    throw new Error(`Error descargando de SharePoint (${res.status}): ${err}`)
   }
 
   const buffer      = await res.arrayBuffer()
