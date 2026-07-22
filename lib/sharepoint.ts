@@ -58,11 +58,16 @@ export async function getAppToken(): Promise<string> {
   return fetchNewToken()
 }
 
+const espera = (ms: number) => new Promise(r => setTimeout(r, ms))
+
 /**
- * Llama a Graph con el token cacheado. Si Graph responde 401 (el token quedó
- * inválido pese a que nuestro reloj local lo daba por vigente — puede pasar
- * si una función serverless queda "tibia" mucho tiempo), se pide un token
- * nuevo forzado y se reintenta una sola vez antes de rendirse.
+ * Llama a Graph con el token cacheado. Si Graph responde 401 con un token
+ * recién emitido (ver diagnóstico en fetchNewToken), esto no es un problema
+ * real de vigencia de nuestro token — se ve sobre todo justo después de subir
+ * un archivo (p.ej. al firmar un contrato y descargarlo enseguida), lo que
+ * apunta a que SharePoint aún no terminó de propagar/indexar el archivo
+ * recién escrito y devuelve un 401 transitorio con forma de "token expirado".
+ * Por eso se reintenta varias veces con espera creciente, no solo una vez.
  *
  * Para :/content, Graph a veces responde con una redirección a la URL real
  * de almacenamiento (con su propio token embebido en el query string). Si
@@ -86,7 +91,10 @@ async function graphFetch(url: string, init: RequestInit = {}): Promise<Response
   }
 
   let res = await doFetch(await getAppToken())
-  if (res.status === 401) {
+  const esperas = [500, 1500, 3000]
+  for (let i = 0; res.status === 401 && i < esperas.length; i++) {
+    console.error(`[sharepoint] 401 en ${url} — reintento ${i + 1}/${esperas.length} tras ${esperas[i]}ms`)
+    await espera(esperas[i])
     cachedToken = null // invalida el caché: fetchNewToken pide uno nuevo sí o sí
     res = await doFetch(await fetchNewToken())
   }
