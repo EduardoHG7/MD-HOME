@@ -48,10 +48,27 @@ export async function getAppToken(): Promise<string> {
  * inválido pese a que nuestro reloj local lo daba por vigente — puede pasar
  * si una función serverless queda "tibia" mucho tiempo), se pide un token
  * nuevo forzado y se reintenta una sola vez antes de rendirse.
+ *
+ * Para :/content, Graph a veces responde con una redirección a la URL real
+ * de almacenamiento (con su propio token embebido en el query string). Si
+ * reenviamos nuestro Authorization: Bearer en esa segunda petición, el
+ * backend de almacenamiento a veces lo rechaza como "expirado" — un error
+ * engañoso que no tiene que ver con la vigencia real de nuestro token de
+ * Graph. Por eso seguimos la redirección a mano, sin el header.
  */
 async function graphFetch(url: string, init: RequestInit = {}): Promise<Response> {
-  const doFetch = (token: string) =>
-    fetch(url, { ...init, headers: { ...(init.headers ?? {}), Authorization: `Bearer ${token}` } })
+  const doFetch = async (token: string) => {
+    let res = await fetch(url, {
+      ...init,
+      headers: { ...(init.headers ?? {}), Authorization: `Bearer ${token}` },
+      redirect: 'manual',
+    })
+    if (res.status >= 300 && res.status < 400) {
+      const location = res.headers.get('location')
+      if (location) res = await fetch(location, { method: init.method ?? 'GET' })
+    }
+    return res
+  }
 
   let res = await doFetch(await getAppToken())
   if (res.status === 401) {
