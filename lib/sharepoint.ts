@@ -33,6 +33,21 @@ async function fetchNewToken(): Promise<string> {
     value:     data.access_token,
     expiresAt: Date.now() + data.expires_in * 1000,
   }
+
+  // Diagnóstico: si Graph sigue rechazando el token como "expirado" pese a
+  // ser recién emitido, esto muestra si el problema es una política de Azure
+  // (Conditional Access / Token Lifetime) que le está poniendo una vida útil
+  // rota, comparando lo que dice el propio token contra la hora real.
+  try {
+    const payload = JSON.parse(Buffer.from(data.access_token.split('.')[1], 'base64').toString())
+    console.error('[sharepoint] Token emitido — iat:', new Date(payload.iat * 1000).toISOString(),
+      'exp:', new Date(payload.exp * 1000).toISOString(),
+      'ahora:', new Date().toISOString(),
+      'aud:', payload.aud, 'appid:', payload.appid, 'tid:', payload.tid)
+  } catch (e) {
+    console.error('[sharepoint] No se pudo decodificar el token para diagnóstico:', e)
+  }
+
   return cachedToken.value
 }
 
