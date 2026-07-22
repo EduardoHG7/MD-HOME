@@ -7,6 +7,7 @@ const SP_HOST      = process.env.SHAREPOINT_HOST!       // magicdreamspty.sharep
 const SP_SITE_PATH = process.env.SHAREPOINT_SITE_PATH!  // /sites/RegistrodeFacturas
 
 let cachedToken: { value: string; expiresAt: number } | null = null
+let cachedSiteId: string | null = null
 
 async function fetchNewToken(): Promise<string> {
   const res = await fetch(
@@ -91,23 +92,35 @@ async function graphFetch(url: string, init: RequestInit = {}): Promise<Response
   }
 
   let res = await doFetch(await getAppToken())
-  const esperas = [500, 1500, 3000]
+  // Ventana de reintento generosa (~20s en total): el 401 "expirado" con un
+  // token recién emitido se ha visto ser transitorio (propagación en
+  // SharePoint), y las rutas que llaman a esto tienen maxDuration de 30-60s.
+  const esperas = [500, 1500, 3000, 5000, 8000]
   for (let i = 0; res.status === 401 && i < esperas.length; i++) {
-    console.error(`[sharepoint] 401 en ${url} — reintento ${i + 1}/${esperas.length} tras ${esperas[i]}ms`)
+    console.error(
+      `[sharepoint] 401 en ${url} — reintento ${i + 1}/${esperas.length} tras ${esperas[i]}ms.`,
+      'date (Graph):', res.headers.get('date'),
+      'request-id:', res.headers.get('request-id') ?? res.headers.get('client-request-id'),
+      'www-authenticate:', res.headers.get('www-authenticate'),
+    )
     await espera(esperas[i])
     cachedToken = null // invalida el caché: fetchNewToken pide uno nuevo sí o sí
+    cachedSiteId = null // por si el 401 vino de una llamada que dependía de un siteId obtenido con el token viejo
     res = await doFetch(await fetchNewToken())
   }
   return res
 }
 
 export async function getSiteId(): Promise<string> {
+  if (cachedSiteId) return cachedSiteId
+
   const url = `https://graph.microsoft.com/v1.0/sites/${SP_HOST}:${SP_SITE_PATH}`
   const res = await graphFetch(url)
   const data = await res.json()
   if (!res.ok) {
     throw new Error(`SharePoint Site ID error (${res.status}): ${JSON.stringify(data)}`)
   }
+  cachedSiteId = data.id
   return data.id
 }
 
