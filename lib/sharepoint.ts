@@ -9,7 +9,18 @@ const SP_SITE_PATH = process.env.SHAREPOINT_SITE_PATH!  // /sites/RegistrodeFact
 let cachedToken: { value: string; expiresAt: number } | null = null
 let cachedSiteId: string | null = null
 
-async function fetchNewToken(): Promise<string> {
+/**
+ * Se confirmó (ver logs de producción del 2026-07-22) que Azure AD a veces
+ * responde a /oauth2/v2.0/token con un access_token que su propio claim
+ * "exp" indica que ya venció hace rato (visto: emitido y vencido más de una
+ * hora antes de recibirlo) — es decir, el endpoint de token sirve un token
+ * viejo desde su propia caché interna en vez de emitir uno real. Graph
+ * después lo rechaza, obviamente, con "Lifetime validation failed". No es
+ * algo que dependa de nuestro caché ni de nuestro reloj: hay que validar el
+ * "exp" real del JWT que Azure devuelve y, si ya venció, no usarlo y volver
+ * a pedir otro en vez de confiar en que "recién emitido" == "válido".
+ */
+async function fetchNewToken(intentosRestantes = 4): Promise<string> {
   const res = await fetch(
     `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`,
     {
@@ -30,25 +41,41 @@ async function fetchNewToken(): Promise<string> {
   }
 
   const data = await res.json()
-  cachedToken = {
-    value:     data.access_token,
-    expiresAt: Date.now() + data.expires_in * 1000,
-  }
 
-  // Diagnóstico: si Graph sigue rechazando el token como "expirado" pese a
-  // ser recién emitido, esto muestra si el problema es una política de Azure
-  // (Conditional Access / Token Lifetime) que le está poniendo una vida útil
-  // rota, comparando lo que dice el propio token contra la hora real.
+  let payload: { iat: number; exp: number; aud?: string; appid?: string; tid?: string } | null = null
   try {
-    const payload = JSON.parse(Buffer.from(data.access_token.split('.')[1], 'base64').toString())
-    console.error('[sharepoint] Token emitido — iat:', new Date(payload.iat * 1000).toISOString(),
-      'exp:', new Date(payload.exp * 1000).toISOString(),
-      'ahora:', new Date().toISOString(),
-      'aud:', payload.aud, 'appid:', payload.appid, 'tid:', payload.tid)
+    payload = JSON.parse(Buffer.from(data.access_token.split('.')[1], 'base64').toString())
   } catch (e) {
     console.error('[sharepoint] No se pudo decodificar el token para diagnóstico:', e)
   }
 
+  const ahora = Date.now()
+  if (payload) {
+    console.error('[sharepoint] Token emitido — iat:', new Date(payload.iat * 1000).toISOString(),
+      'exp:', new Date(payload.exp * 1000).toISOString(),
+      'ahora:', new Date(ahora).toISOString(),
+      'aud:', payload.aud, 'appid:', payload.appid, 'tid:', payload.tid)
+  }
+
+  // Azure devolvió un token cuyo propio "exp" ya pasó (o está por pasar):
+  // no sirve, no lo cacheamos ni lo usamos. Reintentamos pedir otro.
+  if (payload && payload.exp * 1000 <= ahora + 60_000) {
+    console.error('[sharepoint] Azure devolvió un access_token ya vencido (posible caché stale de Azure AD).',
+      intentosRestantes > 0 ? `Reintentando (${intentosRestantes} intentos restantes)…` : 'Sin más reintentos.')
+    if (intentosRestantes > 0) {
+      await espera(1000)
+      return fetchNewToken(intentosRestantes - 1)
+    }
+    throw new Error(
+      'Azure AD sigue devolviendo tokens ya vencidos para esta app (problema del lado de Microsoft, ' +
+      'no de la app). Puede requerir revisar el estado del servicio en Entra/Microsoft 365 o abrir un caso de soporte.'
+    )
+  }
+
+  cachedToken = {
+    value:     data.access_token,
+    expiresAt: payload ? payload.exp * 1000 : ahora + data.expires_in * 1000,
+  }
   return cachedToken.value
 }
 
