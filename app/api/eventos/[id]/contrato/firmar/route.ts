@@ -76,46 +76,97 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const fecha   = new Date().toLocaleString('es-PA', { dateStyle: 'long', timeStyle: 'short' })
     const nombre  = firmante.name ?? firmante.email
 
+    // Algunas páginas (p. ej. contratos escaneados) traen un /Rotate propio en
+    // el PDF: el visor (y pdf.js en el navegador, donde el gerente hace clic)
+    // lo respeta y muestra la página derecha, pero pdf-lib dibuja siempre en
+    // el espacio de coordenadas "crudo" (sin rotar). Si no se compensa, todo
+    // lo que dibujamos queda girado (se vio: firma y rúbrica invertidas en un
+    // contrato con /Rotate=180). "vis" = coordenadas tal como se ven en el
+    // visor (origen arriba-izquierda); "raw" = coordenadas de pdf-lib.
+    const anguloPagina = (page: (typeof pages)[number]): 0 | 90 | 180 | 270 => {
+      const a = ((page.getRotation().angle % 360) + 360) % 360
+      return (a === 90 || a === 180 || a === 270) ? a : 0
+    }
+    // Punto (sin orientación propia, p. ej. extremos de una línea): de vis → raw.
+    const puntoARaw = (page: (typeof pages)[number], visX: number, visY: number) => {
+      const W = page.getWidth(), H = page.getHeight()
+      switch (anguloPagina(page)) {
+        case 90:  return { x: visY,       y: visX }
+        case 180: return { x: W - visX,   y: visY }
+        case 270: return { x: W - visY,   y: H - visX }
+        default:  return { x: visX,       y: H - visY }
+      }
+    }
+    // Ancla para contenido CON orientación propia (imagen/texto): coloca su
+    // esquina superior-izquierda visual en (visX, visY) y devuelve también la
+    // rotación que hay que aplicarle para que salga derecho ya renderizado.
+    const anclaARaw = (page: (typeof pages)[number], visX: number, visY: number, altoLocal: number) => {
+      const W = page.getWidth(), H = page.getHeight()
+      const rot = anguloPagina(page)
+      switch (rot) {
+        case 90:  return { x: visY + altoLocal,     y: visX,           rotate: degrees(90) }
+        case 180: return { x: W - visX,             y: visY + altoLocal, rotate: degrees(180) }
+        case 270: return { x: W - visY - altoLocal, y: H - visX,        rotate: degrees(270) }
+        default:  return { x: visX,                 y: H - visY - altoLocal, rotate: degrees(0) }
+      }
+    }
+
     // 1) Bloque de firma: donde el gerente hizo clic, o abajo-derecha de la última
     //    página si no se envió colocación. El punto del clic = centro de la firma.
+    //    Todo se calcula en coordenadas visuales (como se ve en pantalla) y se
+    //    convierte al final, así no importa si la página tiene rotación o no.
     const anchoBloque = 150
     const altoBloque  = aspecto * anchoBloque
 
-    let pageBloque = pages[pages.length - 1]
-    let x: number, y: number
+    const pageBloque   = (colocacion && pages[colocacion.pagina]) ? pages[colocacion.pagina] : pages[pages.length - 1]
+    const rotBloque    = anguloPagina(pageBloque)
+    const visualAncho  = (rotBloque === 90 || rotBloque === 270) ? pageBloque.getHeight() : pageBloque.getWidth()
+    const visualAlto   = (rotBloque === 90 || rotBloque === 270) ? pageBloque.getWidth()  : pageBloque.getHeight()
+    let visX: number, visY: number
     if (colocacion && pages[colocacion.pagina]) {
-      pageBloque = pages[colocacion.pagina]
-      x = colocacion.xRatio * pageBloque.getWidth()  - anchoBloque / 2
-      // yRatio viene desde arriba; pdf-lib mide desde abajo → invertir
-      y = (1 - colocacion.yRatio) * pageBloque.getHeight() - altoBloque / 2
+      visX = colocacion.xRatio * visualAncho - anchoBloque / 2
+      visY = colocacion.yRatio * visualAlto  - altoBloque  / 2
     } else {
-      x = pageBloque.getWidth() - anchoBloque - 60
-      y = 80
+      visX = visualAncho - anchoBloque - 60
+      visY = visualAlto  - altoBloque  - 80
     }
     // Mantener el bloque dentro de la página (deja aire para el texto de abajo)
-    x = Math.max(20, Math.min(x, pageBloque.getWidth()  - anchoBloque - 20))
-    y = Math.max(40, Math.min(y, pageBloque.getHeight() - altoBloque - 20))
+    visX = Math.max(20, Math.min(visX, visualAncho - anchoBloque - 20))
+    visY = Math.max(20, Math.min(visY, visualAlto  - altoBloque  - 63))
 
-    pageBloque.drawImage(firmaImg, { x, y, width: anchoBloque, height: altoBloque })
-    pageBloque.drawLine({
-      start: { x, y: y - 4 }, end: { x: x + anchoBloque, y: y - 4 },
-      thickness: 0.8, color: rgb(0.2, 0.2, 0.2),
-    })
-    pageBloque.drawText(nombre, { x, y: y - 16, size: 9, font, color: rgb(0.15, 0.15, 0.15) })
-    pageBloque.drawText('Gerente General - Panatickets, S.A.', { x, y: y - 28, size: 8, font, color: rgb(0.35, 0.35, 0.35) })
-    pageBloque.drawText(`Firmado: ${fecha}`, { x, y: y - 39, size: 8, font, color: rgb(0.35, 0.35, 0.35) })
+    const anclaImg = anclaARaw(pageBloque, visX, visY, altoBloque)
+    pageBloque.drawImage(firmaImg, { x: anclaImg.x, y: anclaImg.y, width: anchoBloque, height: altoBloque, rotate: anclaImg.rotate })
 
-    // 2) Rúbrica en el margen derecho de CADA página (rotada 90° CCW, centrada
-    //    verticalmente). Tras rotar 90°, la imagen de ancho w × alto h dibujada en
-    //    el ancla (rx, ry) ocupa: horizontal [rx - h, rx], vertical [ry, ry + w].
+    const pLinea1 = puntoARaw(pageBloque, visX, visY + altoBloque + 4)
+    const pLinea2 = puntoARaw(pageBloque, visX + anchoBloque, visY + altoBloque + 4)
+    pageBloque.drawLine({ start: pLinea1, end: pLinea2, thickness: 0.8, color: rgb(0.2, 0.2, 0.2) })
+
+    const textoBloque = (texto: string, offsetY: number, size: number, color: ReturnType<typeof rgb>) => {
+      const p = puntoARaw(pageBloque, visX, visY + altoBloque + offsetY)
+      pageBloque.drawText(texto, { x: p.x, y: p.y, size, font, color, rotate: degrees(rotBloque) })
+    }
+    textoBloque(nombre, 16, 9, rgb(0.15, 0.15, 0.15))
+    textoBloque('Gerente General - Panatickets, S.A.', 28, 8, rgb(0.35, 0.35, 0.35))
+    textoBloque(`Firmado: ${fecha}`, 39, 8, rgb(0.35, 0.35, 0.35))
+
+    // 2) Rúbrica en el margen derecho VISUAL de CADA página (sideways, centrada
+    //    verticalmente), compensando también la rotación propia de cada página.
+    //    Posiciones obtenidas igualando el centro visual deseado del sello con
+    //    su centro real tras rotarlo (ver derivación en el commit); no cambiar
+    //    sin volver a verificar la geometría.
     const anchoRub = 64
     const altoRub  = aspecto * anchoRub
     for (const page of pages) {
-      const rx = page.getWidth() - 6            // borde derecho de la rúbrica ≈ margen
-      const ry = page.getHeight() / 2 - anchoRub / 2  // centrada en vertical
-      page.drawImage(firmaImg, {
-        x: rx, y: ry, width: anchoRub, height: altoRub, rotate: degrees(90),
-      })
+      const rot = anguloPagina(page)
+      const W = page.getWidth(), H = page.getHeight()
+      let x: number, y: number, rotDeg: 0 | 90 | 180 | 270
+      switch (rot) {
+        case 90:  x = W / 2 + anchoRub / 2; y = H - 6;              rotDeg = 180; break
+        case 180: x = 6;                    y = H / 2 + anchoRub / 2; rotDeg = 270; break
+        case 270: x = W / 2 - anchoRub / 2; y = 6;                  rotDeg = 0;   break
+        default:  x = W - 6;                y = H / 2 - anchoRub / 2; rotDeg = 90;  break
+      }
+      page.drawImage(firmaImg, { x, y, width: anchoRub, height: altoRub, rotate: degrees(rotDeg) })
     }
 
     const firmadoBytes = Buffer.from(await pdf.save())
