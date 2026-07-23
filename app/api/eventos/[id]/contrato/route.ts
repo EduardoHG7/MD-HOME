@@ -26,24 +26,31 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 }
 
 // Subir el contrato del evento (PDF). Notifica a los admins para que lo firmen.
+// El PDF viaja como body binario (no base64 en JSON): los contratos escaneados/
+// firmados pesan varios MB, y el +33% de codificar en base64 los hacía chocar
+// con el límite de tamaño de la función serverless.
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
   if (!session || session.user.role === 'APLICANTE') {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
 
-  const { base64, fileName } = await req.json()
-  if (!base64 || !fileName) {
-    return NextResponse.json({ error: 'Faltan datos del archivo' }, { status: 400 })
+  const fileName = req.headers.get('x-file-name')
+  if (!fileName) {
+    return NextResponse.json({ error: 'Falta el nombre del archivo' }, { status: 400 })
   }
 
   const evento = await prisma.evento.findUnique({ where: { id: params.id }, select: { nombre: true } })
   if (!evento) return NextResponse.json({ error: 'Evento no encontrado' }, { status: 404 })
 
   try {
-    const buffer   = Buffer.from(base64, 'base64')
-    const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_')
-    const path     = `EventoContratos/${params.id}/contrato-${Date.now()}-${safeName}`
+    const buffer   = Buffer.from(await req.arrayBuffer())
+    if (buffer.length === 0) {
+      return NextResponse.json({ error: 'El archivo llegó vacío' }, { status: 400 })
+    }
+    const nombreOriginal = decodeURIComponent(fileName)
+    const safeName        = nombreOriginal.replace(/[^a-zA-Z0-9._-]/g, '_')
+    const path             = `EventoContratos/${params.id}/contrato-${Date.now()}-${safeName}`
 
     await uploadToSharePoint(path, buffer, 'application/pdf')
 
@@ -53,12 +60,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       create: {
         eventoId:      params.id,
         archivoPath:   path,
-        archivoNombre: fileName,
+        archivoNombre: nombreOriginal,
         subidoPorId:   session.user.id,
       },
       update: {
         archivoPath:   path,
-        archivoNombre: fileName,
+        archivoNombre: nombreOriginal,
         firmadoPath:   null,
         estado:        'PENDIENTE_FIRMA',
         subidoPorId:   session.user.id,

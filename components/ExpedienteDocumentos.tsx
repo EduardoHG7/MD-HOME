@@ -215,19 +215,30 @@ function SeccionContrato({ eventoId, contrato, onChange, puedeFirmar }: {
   const [verFirma,     setVerFirma]     = useState(false)
   const [error,        setError]        = useState('')
 
+  const MAX_CONTRATO_BYTES = 4.4 * 1024 * 1024 // margen bajo el límite de la función serverless (4.5 MB)
+
   async function subir(file: File) {
     if (file.type !== 'application/pdf') { setError('El contrato debe ser un PDF'); return }
+    if (file.size > MAX_CONTRATO_BYTES) {
+      setError(`El PDF pesa ${(file.size / 1024 / 1024).toFixed(1)} MB; el máximo permitido es ~4.4 MB. Comprímelo (por ejemplo con un compresor de PDF en línea) e inténtalo de nuevo.`)
+      return
+    }
     setSubiendo(true); setError('')
     try {
-      const base64 = await fileToBase64(file)
-      const res  = await fetch(`/api/eventos/${eventoId}/contrato`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ base64, fileName: file.name }),
+      // El PDF va como body binario (no base64): codificarlo en base64 le
+      // agrega ~33% de peso y hacía que contratos de varios MB chocaran con
+      // el límite de la función serverless.
+      const res = await fetch(`/api/eventos/${eventoId}/contrato`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/pdf', 'X-File-Name': encodeURIComponent(file.name) },
+        body: file,
       })
-      const data = await res.json()
+      // La respuesta puede no ser JSON si la plataforma rechazó el request
+      // antes de llegar a nuestro código (p. ej. por tamaño).
+      let data: { error?: string } = {}
+      try { data = await res.json() } catch { data = { error: `Error del servidor (${res.status}). Si el PDF es grande, intenta comprimirlo.` } }
       if (!res.ok) { setError(data.error ?? 'Error al subir'); return }
-      onChange(data)
+      onChange(data as unknown as Contrato)
     } catch {
       setError('Error de conexión')
     } finally { setSubiendo(false) }
