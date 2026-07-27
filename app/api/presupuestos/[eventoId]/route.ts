@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { sendMail, templateLineaAsignada } from '@/lib/mail'
 
 export async function GET(_req: Request, { params }: { params: { eventoId: string } }) {
   const session = await getServerSession(authOptions)
@@ -58,7 +59,16 @@ export async function PUT(req: Request, { params }: { params: { eventoId: string
   })
 
   // Upsert categorías y líneas — preserva IDs existentes para no borrar cotizaciones en cascada
+  // Detecta líneas cuya asignación cambió, para avisarle por correo a quien la recibe.
+  const nuevasAsignaciones: { catNombre: string; descripcion: string; montoUsd: number; asignadoAId: string }[] = []
+
   if (categorias !== undefined) {
+    const lineasExistentes = await prisma.presupuestoLinea.findMany({
+      where: { categoria: { presupuestoId: presupuesto.id } },
+      select: { id: true, asignadoAId: true },
+    })
+    const asignadoAntes = new Map(lineasExistentes.map(l => [l.id, l.asignadoAId]))
+
     await prisma.$transaction(async (tx) => {
       const incomingCatIds = categorias.map((c: { id?: string }) => c.id).filter(Boolean) as string[]
       // Solo eliminar categorías removidas si hay alguna con id (evita borrar todo con notIn:[])
@@ -109,6 +119,12 @@ export async function PUT(req: Request, { params }: { params: { eventoId: string
             asignadoAId: l.asignadoAId || null,
             orden:       j,
           }
+          const asignadoNuevo = l.asignadoAId || null
+          const asignadoAntesId = l.id ? (asignadoAntes.get(l.id) ?? null) : null
+          if (asignadoNuevo && asignadoNuevo !== asignadoAntesId) {
+            nuevasAsignaciones.push({ catNombre: cat.nombre, descripcion: l.descripcion, montoUsd: l.montoUsd ?? 0, asignadoAId: asignadoNuevo })
+          }
+
           if (l.id) {
             await tx.presupuestoLinea.update({ where: { id: l.id }, data: lineaData })
           } else {
@@ -117,6 +133,40 @@ export async function PUT(req: Request, { params }: { params: { eventoId: string
         }
       }
     })
+  }
+
+  // Avisar por correo a quien acaban de asignar una línea nueva
+  const fromEmail = session.user.email
+  if (nuevasAsignaciones.length && fromEmail) {
+    try {
+      const evento = await prisma.evento.findUnique({ where: { id: params.eventoId }, select: { nombre: true } })
+      const url = `${process.env.NEXTAUTH_URL ?? ''}/admin/eventos/${params.eventoId}/presupuesto`
+      const asignadoPor = session.user.name ?? fromEmail
+      for (const asign of nuevasAsignaciones) {
+        const usuario = await prisma.user.findUnique({ where: { id: asign.asignadoAId }, select: { name: true, email: true } })
+        if (!usuario?.email) continue
+        try {
+          await sendMail({
+            fromEmail,
+            toEmails:  [usuario.email],
+            subject:   `Te asignaron una línea de presupuesto — ${evento?.nombre ?? ''}`,
+            html: templateLineaAsignada({
+              asignadoNombre:   usuario.name ?? usuario.email,
+              eventoNombre:     evento?.nombre ?? '',
+              categoriaNombre:  asign.catNombre,
+              lineaDescripcion: asign.descripcion,
+              montoUsd:         asign.montoUsd,
+              asignadoPor,
+              url,
+            }),
+          })
+        } catch (e) {
+          console.error('[presupuesto] Error enviando correo de asignación:', e)
+        }
+      }
+    } catch (e) {
+      console.error('[presupuesto] Error preparando correos de asignación:', e)
+    }
   }
 
   // Reemplazar ticket zonas

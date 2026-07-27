@@ -244,6 +244,46 @@ export function templateNuevaCotizacion({
   </div>`
 }
 
+export function templateLineaAsignada({
+  asignadoNombre,
+  eventoNombre,
+  categoriaNombre,
+  lineaDescripcion,
+  montoUsd,
+  asignadoPor,
+  url,
+}: {
+  asignadoNombre:   string
+  eventoNombre:     string
+  categoriaNombre:  string
+  lineaDescripcion: string
+  montoUsd:         number
+  asignadoPor:      string
+  url:              string
+}) {
+  return `
+  <div style="font-family:sans-serif;max-width:560px;margin:0 auto;color:#111">
+    <div style="background:#111;padding:24px 32px;border-radius:12px 12px 0 0">
+      <h2 style="color:#fff;margin:0;font-size:18px">Magic Dreams Productions</h2>
+    </div>
+    <div style="border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;padding:32px">
+      <h3 style="margin:0 0 16px;font-size:16px">📌 Te asignaron una línea del presupuesto</h3>
+      <p style="margin:0 0 16px;color:#6b7280;font-size:14px">Hola ${asignadoNombre}, ${asignadoPor} te asignó como responsable de cargar las cotizaciones de esta línea:</p>
+      <table style="width:100%;border-collapse:collapse;font-size:14px">
+        <tr><td style="padding:8px 0;color:#6b7280;width:140px">Evento</td><td style="padding:8px 0;font-weight:600">${eventoNombre}</td></tr>
+        <tr><td style="padding:8px 0;color:#6b7280">Categoría</td><td style="padding:8px 0">${categoriaNombre}</td></tr>
+        <tr><td style="padding:8px 0;color:#6b7280">Línea</td><td style="padding:8px 0">${lineaDescripcion}</td></tr>
+        ${montoUsd ? `<tr><td style="padding:8px 0;color:#6b7280">Presupuestado</td><td style="padding:8px 0;font-weight:600;color:#d97706">$${montoUsd.toFixed(2)}</td></tr>` : ''}
+      </table>
+      <div style="margin-top:24px">
+        <a href="${url}" style="background:#111;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">
+          Ver presupuesto →
+        </a>
+      </div>
+    </div>
+  </div>`
+}
+
 export function templateRespuestaCotizacion({
   usuarioNombre,
   eventoNombre,
