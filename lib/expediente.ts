@@ -1,5 +1,34 @@
 import { prisma } from '@/lib/prisma'
 import { notificarPorRol } from '@/lib/notificaciones'
+import { sendMail, templateDocsResponsableAsignado } from '@/lib/mail'
+import { CONTRATO_FROM } from '@/lib/contrato-notif'
+
+/**
+ * Avisa por correo al usuario recién asignado como responsable de la
+ * documentación de un evento. Fire-and-forget: cualquier error se loguea y no
+ * interrumpe el flujo de creación/edición del evento.
+ */
+export async function notificarDocsResponsable(
+  eventoId: string, nuevoResponsableId: string, eventoNombre: string, asignadoPor: string
+): Promise<void> {
+  try {
+    const usuario = await prisma.user.findUnique({ where: { id: nuevoResponsableId }, select: { name: true, email: true } })
+    if (!usuario?.email) return
+    await sendMail({
+      fromEmail: CONTRATO_FROM,
+      toEmails:  [usuario.email],
+      subject:   `Te asignaron la documentación — ${eventoNombre}`,
+      html: templateDocsResponsableAsignado({
+        eventoNombre,
+        asignadoNombre: usuario.name ?? usuario.email,
+        asignadoPor,
+        url: `${process.env.NEXTAUTH_URL ?? ''}/admin/eventos/${eventoId}/documentos`,
+      }),
+    })
+  } catch (e) {
+    console.error('[expediente] Error enviando correo de responsable de documentación:', e)
+  }
+}
 
 // Documentos que el usuario sube en el expediente Panatickets (los 5 slots)
 const DOCS_REQUERIDOS = ['AVISO_OPERACIONES', 'CEDULA_REP_LEGAL', 'CIERRE', 'GASTOS', 'PLANILLA']

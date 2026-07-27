@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getActiveTenantId } from '@/lib/tenant'
+import { notificarDocsResponsable } from '@/lib/expediente'
 
 export async function GET(req: Request) {
   const tenantId = getActiveTenantId()
@@ -56,5 +57,10 @@ export async function POST(req: Request) {
     },
     include: { venue: true, tenants: { select: { tenantId: true } } },
   })
+
+  if (evento.docsResponsableId) {
+    await notificarDocsResponsable(evento.id, evento.docsResponsableId, evento.nombre, session.user.name ?? session.user.email ?? 'Un administrador')
+  }
+
   return NextResponse.json(evento, { status: 201 })
 }

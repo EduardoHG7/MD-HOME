@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { esOperadorPanatickets } from '@/lib/permisos'
+import { notificarDocsResponsable } from '@/lib/expediente'
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
@@ -49,6 +50,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     ? body
     : { nombre: body.nombre, descripcion: undefined, fechaInicio: body.fechaInicio, fechaFin: body.fechaFin, estado: body.estado, tipoEvento: undefined, venueId: body.venueId, tieneSocio: undefined, nombreSocio: undefined, montajeInicio: undefined, desmontajeFin: undefined, docsResponsableId: undefined, tenantIds: undefined }
 
+  // Para avisarle por correo a quien reciba la documentación, si cambia
+  let docsResponsableAntes: string | null = null
+  if (docsResponsableId !== undefined) {
+    const actual = await prisma.evento.findUnique({ where: { id: params.id }, select: { docsResponsableId: true } })
+    docsResponsableAntes = actual?.docsResponsableId ?? null
+  }
+
   const evento = await prisma.evento.update({
     where: { id: params.id },
     data: {
@@ -74,6 +82,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     },
     include: { _count: { select: { asignaciones: true } }, venue: true, tenants: { select: { tenantId: true } } },
   })
+
+  if (evento.docsResponsableId && evento.docsResponsableId !== docsResponsableAntes) {
+    await notificarDocsResponsable(evento.id, evento.docsResponsableId, evento.nombre, session.user.name ?? session.user.email ?? 'Un administrador')
+  }
 
   return NextResponse.json(evento)
 }
