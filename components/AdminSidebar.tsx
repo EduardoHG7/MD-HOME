@@ -19,6 +19,7 @@ const ADMIN_NAV = [
   { href: '/admin/puestos',        label: 'Puestos',         icon: '🔧' },
   { href: '/admin/facturas',       label: 'Facturas',        icon: '🧾' },
   { href: '/admin/tarifas',        label: 'Tarifas',         icon: '💰' },
+  { href: '/admin/finanzas',       label: 'Finanzas',        icon: '📊' },
 ]
 
 const CONTABILIDAD_NAV = [
