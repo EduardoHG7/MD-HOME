@@ -170,6 +170,36 @@
     .marquee-top{padding:18px 18px 16px;} .filters{padding:0 16px;} .content{padding:20px 16px 50px;}
     .logo-img{height:40px;} .brand-block{gap:12px;}
   }
+
+  /* ---------- DETALLE (drill-down) ---------- */
+  .row-clickable{cursor:pointer;}
+  .row-arrow{color:var(--text-soft);font-size:12px;margin-left:6px;opacity:.55;}
+  .row-clickable:hover .row-arrow{opacity:1;color:var(--ink);}
+
+  .detail-overlay{
+    display:none; position:fixed; inset:0; background:rgba(17,24,39,0.45); z-index:100;
+    align-items:center; justify-content:center; padding:24px;
+  }
+  .detail-overlay.active{display:flex;}
+  .detail-modal{
+    background:#fff; border-radius:20px; width:100%; max-width:840px; max-height:82vh;
+    display:flex; flex-direction:column; box-shadow:0 20px 60px -20px rgba(0,0,0,0.35); overflow:hidden;
+  }
+  .detail-modal-head{
+    display:flex; align-items:flex-start; justify-content:space-between; gap:16px;
+    padding:20px 24px; border-bottom:1px solid var(--line); flex-shrink:0;
+  }
+  .detail-modal-head h3{margin:0 0 4px;font-size:16px;font-weight:600;color:var(--ink);}
+  .detail-modal-head p{margin:0;font-size:13px;color:var(--text-soft);}
+  .detail-close{
+    background:#f9fafb; border:1px solid var(--line); border-radius:10px; width:32px; height:32px;
+    display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--text-soft); flex-shrink:0;
+    font-size:15px; line-height:1;
+  }
+  .detail-close:hover{background:#f3f4f6;color:var(--ink);}
+  .detail-modal-body{overflow:auto;}
+  .detail-modal-body table{font-size:13px;}
+  .detail-modal-body thead th{position:sticky;top:0;}
 </style>
 </head>
 <body>
@@ -781,7 +811,7 @@ function renderCanceladasPorDia(){
     body.innerHTML = `<tr><td colspan="3"><div class="empty-state">Sin registros para este filtro.</div></td></tr>`;
   } else {
     body.innerHTML = sorted.map(a=>`
-      <tr><td>${a.f==='Sin fecha'?a.f:fmtDay(a.f)}</td><td>${num(a.qty)}</td><td>${money(a.tot)}</td></tr>
+      <tr class="row-clickable" onclick="openCanceladaDiaDetail('${a.f}')"><td>${a.f==='Sin fecha'?a.f:fmtDay(a.f)} <span class="row-arrow">›</span></td><td>${num(a.qty)}</td><td>${money(a.tot)}</td></tr>
     `).join('');
   }
   document.getElementById('footCancQty').textContent = num(rows.length);
@@ -794,10 +824,85 @@ function renderGlobalSummary(){
   const totalMonto = GLOBAL_SUMMARY.reduce((s,g)=>s+g.monto,0);
   document.getElementById('globalCount').textContent = `${num(totalQty)} transacción(es)`;
   body.innerHTML = GLOBAL_SUMMARY.map(g=>`
-    <tr><td>${g.label}</td><td>${num(g.qty)}</td><td>${money(g.monto)}</td></tr>
+    <tr class="row-clickable" onclick="openGlobalDetail('${g.label.replace(/'/g,"\\'")}', ${g.qty}, ${g.monto})"><td>${g.label} <span class="row-arrow">›</span></td><td>${num(g.qty)}</td><td>${money(g.monto)}</td></tr>
   `).join('');
   document.getElementById('footGlobQty').textContent = num(totalQty);
   document.getElementById('footGlobTot').textContent = money(totalMonto);
+}
+
+/* ---------- DETALLE (drill-down) ---------- */
+function openDetailModal(title, subtitle, columns, rows){
+  document.getElementById('detailTitle').textContent = title;
+  document.getElementById('detailSubtitle').textContent = subtitle;
+  document.getElementById('detailThead').innerHTML = '<tr>' + columns.map(c=>
+    `<th class="no-sort" style="text-align:${c.align||'right'}">${c.label}</th>`
+  ).join('') + '</tr>';
+  const tbody = document.getElementById('detailBody');
+  if(!rows.length){
+    tbody.innerHTML = `<tr><td colspan="${columns.length}"><div class="empty-state">Sin registros para mostrar.</div></td></tr>`;
+  } else {
+    tbody.innerHTML = rows.map(r => '<tr>' + columns.map(c=>
+      `<td style="text-align:${c.align||'right'}">${c.render(r)}</td>`
+    ).join('') + '</tr>').join('');
+  }
+  document.getElementById('detailOverlay').classList.add('active');
+}
+
+function closeDetailModal(){
+  document.getElementById('detailOverlay').classList.remove('active');
+}
+
+document.addEventListener('keydown', e => { if(e.key === 'Escape') closeDetailModal(); });
+
+function openVentaDiaDetail(fecha){
+  const rows = DATA.filter(d => d.f === fecha);
+  openDetailModal(
+    `Ventas del ${fmtDayLong(fecha)}`,
+    `${num(rows.length)} transacción(es) · ${money(rows.reduce((s,r)=>s+r.tot,0))}`,
+    [
+      {label:'Evento',  align:'left', render:r=>r.ev || '—'},
+      {label:'Precio',  render:r=>money(r.p)},
+      {label:'CxS',     render:r=>money(r.cxs)},
+      {label:'SPAC',    render:r=>money(r.spac)},
+      {label:'ITBMS',   render:r=>money(r.itbms)},
+      {label:'Total',   render:r=>money(r.tot)},
+      {label:'Banco',   render:r=>r.bk || '—'},
+      {label:'Estado',  render:r=>r.st || '—'},
+    ],
+    rows
+  );
+}
+
+function openCanceladaDiaDetail(fecha){
+  const rows = CANCELADAS.filter(r=>{
+    if(state.evento!=='ALL' && r.ev!==state.evento) return false;
+    if(state.day!=='ALL' && r.f!==state.day) return false;
+    return (r.f || 'Sin fecha') === fecha;
+  });
+  openDetailModal(
+    `Canceladas del ${fecha==='Sin fecha' ? fecha : fmtDayLong(fecha)}`,
+    `${num(rows.length)} transacción(es) · ${money(rows.reduce((s,r)=>s+r.tot,0))}`,
+    [
+      {label:'Evento',          align:'left', render:r=>r.ev || '—'},
+      {label:'Cód. Promotor',   render:r=>r.cp || '—'},
+      {label:'Descuento',       render:r=>money(r.dp)},
+      {label:'Precio',          render:r=>money(r.p)},
+      {label:'CxS',             render:r=>money(r.cxs)},
+      {label:'Total',           render:r=>money(r.tot)},
+    ],
+    rows
+  );
+}
+
+function openGlobalDetail(label, qty, monto){
+  openDetailModal(
+    label,
+    `${num(qty)} transacción(es) · ${money(monto)}`,
+    [{label:'Detalle', align:'left', render:()=>''}],
+    []
+  );
+  document.getElementById('detailBody').innerHTML =
+    `<tr><td><div class="empty-state">Este reporte no incluye el detalle transacción por transacción de este grupo (solo el total agregado exportado de Showare).<br>Para verlo hay que regenerar el reporte incluyendo esa hoja del Excel.</div></td></tr>`;
 }
 
 function fmtDayLong(iso){
@@ -837,7 +942,7 @@ function renderExecSummary(){
 
   document.getElementById('execWeekRange').textContent = `${fmtDay(s.week_cur.start)} – ${fmtDay(s.week_cur.end)}`;
   document.getElementById('weekDaysBody').innerHTML = s.week_days.map(d=>`
-    <tr><td>${fmtDayLong(d.f)}</td><td>${num(d.qty)}</td><td>${money(d.monto)}</td></tr>
+    <tr class="row-clickable" onclick="openVentaDiaDetail('${d.f}')"><td>${fmtDayLong(d.f)} <span class="row-arrow">›</span></td><td>${num(d.qty)}</td><td>${money(d.monto)}</td></tr>
   `).join('');
 
   document.getElementById('alzasBody').innerHTML = s.alzas.map(a=>`
@@ -977,6 +1082,24 @@ renderGlobalSummary();
 renderExecSummary();
 
 </script>
+
+<div class="detail-overlay" id="detailOverlay" onclick="if(event.target===this) closeDetailModal()">
+  <div class="detail-modal">
+    <div class="detail-modal-head">
+      <div>
+        <h3 id="detailTitle"></h3>
+        <p id="detailSubtitle"></p>
+      </div>
+      <div class="detail-close" onclick="closeDetailModal()">✕</div>
+    </div>
+    <div class="detail-modal-body">
+      <table>
+        <thead id="detailThead"></thead>
+        <tbody id="detailBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>
