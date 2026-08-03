@@ -954,6 +954,7 @@ function openCanceladaDiaDetail(fecha){
     `Canceladas del ${fecha==='Sin fecha' ? fecha : fmtDayLong(fecha)}`,
     `${num(rows.length)} transacción(es) · ${money(rows.reduce((s,r)=>s+r.tot,0))}`,
     [
+      {label:'N° Orden',        align:'left', render:r=>r.id || '—'},
       {label:'Evento',          align:'left', render:r=>r.ev || '—'},
       {label:'Cód. Promotor',   render:r=>r.cp || '—'},
       {label:'Descuento',       render:r=>money(r.dp)},
