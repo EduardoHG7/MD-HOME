@@ -200,6 +200,14 @@
   .detail-modal-body{overflow:auto;}
   .detail-modal-body table{font-size:13px;}
   .detail-modal-body thead th{position:sticky;top:0;}
+
+  /* ---------- TOP EVENTOS (barras horizontales) ---------- */
+  .bar-row{display:grid;grid-template-columns:24px 1fr auto;align-items:center;gap:12px;padding:6px 0;}
+  .bar-row .rank{color:var(--text-soft);font-size:12px;font-weight:600;text-align:right;}
+  .bar-row .bar-track{background:#f3f4f6;border-radius:6px;height:24px;position:relative;overflow:hidden;}
+  .bar-row .bar-fill{background:linear-gradient(90deg,#2563eb,#3b82f6);height:100%;border-radius:6px;min-width:2px;}
+  .bar-row .bar-label{position:absolute;left:10px;top:0;height:100%;display:flex;align-items:center;font-size:12.5px;color:#111827;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:calc(100% - 16px);}
+  .bar-row .bar-amount{font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;}
 </style>
 </head>
 <body>
@@ -245,6 +253,7 @@
     <button class="tab-btn active" data-tab="venta">Venta</button>
     <button class="tab-btn" data-tab="banco">Banco</button>
     <button class="tab-btn" data-tab="resumen">Resumen Ejecutivo</button>
+    <button class="tab-btn" data-tab="tendencias">Tendencias</button>
   </div>
 
   <div class="tab-panel active" id="panel-venta">
@@ -529,6 +538,68 @@
     </div>
   </div>
   <div class="section-note" style="margin-top:10px;">Compara el total vendido de cada evento en los últimos 7 días registrados contra los 7 días anteriores. Solo incluye eventos con al menos $200 en ambas semanas, para evitar variaciones ruidosas de eventos con muy poca venta.</div>
+
+  </div>
+
+  <div class="tab-panel" id="panel-tendencias">
+
+  <div class="section-head" style="margin-top:0;">
+    <h2>Tendencias de venta</h2>
+    <div class="rule"></div>
+    <div class="count" id="tendRangeLabel"></div>
+  </div>
+  <div class="section-note">Calculado sobre el 100% de las ventas conciliadas (Filtro Bancos = "OK"). No responde a los filtros de arriba.</div>
+
+  <div class="kpis" style="margin-bottom:26px;">
+    <div class="stub">
+      <div class="stub-label">Monto total</div>
+      <div class="stub-value" id="tendMontoTotal">—</div>
+      <div class="perf"></div>
+      <div class="stub-sub">conciliado + pendiente por conciliar</div>
+    </div>
+    <div class="stub">
+      <div class="stub-label">Monto conciliado</div>
+      <div class="stub-value pos" id="tendMontoConciliado">—</div>
+      <div class="perf"></div>
+      <div class="stub-sub">ya cruzado contra el banco</div>
+    </div>
+    <div class="stub">
+      <div class="stub-label">Monto por conciliar</div>
+      <div class="stub-value neg" id="tendMontoPorConciliar">—</div>
+      <div class="perf"></div>
+      <div class="stub-sub" id="tendPorConciliarSub">en tránsito</div>
+    </div>
+  </div>
+
+  <div class="section-head">
+    <h2>Ventas por día</h2>
+    <div class="rule"></div>
+    <div class="count" id="tendDayCount"></div>
+  </div>
+  <div class="chart-wrap" style="margin-bottom:26px;overflow-x:auto;">
+    <svg id="tendDayChart"></svg>
+  </div>
+
+  <div class="two-col">
+    <div class="chart-wrap">
+      <h3>Ventas por semana</h3>
+      <svg id="tendWeekChart" width="100%" style="display:block;"></svg>
+    </div>
+    <div class="chart-wrap">
+      <h3>Ventas por mes</h3>
+      <svg id="tendMonthChart" width="100%" style="display:block;"></svg>
+    </div>
+  </div>
+
+  <div class="section-head">
+    <h2>Top 20 eventos más vendidos</h2>
+    <div class="rule"></div>
+    <div class="count">por monto total</div>
+  </div>
+  <div class="section-note">Clic en un evento para ver el detalle de sus transacciones.</div>
+  <div class="table-wrap" style="padding:18px 20px;">
+    <div id="topEventosBars"></div>
+  </div>
 
   </div>
 
@@ -1062,6 +1133,144 @@ function renderBankDaySummary(){
   `;
 }
 
+/* ---------- TENDENCIAS ---------- */
+function mondayOf(dateStr){
+  const d = new Date(dateStr + 'T00:00:00Z');
+  const day = d.getUTCDay();
+  const diff = (day===0 ? -6 : 1-day);
+  d.setUTCDate(d.getUTCDate() + diff);
+  return d.toISOString().slice(0,10);
+}
+function addDaysISO(dateStr, n){
+  const d = new Date(dateStr + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0,10);
+}
+
+function renderBarChart(svgId, points, color){
+  const svg = document.getElementById(svgId);
+  if(!points.length){ svg.innerHTML = ''; return; }
+  const n = points.length;
+  const barW = 34, gap = 16;
+  const padL = 66, padR = 16, padT = 16, padB = 34;
+  const plotW = n * (barW + gap);
+  const W = padL + plotW + padR;
+  const H = 240;
+  const plotH = H - padT - padB;
+  const maxMonto = Math.max(...points.map(p=>p.monto), 1);
+
+  let gridLines = '';
+  const steps = 4;
+  for(let i=0;i<=steps;i++){
+    const y = padT + plotH - (plotH*i/steps);
+    gridLines += `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${W-padR}" y2="${y.toFixed(1)}" stroke="#e5e7eb" stroke-width="1"/>`;
+    gridLines += `<text x="${padL-8}" y="${(y+4).toFixed(1)}" text-anchor="end" font-family="ui-monospace,monospace" font-size="11" font-weight="600" fill="#6b7280">$${Math.round(maxMonto*i/steps).toLocaleString('en-US')}</text>`;
+  }
+
+  let bars = '', labels = '';
+  points.forEach((p,i)=>{
+    const x = padL + i*(barW+gap);
+    const barH = (p.monto/maxMonto) * plotH;
+    const y = padT + plotH - barH;
+    bars += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW}" height="${Math.max(barH,1).toFixed(1)}" rx="3" fill="${color}"><title>${p.fullLabel||p.label}: ${money(p.monto)} (${num(p.qty)} transacciones)</title></rect>`;
+    labels += `<text x="${(x+barW/2).toFixed(1)}" y="${H-padB+18}" text-anchor="middle" font-family="ui-monospace,monospace" font-size="10.5" fill="#111827">${p.label}</text>`;
+  });
+
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('width', W);
+  svg.setAttribute('height', H);
+  svg.innerHTML = `
+    <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT+plotH}" stroke="#e5e7eb"/>
+    <line x1="${padL}" y1="${padT+plotH}" x2="${W-padR}" y2="${padT+plotH}" stroke="#e5e7eb"/>
+    ${gridLines}${bars}${labels}
+  `;
+}
+
+function renderTopEventos(){
+  const map = new Map();
+  DATA.forEach(d=>{
+    const key = d.ev || 'Sin evento';
+    if(!map.has(key)) map.set(key, {ev:key, qty:0, tot:0});
+    const a = map.get(key);
+    a.qty += 1; a.tot += d.tot;
+  });
+  const sorted = [...map.values()].sort((a,b)=>b.tot-a.tot).slice(0,20);
+  const max = Math.max(...sorted.map(s=>s.tot), 1);
+  document.getElementById('topEventosBars').innerHTML = sorted.map((s,i)=>`
+    <div class="bar-row row-clickable" onclick="openEventoDetail('${s.ev.replace(/'/g,"\\'")}')">
+      <div class="rank">${i+1}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${Math.max((s.tot/max*100),2).toFixed(1)}%"><span class="bar-label">${s.ev}</span></div></div>
+      <div class="bar-amount">${money(s.tot)} <span style="color:var(--text-soft);font-weight:400;">(${num(s.qty)})</span></div>
+    </div>
+  `).join('');
+}
+
+function openEventoDetail(ev){
+  const rows = DATA.filter(d => d.ev === ev);
+  openDetailModal(
+    ev,
+    `${num(rows.length)} transacción(es) · ${money(rows.reduce((s,r)=>s+r.tot,0))}`,
+    [
+      {label:'Fecha',  align:'left', render:r=>fmtDay(r.f)},
+      {label:'Precio', render:r=>money(r.p)},
+      {label:'CxS',    render:r=>money(r.cxs)},
+      {label:'SPAC',   render:r=>money(r.spac)},
+      {label:'ITBMS',  render:r=>money(r.itbms)},
+      {label:'Total',  render:r=>money(r.tot)},
+      {label:'Banco',  render:r=>r.bk || '—'},
+    ],
+    rows
+  );
+}
+
+function renderTendencias(){
+  const montoConciliado = EXEC_SUMMARY.grand_total;
+  const montoPorConciliar = EXEC_SUMMARY.global_total;
+  const montoTotal = montoConciliado + montoPorConciliar;
+  document.getElementById('tendMontoTotal').textContent = money(montoTotal);
+  document.getElementById('tendMontoConciliado').textContent = money(montoConciliado);
+  document.getElementById('tendMontoPorConciliar').textContent = money(montoPorConciliar);
+  document.getElementById('tendPorConciliarSub').textContent =
+    `${(montoTotal ? (montoPorConciliar/montoTotal*100) : 0).toFixed(1)}% del total, en tránsito`;
+
+  const rangeStart = days[0], rangeEnd = days[days.length-1];
+  document.getElementById('tendRangeLabel').textContent =
+    rangeStart ? `${fmtDay(rangeStart)} – ${fmtDay(rangeEnd)}` : '';
+
+  const byDay = new Map();
+  DATA.forEach(d=>{
+    if(!byDay.has(d.f)) byDay.set(d.f, {key:d.f, monto:0, qty:0});
+    const a = byDay.get(d.f); a.monto += d.tot; a.qty += 1;
+  });
+  const dayPoints = [...byDay.values()].sort((a,b)=>a.key.localeCompare(b.key))
+    .map(p=>({monto:p.monto, qty:p.qty, label:fmtDay(p.key)}));
+  document.getElementById('tendDayCount').textContent = `${dayPoints.length} día(s)`;
+  renderBarChart('tendDayChart', dayPoints, '#2563eb');
+
+  const byWeek = new Map();
+  DATA.forEach(d=>{
+    const mon = mondayOf(d.f);
+    if(!byWeek.has(mon)) byWeek.set(mon, {key:mon, monto:0, qty:0});
+    const a = byWeek.get(mon); a.monto += d.tot; a.qty += 1;
+  });
+  const weekPoints = [...byWeek.values()].sort((a,b)=>a.key.localeCompare(b.key))
+    .map(p=>({monto:p.monto, qty:p.qty, label:fmtDay(p.key), fullLabel:`${fmtDay(p.key)}–${fmtDay(addDaysISO(p.key,6))}`}));
+  renderBarChart('tendWeekChart', weekPoints, '#10b981');
+
+  const mesesCortos = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  const byMonth = new Map();
+  DATA.forEach(d=>{
+    const key = d.f.slice(0,7);
+    if(!byMonth.has(key)) byMonth.set(key, {key, monto:0, qty:0});
+    const a = byMonth.get(key); a.monto += d.tot; a.qty += 1;
+  });
+  const monthPoints = [...byMonth.values()].sort((a,b)=>a.key.localeCompare(b.key))
+    .map(p=>{ const [y,m] = p.key.split('-'); return {monto:p.monto, qty:p.qty, label:`${mesesCortos[parseInt(m,10)-1]} ${y}`}; });
+  renderBarChart('tendMonthChart', monthPoints, '#f59e0b');
+
+  renderTopEventos();
+}
+
 document.querySelectorAll('.tab-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
@@ -1080,6 +1289,7 @@ renderConcepto();
 renderAnticipos();
 renderGlobalSummary();
 renderExecSummary();
+renderTendencias();
 
 </script>
 
