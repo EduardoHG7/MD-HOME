@@ -238,6 +238,22 @@ async function parseSaldosBanco(wb: ExcelJS.Workbook) {
   }
 }
 
+async function parseAnticipos(wb: ExcelJS.Workbook) {
+  const sheet = wb.getWorksheet('Estatus evento')
+  if (!sheet) return { anticipos: [] as { label: string; value: number }[], total_anticipo: 0 }
+
+  const anticipos: { label: string; value: number }[] = []
+  sheet.eachRow({ includeEmpty: false }, (row, rowNum) => {
+    if (rowNum < 8) return
+    const evento = extractValue(row.getCell(2).value)
+    const adelanto = toNumber(extractValue(row.getCell(4).value))
+    if (!evento || adelanto === null) return
+    anticipos.push({ label: String(evento), value: adelanto })
+  })
+  const total_anticipo = anticipos.reduce((s, a) => s + a.value, 0)
+  return { anticipos, total_anticipo }
+}
+
 function fmtDay(iso: string) {
   const [, m, d] = iso.split('-')
   const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
@@ -331,6 +347,9 @@ export async function computeFinanzasPanatickets() {
 
   const { ventas, canceladas } = await parseReporteShoware(wb)
   const saldos = await parseSaldosBanco(wb)
+  const { anticipos, total_anticipo } = await parseAnticipos(wb)
+  saldos.anticipos = anticipos
+  saldos.total_anticipo = total_anticipo
 
   const pendientes = new Map<string, { qty: number; monto: number }>()
   const sheet = wb.getWorksheet('Reporte Showare')!
