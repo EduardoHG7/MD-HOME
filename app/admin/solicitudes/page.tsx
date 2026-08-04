@@ -644,7 +644,7 @@ export default function SolicitudesAdminPage() {
                 )}
 
                 {selectedCot.archivoUrl && (
-                  <a href={selectedCot.archivoUrl} target="_blank" rel="noopener noreferrer"
+                  <a href={selectedCot.archivoUrl} download={selectedCot.archivoNombreCot ?? undefined}
                     className="flex items-center gap-2 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-700 hover:bg-blue-100 transition-all font-medium">
                     🔎 {selectedCot.archivoNombreCot ?? 'Ver adjunto'}
                   </a>

@@ -20,7 +20,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const { base64, mimeType, fileName } = await req.json()
   if (!base64 || !mimeType) return NextResponse.json({ error: 'Faltan datos' }, { status: 400 })
 
-  const ext  = mimeType.split('/')[1]?.replace('jpeg','jpg') ?? 'pdf'
+  // Preferir la extensión real del archivo (fileName) — el mimeType de tipos
+  // como Office (application/vnd.openxmlformats-officedocument...) no da una
+  // extensión usable si simplemente se parte por "/".
+  const extDeNombre = fileName?.includes('.') ? fileName.split('.').pop() : null
+  const ext = extDeNombre || mimeType.split('/')[1]?.replace('jpeg', 'jpg') || 'pdf'
   const path = `Cotizaciones/${params.id}/cotizacion.${ext}`
   await uploadToSharePoint(path, Buffer.from(base64, 'base64'), mimeType)
   const archivoUrl = `/api/fotos?path=${encodeURIComponent(path)}`

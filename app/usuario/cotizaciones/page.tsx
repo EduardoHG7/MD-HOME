@@ -112,7 +112,7 @@ function NuevaCotizacionForm({ lineaId, conceptosExistentes, onCreated }: { line
 
       {/* Adjuntar cotización PDF/imagen */}
       <div>
-        <label className="label">Adjuntar cotización (PDF o imagen) *</label>
+        <label className="label">Adjuntar cotización (PDF, imagen, Excel o Word) *</label>
         <div
           onClick={() => fileRef.current?.click()}
           className={`border-2 border-dashed rounded-xl p-4 cursor-pointer transition-all text-center ${archivo ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-gray-400'}`}>
@@ -122,10 +122,10 @@ function NuevaCotizacionForm({ lineaId, conceptosExistentes, onCreated }: { line
               <button type="button" onClick={e => { e.stopPropagation(); setArchivo(null) }} className="text-red-400 hover:text-red-600 ml-2">✕</button>
             </div>
           ) : (
-            <p className="text-gray-500 text-sm">📎 Haz clic para adjuntar tu cotización en PDF o imagen</p>
+            <p className="text-gray-500 text-sm">📎 Haz clic para adjuntar tu cotización (PDF, imagen, Excel o Word)</p>
           )}
         </div>
-        <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" className="hidden"
+        <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.xlsx,.xls,.docx,.doc" className="hidden"
           onChange={e => { const f = e.target.files?.[0]; if (f) setArchivo(f) }} />
       </div>
 
@@ -213,7 +213,7 @@ function SubirFacturaSection({ cot, onUpdated }: { cot: Cotizacion; onUpdated: (
             {uploading ? '⏳ Analizando factura con IA...' : '📄 Haz clic para subir tu factura'}
           </p>
         </div>
-        <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" className="hidden"
+        <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.xlsx,.xls,.docx,.doc" className="hidden"
           onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
       </div>
 
@@ -455,7 +455,7 @@ export default function CotizacionesPage() {
                                   ))}
                                 </div>
                                 {cot.archivoUrl && (
-                                  <a href={cot.archivoUrl} target="_blank" rel="noopener noreferrer"
+                                  <a href={cot.archivoUrl} download={cot.archivoNombreCot ?? undefined}
                                     className="inline-flex items-center gap-1 text-xs text-blue-500 hover:underline mb-2">
                                     📎 {cot.archivoNombreCot ?? 'Ver cotización adjunta'}
                                   </a>

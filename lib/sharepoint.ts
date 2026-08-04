@@ -217,6 +217,20 @@ export async function uploadToSharePoint(
 /**
  * Descarga el contenido de un archivo de SharePoint usando token de app
  */
+const MIME_POR_EXTENSION: Record<string, string> = {
+  pdf: 'application/pdf',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  webp: 'image/webp',
+  gif: 'image/gif',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  xls: 'application/vnd.ms-excel',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  doc: 'application/msword',
+  csv: 'text/csv',
+}
+
 export async function downloadFromSharePoint(filePath: string): Promise<{ buffer: ArrayBuffer; contentType: string }> {
   const siteId = await getSiteId()
 
@@ -229,7 +243,11 @@ export async function downloadFromSharePoint(filePath: string): Promise<{ buffer
     throw new Error(`Error descargando de SharePoint (${res.status}): ${err}`)
   }
 
-  const buffer      = await res.arrayBuffer()
-  const contentType = res.headers.get('content-type') ?? 'image/jpeg'
+  const buffer = await res.arrayBuffer()
+  const extension = filePath.split('.').pop()?.toLowerCase()
+  const contentType =
+    res.headers.get('content-type')
+    ?? (extension && MIME_POR_EXTENSION[extension])
+    ?? 'application/octet-stream'
   return { buffer, contentType }
 }
