@@ -196,6 +196,7 @@ async function parseSaldosBanco(wb: ExcelJS.Workbook) {
 
   const bankCols = [4, 5, 6, 7, 8, 9, 10, 11, 12]
   const bankLabels: Record<number, string> = {}
+  const contableCols = [24, 25, 26, 27, 28, 29, 30, 31, 32]
   const conceptCols = [14, 15, 16, 17, 18, 19, 20, 21, 22]
   const conceptLabels: Record<number, string> = {}
   const headerRow = sheet.getRow(6)
@@ -223,8 +224,13 @@ async function parseSaldosBanco(wb: ExcelJS.Workbook) {
 
   const get = (col: number) => toNumber(extractValue(bestRow!.getCell(col).value)) ?? 0
 
-  const bancos = bankCols.map(c => ({ label: bankLabels[c], value: get(c) }))
+  const bancos = bankCols.map((c, i) => {
+    const value = get(c)
+    const contable = get(contableCols[i])
+    return { label: bankLabels[c], value, contable, diferencia: value - contable }
+  })
   const subtotal_bancos = get(13)
+  const subtotal_contable = bancos.reduce((s, b) => s + b.contable, 0)
   const conceptos = conceptCols.map(c => ({ label: conceptLabels[c], value: get(c) }))
   const capitalTrabajo = get(23)
 
@@ -232,6 +238,8 @@ async function parseSaldosBanco(wb: ExcelJS.Workbook) {
     fecha_saldos: bestFecha ?? '',
     bancos,
     subtotal_bancos,
+    subtotal_contable,
+    subtotal_diferencia: subtotal_bancos - subtotal_contable,
     conceptos: [...conceptos, { label: 'Capital de Trabajo', value: capitalTrabajo }],
     anticipos: [] as { label: string; value: number }[],
     total_anticipo: 0,

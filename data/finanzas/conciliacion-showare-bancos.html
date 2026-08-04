@@ -367,19 +367,27 @@
     <div class="rule"></div>
     <div class="count">al __FECHA_SALDOS__</div>
   </div>
-  <div class="two-col">
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th class="no-sort" style="text-align:left">Banco</th><th class="no-sort">Saldo</th></tr></thead>
-        <tbody id="bancosBody"></tbody>
-        <tfoot><tr><td>SUBTOTAL BANCOS</td><td id="footBancos">$0.00</td></tr></tfoot>
-      </table>
-    </div>
-    <div class="pie-wrap">
-      <h3>% de Efectivo en Bancos</h3>
-      <svg id="pieChart" viewBox="0 0 200 200" width="200" height="200"></svg>
-      <div class="legend" id="pieLegend"></div>
-    </div>
+  <div class="table-wrap" style="margin-bottom:20px;">
+    <table>
+      <thead><tr>
+        <th class="no-sort" style="text-align:left">Banco</th>
+        <th class="no-sort">Saldo Bancario</th>
+        <th class="no-sort">Saldo Contable</th>
+        <th class="no-sort">Diferencia</th>
+      </tr></thead>
+      <tbody id="bancosBody"></tbody>
+      <tfoot><tr>
+        <td>SUBTOTAL BANCOS</td>
+        <td id="footBancos">$0.00</td>
+        <td id="footBancosContable">$0.00</td>
+        <td id="footBancosDiferencia">$0.00</td>
+      </tr></tfoot>
+    </table>
+  </div>
+  <div class="pie-wrap" style="max-width:340px;margin:0 auto;">
+    <h3>% de Efectivo en Bancos</h3>
+    <svg id="pieChart" viewBox="0 0 200 200" width="200" height="200"></svg>
+    <div class="legend" id="pieLegend"></div>
   </div>
 
   <div class="section-head">
@@ -751,9 +759,16 @@ function renderBancos(){
   const body = document.getElementById('bancosBody');
   const sorted = [...SALDOS.bancos].sort((a,b)=>b.value-a.value);
   body.innerHTML = sorted.map(b=>`
-    <tr><td>${b.label}</td><td>${money(b.value)}</td></tr>
+    <tr>
+      <td>${b.label}</td>
+      <td>${money(b.value)}</td>
+      <td>${money(b.contable)}</td>
+      <td class="${b.diferencia < 0 ? 'neg' : (b.diferencia > 0 ? 'pos' : '')}">${money(b.diferencia)}</td>
+    </tr>
   `).join('');
   document.getElementById('footBancos').textContent = money(SALDOS.subtotal_bancos);
+  document.getElementById('footBancosContable').textContent = money(SALDOS.subtotal_contable);
+  document.getElementById('footBancosDiferencia').textContent = money(SALDOS.subtotal_diferencia);
 }
 
 function polarToCartesian(cx, cy, r, angleDeg){
