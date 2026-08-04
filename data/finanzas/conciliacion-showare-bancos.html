@@ -111,9 +111,9 @@
   .table-wrap{background:#fff;border:1px solid var(--line);border-radius:16px;overflow:hidden;}
   table{width:100%;border-collapse:collapse;font-size:13px;}
   thead th{
-    background:#f9fafb; color:#6b7280; font-family:var(--font-body); font-weight:600;
+    background:#000; color:#fff; font-family:var(--font-body); font-weight:700;
     text-transform:uppercase; letter-spacing:.05em; font-size:11px; padding:12px 14px; text-align:right;
-    cursor:pointer; user-select:none; white-space:nowrap; border-bottom:1px solid var(--line);
+    cursor:pointer; user-select:none; white-space:nowrap; border-bottom:1px solid #000;
   }
   thead th.no-sort{cursor:default;}
   thead th:first-child{text-align:left;}
@@ -124,7 +124,7 @@
   tbody tr:nth-child(even){background:#fff;}
   tbody tr:hover{background:#f9fafb !important;}
   tbody tr:last-child td{border-bottom:none;}
-  tfoot td{padding:13px 14px;text-align:right;font-family:var(--font-body);font-weight:700;background:#f9fafb;border-top:2px solid var(--line);color:var(--ink);}
+  tfoot td{padding:13px 14px;text-align:right;font-family:var(--font-body);font-weight:700;background:#000;border-top:2px solid #000;color:#fff;}
   tfoot td:first-child{text-align:left;letter-spacing:normal;}
 
   tr.row-subtotal td{background:#f9fafb;font-weight:700;color:var(--ink);border-top:1px solid var(--line);}
@@ -141,13 +141,13 @@
   #abonoTable tbody td:nth-child(2),
   #abonoTable tbody td:nth-child(3){text-align:center;}
 
-  /* Ventas por Evento: mismo estilo neutro que el resto de tablas */
-  #totalsTable thead th{background:#f9fafb;}
-  #totalsTable tfoot td{background:#f9fafb;border-top-color:var(--line);}
+  /* Ventas por Evento: mismo estilo que el resto de tablas */
+  #totalsTable thead th{background:#000;}
+  #totalsTable tfoot td{background:#000;border-top-color:#000;}
 
-  /* Canceladas por Día: mismo estilo neutro que el resto de tablas */
-  #canceladasTable thead th{background:#f9fafb;}
-  #canceladasTable tfoot td{background:#f9fafb;border-top-color:var(--line);}
+  /* Canceladas por Día: mismo estilo que el resto de tablas */
+  #canceladasTable thead th{background:#000;}
+  #canceladasTable tfoot td{background:#000;border-top-color:#000;}
 
   .two-col{display:grid;grid-template-columns:1.1fr 0.9fr;gap:20px;align-items:start;}
   @media (max-width:900px){.two-col{grid-template-columns:1fr;}}
