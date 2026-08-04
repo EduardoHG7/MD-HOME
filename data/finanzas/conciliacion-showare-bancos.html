@@ -208,6 +208,13 @@
   .bar-row .bar-fill{background:linear-gradient(90deg,#2563eb,#3b82f6);height:100%;border-radius:6px;min-width:2px;}
   .bar-row .bar-label{position:absolute;left:10px;top:0;height:100%;display:flex;align-items:center;font-size:12.5px;color:#111827;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:calc(100% - 16px);}
   .bar-row .bar-amount{font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;}
+
+  /* ---------- MAPA DE CALOR POR HORA ---------- */
+  .heatmap{display:grid;grid-template-columns:44px repeat(24, 1fr);gap:2px;font-family:var(--font-body);min-width:760px;}
+  .heatmap .hm-hour-label{text-align:center;color:var(--text-soft);font-size:9.5px;padding-bottom:3px;}
+  .heatmap .hm-day-label{color:var(--text-soft);font-size:11px;display:flex;align-items:center;padding-right:6px;}
+  .heatmap .hm-cell{aspect-ratio:1;border-radius:3px;cursor:pointer;min-width:20px;min-height:20px;transition:outline .1s ease;}
+  .heatmap .hm-cell:hover{outline:2px solid var(--ink);outline-offset:1px;}
 </style>
 </head>
 <body>
@@ -589,6 +596,16 @@
       <h3>Ventas por mes</h3>
       <svg id="tendMonthChart" width="100%" style="display:block;"></svg>
     </div>
+  </div>
+
+  <div class="section-head">
+    <h2>Compras por horario</h2>
+    <div class="rule"></div>
+    <div class="count">día de semana × hora</div>
+  </div>
+  <div class="section-note">Cantidad de compras por hora del día y día de la semana. Más oscuro = más concentración de ventas. Clic en una celda para ver el detalle.</div>
+  <div class="table-wrap" style="padding:16px 20px;overflow-x:auto;margin-bottom:26px;">
+    <div id="heatmapHoras"></div>
   </div>
 
   <div class="section-head">
@@ -1189,6 +1206,66 @@ function renderBarChart(svgId, points, color){
   `;
 }
 
+const DIAS_SEMANA = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+function diaSemana(f){
+  return (new Date(f + 'T00:00:00Z').getUTCDay() + 6) % 7;
+}
+
+function renderHeatmapHoras(){
+  const grid = new Map();
+  let max = 0;
+  DATA.forEach(d=>{
+    if(!d.hora) return;
+    const dow = diaSemana(d.f);
+    const hour = parseInt(d.hora.slice(0,2),10);
+    if(Number.isNaN(hour)) return;
+    const key = dow + '-' + hour;
+    if(!grid.has(key)) grid.set(key, {qty:0, monto:0});
+    const a = grid.get(key);
+    a.qty += 1;
+    a.monto += d.tot;
+    if(a.qty > max) max = a.qty;
+  });
+
+  let html = '<div class="heatmap">';
+  html += '<div></div>';
+  for(let h=0; h<24; h++) html += `<div class="hm-hour-label">${h}</div>`;
+  DIAS_SEMANA.forEach((label, dow) => {
+    html += `<div class="hm-day-label">${label}</div>`;
+    for(let h=0; h<24; h++){
+      const cell = grid.get(dow + '-' + h);
+      const qty = cell ? cell.qty : 0;
+      const monto = cell ? cell.monto : 0;
+      const intensity = max ? qty / max : 0;
+      const bg = qty === 0 ? '#f3f4f6' : `rgba(37,99,235,${(0.12 + intensity*0.88).toFixed(2)})`;
+      const title = `${label} ${String(h).padStart(2,'0')}:00 — ${num(qty)} compra(s) · ${money(monto)}`;
+      html += `<div class="hm-cell" style="background:${bg}" title="${title}" onclick="openHoraDetail(${dow},${h},'${label}')"></div>`;
+    }
+  });
+  html += '</div>';
+  document.getElementById('heatmapHoras').innerHTML = html;
+}
+
+function openHoraDetail(dow, hour, diaLabel){
+  const rows = DATA.filter(d=>{
+    if(!d.hora) return false;
+    if(diaSemana(d.f) !== dow) return false;
+    return parseInt(d.hora.slice(0,2),10) === hour;
+  });
+  openDetailModal(
+    `${diaLabel} ${String(hour).padStart(2,'0')}:00 – ${String(hour).padStart(2,'0')}:59`,
+    `${num(rows.length)} transacción(es) · ${money(rows.reduce((s,r)=>s+r.tot,0))}`,
+    [
+      {label:'N° Orden', align:'left', render:r=>r.id || '—'},
+      {label:'Fecha',    render:r=>fmtDay(r.f)},
+      {label:'Evento',   align:'left', render:r=>r.ev || '—'},
+      {label:'Total',    render:r=>money(r.tot)},
+      {label:'Banco',    render:r=>r.bk || '—'},
+    ],
+    rows
+  );
+}
+
 function renderTopEventos(){
   const map = new Map();
   DATA.forEach(d=>{
@@ -1273,6 +1350,7 @@ function renderTendencias(){
     .map(p=>{ const [y,m] = p.key.split('-'); return {monto:p.monto, qty:p.qty, label:`${mesesCortos[parseInt(m,10)-1]} ${y}`}; });
   renderBarChart('tendMonthChart', monthPoints, '#f59e0b');
 
+  renderHeatmapHoras();
   renderTopEventos();
 }
 
