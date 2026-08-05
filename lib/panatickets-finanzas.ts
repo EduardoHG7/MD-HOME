@@ -13,35 +13,90 @@ import { downloadPanaticketsFinanzasExcel } from './panatickets-sharepoint'
  * .xlsx antes de parsear — de paso el archivo pesa ~5-20MB menos porque los
  * cachés de tablas dinámicas no se necesitan para nada.
  */
+const SHEETS_NECESARIAS = new Set(['Reporte Showare', 'Saldos Banco', 'Estatus evento'])
+
 async function sanitizeWorkbookBuffer(buffer: Buffer): Promise<Buffer> {
   const zip = await JSZip.loadAsync(buffer)
+  const relsPath = 'xl/_rels/workbook.xml.rels'
+  const wbPath = 'xl/workbook.xml'
 
+  // Quitar del todo las hojas que no usamos (exports crudos por banco,
+  // pivots, etc. — algunas tienen decenas de miles de filas que no hace
+  // falta parsear). Sin esto exceljs procesa las 20+ hojas igual, aunque
+  // no aparezcan referenciadas.
+  const wbXml = await zip.file(wbPath)!.async('string')
+  const sheetEls = wbXml.match(/<sheet\b[^>]*\/>/g) ?? []
+  const rIdsAQuitar = new Set<string>()
+  let newWbXml = wbXml
+  for (const el of sheetEls) {
+    const name = el.match(/name="([^"]*)"/)?.[1]
+    const rid = el.match(/r:id="([^"]*)"/)?.[1]
+    if (!name || !rid || SHEETS_NECESARIAS.has(name)) continue
+    rIdsAQuitar.add(rid)
+    newWbXml = newWbXml.replace(el, '')
+  }
+  newWbXml = newWbXml.replace(/<definedNames>[\s\S]*?<\/definedNames>/g, '')
+  zip.file(wbPath, newWbXml)
+
+  const relsXml = await zip.file(relsPath)!.async('string')
+  const relEls = relsXml.match(/<Relationship\b[^>]*\/>/g) ?? []
+  let newRelsXml = relsXml
+  const hojasAQuitar: string[] = []
+  for (const el of relEls) {
+    const id = el.match(/Id="([^"]*)"/)?.[1]
+    const target = el.match(/Target="([^"]*)"/)?.[1]
+    if (!id || !target || !rIdsAQuitar.has(id)) continue
+    newRelsXml = newRelsXml.replace(el, '')
+    if (target.startsWith('worksheets/')) hojasAQuitar.push(target)
+  }
+  zip.file(relsPath, newRelsXml)
+
+  const ctPath = '[Content_Types].xml'
+  let ct = await zip.file(ctPath)!.async('string')
+  for (const target of hojasAQuitar) {
+    zip.remove(`xl/${target}`)
+    zip.remove(`xl/worksheets/_rels/${target.split('/').pop()}.rels`)
+    const esc = `/xl/${target}`.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    ct = ct.replace(new RegExp(`<Override PartName="${esc}"[^>]*/>`, 'g'), '')
+  }
+  zip.file(ctPath, ct)
+
+  // calcChain.xml referencia celdas por hoja — puede quedar con referencias
+  // colgantes a hojas que ya no existen, más fácil quitarlo entero (solo es
+  // una optimización de orden de cálculo, no datos).
+  if (zip.file('xl/calcChain.xml')) {
+    zip.remove('xl/calcChain.xml')
+    ct = ct.replace(/<Override PartName="\/xl\/calcChain\.xml"[^>]*\/>/g, '')
+    zip.file(ctPath, ct)
+    const relsSinCalcChain = (await zip.file(relsPath)!.async('string'))
+      .replace(/<Relationship[^>]*Target="calcChain\.xml"[^>]*\/>/g, '')
+    zip.file(relsPath, relsSinCalcChain)
+  }
+
+  // Tablas dinámicas: no las necesitamos y sus cachés pesan varios MB.
   Object.keys(zip.files)
     .filter(name => name.startsWith('xl/pivotCache/') || name.startsWith('xl/pivotTables/'))
     .forEach(name => zip.remove(name))
 
-  const wbRelsPath = 'xl/_rels/workbook.xml.rels'
-  const wbRelsFile = zip.file(wbRelsPath)
-  if (wbRelsFile) {
-    const content = (await wbRelsFile.async('string'))
-      .replace(/<Relationship[^>]*Target="pivotCache\/[^"]*"[^>]*\/>/g, '')
-    zip.file(wbRelsPath, content)
-  }
+  const wbRelsSinPivots = (await zip.file(relsPath)!.async('string'))
+    .replace(/<Relationship[^>]*Target="pivotCache\/[^"]*"[^>]*\/>/g, '')
+  zip.file(relsPath, wbRelsSinPivots)
 
-  const wbPath = 'xl/workbook.xml'
-  const wbFile = zip.file(wbPath)
-  if (wbFile) {
-    const content = (await wbFile.async('string')).replace(/<pivotCaches>[\s\S]*?<\/pivotCaches>/g, '')
-    zip.file(wbPath, content)
-  }
+  const wbXmlSinPivots = (await zip.file(wbPath)!.async('string'))
+    .replace(/<pivotCaches>[\s\S]*?<\/pivotCaches>/g, '')
+  zip.file(wbPath, wbXmlSinPivots)
 
-  const sheetRelsNames = Object.keys(zip.files).filter(n => n.startsWith('xl/worksheets/_rels/'))
-  for (const name of sheetRelsNames) {
+  const sheetRelsRestantes = Object.keys(zip.files).filter(n => n.startsWith('xl/worksheets/_rels/'))
+  for (const name of sheetRelsRestantes) {
     const content = (await zip.file(name)!.async('string'))
       .replace(/<Relationship[^>]*Target="\.\.\/pivotTables\/[^"]*"[^>]*\/>/g, '')
     zip.file(name, content)
   }
 
+  // AutoFilter: exceljs no soporta el nodo <dateGroupItem> que Excel genera
+  // para filtros de columna agrupados por fecha, y revienta el parseo
+  // completo si alguien deja uno activo al guardar. No necesitamos el
+  // estado del filtro (leemos las celdas crudas), así que se descarta.
   const autoFilterRe = /<autoFilter\b[^>]*\/>|<autoFilter\b[^>]*>[\s\S]*?<\/autoFilter>/g
   const filesConAutoFilter = Object.keys(zip.files).filter(
     n => /^xl\/tables\/table\d+\.xml$/.test(n) || /^xl\/worksheets\/sheet\d+\.xml$/.test(n)
