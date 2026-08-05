@@ -44,6 +44,11 @@ export default async function FinanzasPage() {
     'utf8'
   )
 
+  const generadoEn = new Intl.DateTimeFormat('es-PA', {
+    day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit',
+    timeZone: 'America/Panama',
+  }).format(new Date(datos.generatedAt))
+
   const html = template
     .replace('__DATA_JSON__', JSON.stringify(datos.DATA))
     .replace('__SALDOS_JSON__', JSON.stringify(datos.SALDOS))
@@ -51,6 +56,7 @@ export default async function FinanzasPage() {
     .replace('__GLOBAL_SUMMARY_JSON__', JSON.stringify(datos.GLOBAL_SUMMARY))
     .replace('__EXEC_SUMMARY_JSON__', JSON.stringify(datos.EXEC_SUMMARY))
     .replaceAll('__FECHA_SALDOS__', datos.SALDOS.fecha_saldos)
+    .replaceAll('__GENERADO_EN__', generadoEn)
 
   return <ReporteFrame html={html} />
 }

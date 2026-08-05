@@ -1,0 +1,6 @@
+{
+  "crons": [
+    { "path": "/api/cron/refresh-finanzas-panatickets", "schedule": "0 15 * * *" },
+    { "path": "/api/cron/refresh-finanzas-panatickets", "schedule": "0 20 * * *" }
+  ]
+}
