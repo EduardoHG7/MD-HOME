@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 import fs from 'fs'
 import path from 'path'

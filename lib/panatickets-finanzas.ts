@@ -1,6 +1,58 @@
 import ExcelJS from 'exceljs'
+import JSZip from 'jszip'
 import { unstable_cache } from 'next/cache'
 import { downloadPanaticketsFinanzasExcel } from './panatickets-sharepoint'
+
+/**
+ * El equipo edita este Excel a mano en vivo (filtros, tablas dinámicas,
+ * slicers). exceljs no soporta ciertos nodos XML que Excel genera para
+ * filtros de columna agrupados por fecha (<dateGroupItem>) y su parser
+ * revienta con "Unexpected xml node in parseOpen" apenas alguien deja un
+ * AutoFilter de fecha activo al guardar. Como no necesitamos el estado de
+ * filtros/tablas dinámicas (leemos las celdas crudas), se les quita del
+ * .xlsx antes de parsear — de paso el archivo pesa ~5-20MB menos porque los
+ * cachés de tablas dinámicas no se necesitan para nada.
+ */
+async function sanitizeWorkbookBuffer(buffer: Buffer): Promise<Buffer> {
+  const zip = await JSZip.loadAsync(buffer)
+
+  Object.keys(zip.files)
+    .filter(name => name.startsWith('xl/pivotCache/') || name.startsWith('xl/pivotTables/'))
+    .forEach(name => zip.remove(name))
+
+  const wbRelsPath = 'xl/_rels/workbook.xml.rels'
+  const wbRelsFile = zip.file(wbRelsPath)
+  if (wbRelsFile) {
+    const content = (await wbRelsFile.async('string'))
+      .replace(/<Relationship[^>]*Target="pivotCache\/[^"]*"[^>]*\/>/g, '')
+    zip.file(wbRelsPath, content)
+  }
+
+  const wbPath = 'xl/workbook.xml'
+  const wbFile = zip.file(wbPath)
+  if (wbFile) {
+    const content = (await wbFile.async('string')).replace(/<pivotCaches>[\s\S]*?<\/pivotCaches>/g, '')
+    zip.file(wbPath, content)
+  }
+
+  const sheetRelsNames = Object.keys(zip.files).filter(n => n.startsWith('xl/worksheets/_rels/'))
+  for (const name of sheetRelsNames) {
+    const content = (await zip.file(name)!.async('string'))
+      .replace(/<Relationship[^>]*Target="\.\.\/pivotTables\/[^"]*"[^>]*\/>/g, '')
+    zip.file(name, content)
+  }
+
+  const autoFilterRe = /<autoFilter\b[^>]*\/>|<autoFilter\b[^>]*>[\s\S]*?<\/autoFilter>/g
+  const filesConAutoFilter = Object.keys(zip.files).filter(
+    n => /^xl\/tables\/table\d+\.xml$/.test(n) || /^xl\/worksheets\/sheet\d+\.xml$/.test(n)
+  )
+  for (const name of filesConAutoFilter) {
+    const content = (await zip.file(name)!.async('string')).replace(autoFilterRe, '')
+    zip.file(name, content)
+  }
+
+  return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' })
+}
 
 // ---------- Columnas de "Reporte Showare" (fila 6 = encabezados, datos desde fila 7) ----------
 const COL = {
@@ -349,7 +401,8 @@ function computeExecSummary(ventas: VentaRow[], canceladas: CanceladaRow[], glob
 }
 
 export async function computeFinanzasPanatickets() {
-  const buffer = await downloadPanaticketsFinanzasExcel()
+  const rawBuffer = await downloadPanaticketsFinanzasExcel()
+  const buffer = await sanitizeWorkbookBuffer(rawBuffer)
   const wb = new ExcelJS.Workbook()
   await wb.xlsx.load(buffer as unknown as ExcelJS.Buffer)
 
