@@ -2,5 +2,9 @@
   "crons": [
     { "path": "/api/cron/refresh-finanzas-panatickets", "schedule": "0 15 * * *" },
     { "path": "/api/cron/refresh-finanzas-panatickets", "schedule": "0 20 * * *" }
-  ]
+  ],
+  "functions": {
+    "app/api/cron/refresh-finanzas-panatickets/route.ts": { "memory": 3009 },
+    "app/admin/finanzas/page.tsx": { "memory": 3009 }
+  }
 }
