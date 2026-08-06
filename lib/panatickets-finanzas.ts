@@ -106,7 +106,12 @@ async function sanitizeWorkbookBuffer(buffer: Buffer): Promise<Buffer> {
     zip.file(name, content)
   }
 
-  return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' })
+  // Nivel de compresión bajo: exceljs vuelve a descomprimir este buffer
+  // de inmediato, así que comprimir fuerte (nivel por defecto) solo hace
+  // más lento todo el proceso sin ningún beneficio (nunca se guarda ni se
+  // transmite). STORE (sin comprimir) se probó y sale peor: el buffer sin
+  // comprimir queda ~10x más grande y exceljs tarda más en leerlo.
+  return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE', compressionOptions: { level: 1 } })
 }
 
 // ---------- Columnas de "Reporte Showare" (fila 6 = encabezados, datos desde fila 7) ----------
@@ -239,6 +244,7 @@ async function parseReporteShoware(wb: ExcelJS.Workbook) {
 
   const ventas: VentaRow[] = []
   const canceladas: CanceladaRow[] = []
+  const pendientes = new Map<string, { qty: number; monto: number }>()
 
   sheet.eachRow({ includeEmpty: false }, (row, rowNum) => {
     if (rowNum < 7) return
@@ -272,8 +278,15 @@ async function parseReporteShoware(wb: ExcelJS.Workbook) {
     }
 
     if (excluida) return
-    const filtroBancos = get(COL.filtroBancos)
-    if (String(filtroBancos ?? '') !== 'OK') return
+    const filtroBancos = String(get(COL.filtroBancos) ?? '')
+    if (filtroBancos !== 'OK') {
+      const bucket = pagoBucket(detallePago)
+      if (!pendientes.has(bucket)) pendientes.set(bucket, { qty: 0, monto: 0 })
+      const a = pendientes.get(bucket)!
+      a.qty += 1
+      a.monto += tot
+      return
+    }
 
     const { bk, abonoCol } = bankChannel(get, detallePago)
     const abonoRaw = abonoCol ? get(abonoCol) : null
@@ -294,7 +307,7 @@ async function parseReporteShoware(wb: ExcelJS.Workbook) {
     })
   })
 
-  return { ventas, canceladas }
+  return { ventas, canceladas, pendientes }
 }
 
 async function parseSaldosBanco(wb: ExcelJS.Workbook) {
@@ -456,35 +469,27 @@ function computeExecSummary(ventas: VentaRow[], canceladas: CanceladaRow[], glob
 }
 
 export async function computeFinanzasPanatickets() {
+  const t0 = Date.now()
   const rawBuffer = await downloadPanaticketsFinanzasExcel()
+  const t1 = Date.now()
   const buffer = await sanitizeWorkbookBuffer(rawBuffer)
+  const t2 = Date.now()
   const wb = new ExcelJS.Workbook()
   await wb.xlsx.load(buffer as unknown as ExcelJS.Buffer)
+  const t3 = Date.now()
 
-  const { ventas, canceladas } = await parseReporteShoware(wb)
+  const { ventas, canceladas, pendientes } = await parseReporteShoware(wb)
+  const t4 = Date.now()
   const saldos = await parseSaldosBanco(wb)
   const { anticipos, total_anticipo } = await parseAnticipos(wb)
   saldos.anticipos = anticipos
   saldos.total_anticipo = total_anticipo
+  const t5 = Date.now()
 
-  const pendientes = new Map<string, { qty: number; monto: number }>()
-  const sheet = wb.getWorksheet('Reporte Showare')!
-  sheet.eachRow({ includeEmpty: false }, (row, rowNum) => {
-    if (rowNum < 7) return
-    const get = (col: number) => extractValue(row.getCell(col).value)
-    const estatus = String(get(COL.estatusCompra) ?? '')
-    if (estatus === 'Cancelada') return
-    const codigoPrecio = get(COL.codigoPrecio)
-    const detallePago = get(COL.detallePago)
-    if (EXCLUDE_CODIGO_PRECIO.has(String(codigoPrecio ?? '')) || EXCLUDE_DETALLE_PAGO.has(String(detallePago ?? ''))) return
-    const filtroBancos = String(get(COL.filtroBancos) ?? '')
-    if (filtroBancos === 'OK') return
-    const bucket = pagoBucket(detallePago)
-    if (!pendientes.has(bucket)) pendientes.set(bucket, { qty: 0, monto: 0 })
-    const a = pendientes.get(bucket)!
-    a.qty += 1
-    a.monto += Number(get(COL.total)) || 0
-  })
+  console.log(
+    `[finanzas-panatickets] descarga=${t1 - t0}ms sanear=${t2 - t1}ms (rawBytes=${rawBuffer.length}, saneadoBytes=${buffer.length}) cargaExcel=${t3 - t2}ms parseoShoware=${t4 - t3}ms (ventas=${ventas.length}) saldos/anticipos=${t5 - t4}ms`
+  )
+
   const GLOBAL_SUMMARY = Array.from(pendientes.entries())
     .map(([label, v]) => ({ label, qty: v.qty, monto: v.monto }))
     .sort((a, b) => b.monto - a.monto)
