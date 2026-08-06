@@ -86,10 +86,25 @@ async function sanitizeWorkbookBuffer(buffer: Buffer): Promise<Buffer> {
     .replace(/<pivotCaches>[\s\S]*?<\/pivotCaches>/g, '')
   zip.file(wbPath, wbXmlSinPivots)
 
+  // Slicers: mismo motivo — no los necesitamos y son otra fuente de XML
+  // (fechas agrupadas, selección de valores) que exceljs puede no soportar.
+  Object.keys(zip.files)
+    .filter(name => name.startsWith('xl/slicerCaches/') || name.startsWith('xl/slicers/'))
+    .forEach(name => zip.remove(name))
+
+  const wbRelsSinSlicers = (await zip.file(relsPath)!.async('string'))
+    .replace(/<Relationship[^>]*Target="slicer(Caches)?\/[^"]*"[^>]*\/>/g, '')
+  zip.file(relsPath, wbRelsSinSlicers)
+
+  const wbXmlSinSlicers = (await zip.file(wbPath)!.async('string'))
+    .replace(/<x15:slicerCaches>[\s\S]*?<\/x15:slicerCaches>/g, '')
+  zip.file(wbPath, wbXmlSinSlicers)
+
   const sheetRelsRestantes = Object.keys(zip.files).filter(n => n.startsWith('xl/worksheets/_rels/'))
   for (const name of sheetRelsRestantes) {
     const content = (await zip.file(name)!.async('string'))
       .replace(/<Relationship[^>]*Target="\.\.\/pivotTables\/[^"]*"[^>]*\/>/g, '')
+      .replace(/<Relationship[^>]*Target="\.\.\/slicers\/[^"]*"[^>]*\/>/g, '')
     zip.file(name, content)
   }
 
