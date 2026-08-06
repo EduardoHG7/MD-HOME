@@ -263,6 +263,7 @@
   <div class="tab-nav">
     <button class="tab-btn active" data-tab="venta">Venta</button>
     <button class="tab-btn" data-tab="banco">Banco</button>
+    <button class="tab-btn" data-tab="contabilidad">Contabilidad</button>
     <button class="tab-btn" data-tab="resumen">Resumen Ejecutivo</button>
     <button class="tab-btn" data-tab="tendencias">Tendencias</button>
   </div>
@@ -486,6 +487,40 @@
       </thead>
       <tbody id="abonoBody"></tbody>
       <tfoot id="abonoFoot"></tfoot>
+    </table>
+  </div>
+
+  </div>
+
+  <div class="tab-panel" id="panel-contabilidad">
+
+  <div class="section-head" style="margin-top:0;">
+    <h2>Contabilidad por evento y canal</h2>
+    <div class="rule"></div>
+    <div class="count" id="contabilidadCount"></div>
+  </div>
+  <div class="section-note">Para cada Evento, cuánto entró por BAC, Metrobank, Yappy Web, YAPPY (89), Global, ACH, Efectivo y Taquilla — solo transacciones de Reporte Showare con Filtro Bancos = "OK" y con valor distinto de "No esta" en la columna del canal correspondiente. Cada fila cae en un solo canal (sin traslapes). Responde a los filtros de Día, Evento y Estado de arriba.</div>
+  <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+    <button class="reset-btn" style="color:#15803d;background:#f0fdf4;border-color:#bbf7d0;" onclick="exportContabilidadExcel()">Exportar a Excel</button>
+  </div>
+  <div class="table-wrap">
+    <table id="contabilidadTable">
+      <thead>
+        <tr>
+          <th class="no-sort" style="text-align:left">Evento</th>
+          <th class="no-sort">BAC</th>
+          <th class="no-sort">Metrobank</th>
+          <th class="no-sort">Yappy Web</th>
+          <th class="no-sort">YAPPY (89)</th>
+          <th class="no-sort">Global</th>
+          <th class="no-sort">ACH</th>
+          <th class="no-sort">Efectivo</th>
+          <th class="no-sort">Taquilla</th>
+          <th class="no-sort">Total</th>
+        </tr>
+      </thead>
+      <tbody id="contabilidadBody"></tbody>
+      <tfoot id="contabilidadFoot"></tfoot>
     </table>
   </div>
 
@@ -897,6 +932,7 @@ function renderAll(){
   renderCanceladasPorDia();
   renderBankDaySummary();
   renderAbonoTable();
+  renderContabilidadTable();
 }
 
 function renderCanceladasPorDia(){
@@ -1125,6 +1161,75 @@ function renderWeekChart(days){
 }
 
 const BANKS = ['BAC','Metrobank','Yappy Web','YAPPY (89)','Global','ACH','Efectivo'];
+const CONTA_BANKS = [...BANKS, 'Taquilla'];
+
+function renderContabilidadTable(){
+  const rows = getFiltered();
+  const byEvento = new Map();
+  rows.forEach(r=>{
+    if(!r.bk || !CONTA_BANKS.includes(r.bk)) return;
+    if(!byEvento.has(r.ev)) byEvento.set(r.ev, {ev:r.ev, BAC:0, Metrobank:0, 'Yappy Web':0, 'YAPPY (89)':0, Global:0, ACH:0, Efectivo:0, Taquilla:0, total:0});
+    const a = byEvento.get(r.ev);
+    a[r.bk] += r.tot;
+    a.total += r.tot;
+  });
+  const sorted = [...byEvento.values()].sort((a,b)=>b.total-a.total);
+
+  document.getElementById('contabilidadCount').textContent = `${sorted.length} evento(s) · ${CONTA_BANKS.length} canales`;
+  const body = document.getElementById('contabilidadBody');
+  if(!sorted.length){
+    body.innerHTML = `<tr><td colspan="10"><div class="empty-state">Sin resultados para este filtro.</div></td></tr>`;
+  } else {
+    body.innerHTML = sorted.map(a=>`
+      <tr>
+        <td>${a.ev}</td>
+        <td>${money(a['BAC'])}</td>
+        <td>${money(a['Metrobank'])}</td>
+        <td>${money(a['Yappy Web'])}</td>
+        <td>${money(a['YAPPY (89)'])}</td>
+        <td>${money(a['Global'])}</td>
+        <td>${money(a['ACH'])}</td>
+        <td>${money(a['Efectivo'])}</td>
+        <td>${money(a['Taquilla'])}</td>
+        <td>${money(a.total)}</td>
+      </tr>
+    `).join('');
+  }
+  const t = {BAC:0, Metrobank:0, 'Yappy Web':0, 'YAPPY (89)':0, Global:0, ACH:0, Efectivo:0, Taquilla:0, total:0};
+  sorted.forEach(a=>{ CONTA_BANKS.forEach(b=>t[b]+=a[b]); t.total+=a.total; });
+  document.getElementById('contabilidadFoot').innerHTML = `
+    <tr>
+      <td>TOTAL</td>
+      <td>${money(t['BAC'])}</td>
+      <td>${money(t['Metrobank'])}</td>
+      <td>${money(t['Yappy Web'])}</td>
+      <td>${money(t['YAPPY (89)'])}</td>
+      <td>${money(t['Global'])}</td>
+      <td>${money(t['ACH'])}</td>
+      <td>${money(t['Efectivo'])}</td>
+      <td>${money(t['Taquilla'])}</td>
+      <td>${money(t.total)}</td>
+    </tr>
+  `;
+}
+
+function exportContabilidadExcel(){
+  const table = document.getElementById('contabilidadTable');
+  const tableHtml = table.outerHTML;
+  const template = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+    <head><meta charset="UTF-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Contabilidad</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head>
+    <body>${tableHtml}</body>
+  </html>`;
+  const blob = new Blob(['﻿', template], { type: 'application/vnd.ms-excel' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `contabilidad-panatickets-${new Date().toISOString().slice(0,10)}.xls`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
 function renderBankDaySummary(){
   const rows = getFiltered();
