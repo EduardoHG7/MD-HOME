@@ -1,5 +1,8 @@
-'use client'
-
+// No es Client Component a propósito: el iframe no necesita nada
+// interactivo de React, y el html puede pesar varios MB (crece a diario) —
+// pasarlo como prop de un Client Component obliga a React a serializarlo
+// por el protocolo RSC, que es mucho más frágil con strings gigantes que
+// mandarlo directo como HTML del servidor.
 export function ReporteFrame({ html }: { html: string }) {
   return (
     <iframe
