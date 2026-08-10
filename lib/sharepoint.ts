@@ -231,6 +231,16 @@ const MIME_POR_EXTENSION: Record<string, string> = {
   csv: 'text/csv',
 }
 
+// Preserva el status HTTP real de Graph para que quien llame (p.ej. /api/fotos)
+// pueda distinguir "no existe" (404) de un problema de permisos (403) o de otro
+// tipo — de lo contrario todos los fallos se ven idénticos desde el navegador.
+export class SharePointDownloadError extends Error {
+  constructor(message: string, public status: number) {
+    super(message)
+    this.name = 'SharePointDownloadError'
+  }
+}
+
 export async function downloadFromSharePoint(filePath: string): Promise<{ buffer: ArrayBuffer; contentType: string }> {
   const siteId = await getSiteId()
 
@@ -240,7 +250,7 @@ export async function downloadFromSharePoint(filePath: string): Promise<{ buffer
   if (!res.ok) {
     const err = await res.text()
     console.error(`[sharepoint] Error descargando "${filePath}" (${res.status}):`, err)
-    throw new Error(`Error descargando de SharePoint (${res.status}): ${err}`)
+    throw new SharePointDownloadError(`Error descargando de SharePoint (${res.status}): ${err}`, res.status)
   }
 
   const buffer = await res.arrayBuffer()

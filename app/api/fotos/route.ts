@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 30
 
 import { NextResponse } from 'next/server'
-import { downloadFromSharePoint } from '@/lib/sharepoint'
+import { downloadFromSharePoint, SharePointDownloadError } from '@/lib/sharepoint'
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
@@ -27,6 +27,10 @@ export async function GET(req: Request) {
     })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Error al obtener la imagen'
-    return NextResponse.json({ error: msg }, { status: 404 })
+    // Antes esto siempre devolvía 404, sin importar la causa real (permisos,
+    // error del servidor, etc.), lo que hacía imposible distinguir "el
+    // archivo no existe" de otros fallos desde el navegador o los logs.
+    const status = err instanceof SharePointDownloadError ? err.status : 502
+    return NextResponse.json({ error: msg }, { status })
   }
 }
