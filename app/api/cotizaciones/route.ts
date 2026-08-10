@@ -78,16 +78,21 @@ export async function POST(req: Request) {
       linea: {
         include: {
           categoria: {
-            include: { presupuesto: { include: { evento: { select: { nombre: true } } } } }
+            include: { presupuesto: { include: { evento: { select: { nombre: true, tenants: true } } } } }
           }
         }
       },
     },
   })
 
-  // Notificar a todos los admins
+  // Notificar solo a admins de la(s) empresa(s) del evento (si no tiene
+  // empresa asignada, se avisa a todos para no dejar la cotización sin notificar)
   try {
-    const admins      = await prisma.user.findMany({ where: { role: 'ADMIN' }, select: { email: true, telefono: true } })
+    const eventoTenantIds = cot.linea.categoria.presupuesto.evento.tenants.map(t => t.tenantId)
+    const adminFilter = eventoTenantIds.length
+      ? { role: 'ADMIN', tenants: { some: { tenantId: { in: eventoTenantIds } } } }
+      : { role: 'ADMIN' }
+    const admins      = await prisma.user.findMany({ where: adminFilter, select: { email: true, telefono: true } })
     const adminEmails = admins.map(a => a.email)
     const fromEmail   = session.user.email
     if (adminEmails.length && fromEmail) {
@@ -104,6 +109,7 @@ export async function POST(req: Request) {
           descripcion:        descripcion ?? null,
           montoTotal,
           numFacturas:        facturas.length,
+          cotizacionId:       cot.id,
         }),
       })
     }
@@ -119,7 +125,7 @@ export async function POST(req: Request) {
           `*Evento:* ${cot.linea.categoria.presupuesto.evento.nombre}\n` +
           `*Subcategoría:* ${cot.linea.descripcion}${cot.concepto ? ` › ${cot.concepto}` : ''}\n` +
           `*Monto total:* $${montoTotal.toFixed(2)}\n\n` +
-          `Revisar y aprobar:\n${url}/admin/solicitudes`
+          `Revisar y aprobar:\n${url}/admin/solicitudes?tab=cotizaciones&id=${cot.id}`
         )
       } catch (err) {
         console.error('[cotizaciones] Error enviando WhatsApp a admin:', err)

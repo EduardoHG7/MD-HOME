@@ -60,13 +60,20 @@ export async function POST(req: Request) {
       presupuesto:      presupuesto ? parseFloat(presupuesto) : null,
       comentario:       comentario?.trim() || null,
     },
-    include: { evento: true, tarifa: true },
+    include: { evento: { include: { tenants: true } }, tarifa: true },
   })
 
   const url = process.env.NEXTAUTH_URL ?? ''
 
   try {
-    const admins      = await prisma.user.findMany({ where: { role: 'ADMIN' }, select: { email: true, telefono: true } })
+    // Solo notificar a admins de la(s) empresa(s) del evento — si el evento no
+    // tiene empresa asignada, se avisa a todos (comportamiento previo) para
+    // no dejar solicitudes sin notificar.
+    const eventoTenantIds = solicitud.evento.tenants.map(t => t.tenantId)
+    const adminFilter = eventoTenantIds.length
+      ? { role: 'ADMIN', tenants: { some: { tenantId: { in: eventoTenantIds } } } }
+      : { role: 'ADMIN' }
+    const admins      = await prisma.user.findMany({ where: adminFilter, select: { email: true, telefono: true } })
     const adminEmails = admins.map(a => a.email)
     const fromEmail   = session.user.email
     if (adminEmails.length && fromEmail) {
@@ -82,11 +89,12 @@ export async function POST(req: Request) {
           numPersonas:       solicitud.numPersonas,
           fechaInicioLabor,
           fechaFinLabor,
+          solicitudId:       solicitud.id,
         }),
       })
     }
     for (const admin of admins.filter(a => a.telefono)) {
-      try { await sendWhatsApp(admin.telefono!, `Nueva solicitud\nEvento: ${solicitud.evento.nombre}\nFuncion: ${solicitud.funcion}\n${url}/admin/solicitudes`) } catch {}
+      try { await sendWhatsApp(admin.telefono!, `Nueva solicitud\nEvento: ${solicitud.evento.nombre}\nFuncion: ${solicitud.funcion}\n${url}/admin/solicitudes?tab=personal&id=${solicitud.id}`) } catch {}
     }
   } catch (err) { console.error('[solicitudes]', err) }
 

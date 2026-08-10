@@ -140,6 +140,7 @@ export function templateNuevaSolicitud({
   numPersonas,
   fechaInicioLabor,
   fechaFinLabor,
+  solicitudId,
 }: {
   solicitanteNombre: string
   solicitanteEmail:  string
@@ -148,6 +149,7 @@ export function templateNuevaSolicitud({
   numPersonas:       number
   fechaInicioLabor:  string
   fechaFinLabor:     string
+  solicitudId:       string
 }) {
   const dias = Math.ceil(
     (new Date(fechaFinLabor).getTime() - new Date(fechaInicioLabor).getTime()) / (1000 * 60 * 60 * 24)
@@ -169,7 +171,7 @@ export function templateNuevaSolicitud({
         <tr><td style="padding:8px 0;color:#6b7280">Fechas de labor</td><td style="padding:8px 0">${new Date(fechaInicioLabor).toLocaleDateString('es-PA')} – ${new Date(fechaFinLabor).toLocaleDateString('es-PA')} <span style="color:#d97706">(${dias} día(s))</span></td></tr>
       </table>
       <div style="margin-top:24px">
-        <a href="${process.env.NEXTAUTH_URL}/admin/solicitudes" style="background:#111;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">
+        <a href="${process.env.NEXTAUTH_URL}/admin/solicitudes?tab=personal&id=${solicitudId}" style="background:#111;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">
           Revisar solicitud →
         </a>
       </div>
@@ -237,6 +239,7 @@ export function templateNuevaCotizacion({
   descripcion,
   montoTotal,
   numFacturas,
+  cotizacionId,
 }: {
   usuarioNombre:      string
   usuarioEmail:       string
@@ -246,6 +249,7 @@ export function templateNuevaCotizacion({
   descripcion:        string | null
   montoTotal:         number
   numFacturas:        number
+  cotizacionId:       string
 }) {
   return `
   <div style="font-family:sans-serif;max-width:560px;margin:0 auto;color:#111">
@@ -265,7 +269,7 @@ export function templateNuevaCotizacion({
         <tr><td style="padding:8px 0;color:#6b7280">Monto total</td><td style="padding:8px 0;font-weight:600;color:#d97706;font-size:16px">$${montoTotal.toFixed(2)}</td></tr>
       </table>
       <div style="margin-top:24px">
-        <a href="${process.env.NEXTAUTH_URL}/admin/eventos" style="background:#111;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">
+        <a href="${process.env.NEXTAUTH_URL}/admin/solicitudes?tab=cotizaciones&id=${cotizacionId}" style="background:#111;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">
           Revisar cotización →
         </a>
       </div>

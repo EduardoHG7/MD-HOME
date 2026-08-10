@@ -139,7 +139,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   const solicitud = await prisma.solicitud.findUnique({
     where: { id: params.id },
-    include: { evento: true },
+    include: { evento: { include: { tenants: true } } },
   })
 
   if (!solicitud) return NextResponse.json({ error: 'No encontrada' }, { status: 404 })
@@ -151,7 +151,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   }
 
   try {
-    const admins      = await prisma.user.findMany({ where: { role: 'ADMIN' }, select: { email: true, telefono: true } })
+    const eventoTenantIds = solicitud.evento.tenants.map(t => t.tenantId)
+    const adminFilter = eventoTenantIds.length
+      ? { role: 'ADMIN', tenants: { some: { tenantId: { in: eventoTenantIds } } } }
+      : { role: 'ADMIN' }
+    const admins      = await prisma.user.findMany({ where: adminFilter, select: { email: true, telefono: true } })
     const adminEmails = admins.map(a => a.email)
     const fromEmail   = session.user.email
     if (adminEmails.length && fromEmail) {
@@ -167,6 +171,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           numPersonas:       solicitud.numPersonas,
           fechaInicioLabor:  solicitud.fechaInicioLabor?.toISOString() ?? '',
           fechaFinLabor:     solicitud.fechaFinLabor?.toISOString()    ?? '',
+          solicitudId:       solicitud.id,
         }),
       })
     }
@@ -180,7 +185,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           `📋 *Magic Dreams — Solicitud de personal (reenvío)*\n\n` +
           `*${session.user.name ?? fromEmail}* solicita personal para *${solicitud.evento.nombre}*.\n` +
           `*Función:* ${solicitud.funcion} · *Personas:* ${solicitud.numPersonas}\n\n` +
-          `Revisar y aprobar:\n${url}/admin/solicitudes`
+          `Revisar y aprobar:\n${url}/admin/solicitudes?tab=personal&id=${solicitud.id}`
         )
       } catch (err) {
         console.error('[solicitudes/id] Error enviando WhatsApp a admin:', err)
