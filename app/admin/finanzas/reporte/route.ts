@@ -3,6 +3,7 @@ export const maxDuration = 300
 
 import fs from 'fs'
 import path from 'path'
+import { gzipSync } from 'zlib'
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
@@ -67,5 +68,17 @@ export async function GET() {
     .replaceAll('__FECHA_SALDOS__', () => datos.SALDOS.fecha_saldos)
     .replaceAll('__GENERADO_EN__', () => generadoEn)
 
-  return new NextResponse(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+  // El reporte guarda TODO el historial de ventas sin recorte (a propósito,
+  // para comparativos año contra año), así que ya pesa varios MB sin
+  // comprimir — suficiente para chocar con el límite de tamaño de respuesta
+  // de las funciones de Vercel (500 genérico de la plataforma, no de la
+  // app). Texto JSON/HTML comprime muy bien, así que se manda gzip a mano
+  // en vez de confiar en que la plataforma comprima una respuesta grande.
+  const gzipped = gzipSync(Buffer.from(html, 'utf8'))
+  return new NextResponse(gzipped, {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Content-Encoding': 'gzip',
+    },
+  })
 }
