@@ -701,6 +701,7 @@ const num = n => Number(n).toLocaleString('en-US');
 let state = { day:'ALL', evento:'ALL', status:'ALL', sortKey:'tot', sortDir:-1 };
 
 function fmtDay(iso){
+  if(!iso) return '—';
   const [y,m,d] = iso.split('-');
   const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
   return d + ' ' + meses[parseInt(m,10)-1];
@@ -1061,6 +1062,7 @@ function openGlobalDetail(label, qty, monto){
 }
 
 function fmtDayLong(iso){
+  if(!iso) return 'Sin datos en este período';
   const [y,m,d] = iso.split('-');
   const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
   return `${d} de ${meses[parseInt(m,10)-1]}`;

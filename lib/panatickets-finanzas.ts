@@ -425,18 +425,18 @@ function computeExecSummary(ventas: VentaRow[], canceladas: CanceladaRow[], glob
     a.monto += v.tot; a.qty += 1
   })
 
-  const lastDay = days[days.length - 1]
-  const prevDay = days[days.length - 2]
-  const last = byDay.get(lastDay) ?? { monto: 0, qty: 0 }
-  const prev = byDay.get(prevDay) ?? { monto: 0, qty: 0 }
+  const lastDay = days[days.length - 1] ?? null
+  const prevDay = days[days.length - 2] ?? null
+  const last = (lastDay ? byDay.get(lastDay) : undefined) ?? { monto: 0, qty: 0 }
+  const prev = (prevDay ? byDay.get(prevDay) : undefined) ?? { monto: 0, qty: 0 }
   const day_pct = prev.monto ? ((last.monto - prev.monto) / prev.monto) * 100 : 0
 
   const last7 = days.slice(-7)
   const prev7 = days.slice(-14, -7)
   const sumDays = (ds: string[]) => ds.reduce((s, d) => s + (byDay.get(d)?.monto ?? 0), 0)
   const qtyDays = (ds: string[]) => ds.reduce((s, d) => s + (byDay.get(d)?.qty ?? 0), 0)
-  const week_cur = { start: last7[0], end: last7[last7.length - 1], monto: sumDays(last7), qty: qtyDays(last7) }
-  const week_prev = { start: prev7[0] ?? last7[0], end: prev7[prev7.length - 1] ?? last7[0], monto: sumDays(prev7), qty: qtyDays(prev7) }
+  const week_cur = { start: last7[0] ?? null, end: last7[last7.length - 1] ?? null, monto: sumDays(last7), qty: qtyDays(last7) }
+  const week_prev = { start: prev7[0] ?? last7[0] ?? null, end: prev7[prev7.length - 1] ?? last7[0] ?? null, monto: sumDays(prev7), qty: qtyDays(prev7) }
   const week_pct = week_prev.monto ? ((week_cur.monto - week_prev.monto) / week_prev.monto) * 100 : 0
   const week_days = last7.map(f => ({ f, monto: byDay.get(f)?.monto ?? 0, qty: byDay.get(f)?.qty ?? 0 }))
 
