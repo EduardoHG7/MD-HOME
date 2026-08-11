@@ -50,14 +50,19 @@ export default async function FinanzasPage() {
     timeZone: 'America/Panama',
   }).format(new Date(datos.generatedAt))
 
+  // Los reemplazos van con función (no string) porque String.replace trata
+  // secuencias como $&, $$, $` de forma especial en el string de reemplazo —
+  // y estos son datos financieros, así que un solo "$" en cualquier monto,
+  // cuenta o descripción corrompe el JSON incrustado y tumba el parseo en
+  // el cliente (visto como "Application error" en blanco al abrir Finanzas).
   const html = template
-    .replace('__DATA_JSON__', JSON.stringify(datos.DATA))
-    .replace('__SALDOS_JSON__', JSON.stringify(datos.SALDOS))
-    .replace('__CANCELADAS_JSON__', JSON.stringify(datos.CANCELADAS))
-    .replace('__GLOBAL_SUMMARY_JSON__', JSON.stringify(datos.GLOBAL_SUMMARY))
-    .replace('__EXEC_SUMMARY_JSON__', JSON.stringify(datos.EXEC_SUMMARY))
-    .replaceAll('__FECHA_SALDOS__', datos.SALDOS.fecha_saldos)
-    .replaceAll('__GENERADO_EN__', generadoEn)
+    .replace('__DATA_JSON__', () => JSON.stringify(datos.DATA))
+    .replace('__SALDOS_JSON__', () => JSON.stringify(datos.SALDOS))
+    .replace('__CANCELADAS_JSON__', () => JSON.stringify(datos.CANCELADAS))
+    .replace('__GLOBAL_SUMMARY_JSON__', () => JSON.stringify(datos.GLOBAL_SUMMARY))
+    .replace('__EXEC_SUMMARY_JSON__', () => JSON.stringify(datos.EXEC_SUMMARY))
+    .replaceAll('__FECHA_SALDOS__', () => datos.SALDOS.fecha_saldos)
+    .replaceAll('__GENERADO_EN__', () => generadoEn)
 
   return <ReporteFrame html={html} />
 }
