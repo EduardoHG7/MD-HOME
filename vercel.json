@@ -5,6 +5,6 @@
   ],
   "functions": {
     "app/api/cron/refresh-finanzas-panatickets/route.ts": { "memory": 3009 },
-    "app/admin/finanzas/page.tsx": { "memory": 3009 }
+    "app/admin/finanzas/reporte/route.ts": { "memory": 3009 }
   }
 }
