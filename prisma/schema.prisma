@@ -570,3 +570,59 @@ model FacturaCajaMenuda {
   @@map("facturas_caja_menuda")
 }
 
+// Ventas ya reconciliadas (filtroBancos = OK) del Reporte Showare de
+// Panatickets. Sincronizado por el cron de finanzas — fila por fila, para
+// poder consultar por rango de fechas/año en vez de reprocesar el Excel
+// completo (varios MB, crece a diario) en cada carga del dashboard.
+model PanaticketsVenta {
+  id         Int      @id
+  fecha      String // YYYY-MM-DD
+  hora       String?
+  evento     String
+  precio     Float
+  cxs        Float
+  spac       Float
+  itbms      Float
+  total      Float
+  banco      String
+  fechaAbono String
+  estado     String
+  updatedAt  DateTime @updatedAt
+
+  @@index([fecha])
+  @@map("panatickets_ventas")
+}
+
+model PanaticketsCancelada {
+  id           Int      @id
+  fecha        String
+  evento       String
+  codigoPrecio String
+  precio       Float
+  cxs          Float
+  total        Float
+  updatedAt    DateTime @updatedAt
+
+  @@index([fecha])
+  @@map("panatickets_canceladas")
+}
+
+// Snapshot único (no histórico): saldos bancarios + pendientes de
+// reconciliar "a hoy", tal como los usa el dashboard. Se sobreescribe en
+// cada sincronización del cron.
+model PanaticketsSnapshot {
+  id                 Int      @id @default(1)
+  fechaSaldos        String
+  bancos             Json
+  subtotalBancos     Float
+  subtotalContable   Float
+  subtotalDiferencia Float
+  conceptos          Json
+  anticipos          Json
+  totalAnticipo      Float
+  globalSummary      Json
+  generatedAt        DateTime
+
+  @@map("panatickets_snapshot")
+}
+

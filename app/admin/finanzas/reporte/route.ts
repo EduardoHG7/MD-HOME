@@ -1,5 +1,4 @@
 export const dynamic = 'force-dynamic'
-export const maxDuration = 300
 
 import fs from 'fs'
 import path from 'path'
@@ -9,21 +8,19 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getActiveTenantId } from '@/lib/tenant'
 import { prisma } from '@/lib/prisma'
-import { getFinanzasPanatickets } from '@/lib/panatickets-finanzas'
 
-function paginaError(mensaje: string, detalle?: string) {
+function paginaError(mensaje: string) {
   return `<!doctype html><html><body style="font-family:sans-serif;padding:32px;color:#111">
     <h2 style="margin:0 0 8px">Finanzas</h2>
     <p style="color:#dc2626;font-weight:600;margin:0">${mensaje}</p>
-    ${detalle ? `<p style="color:#6b7280;font-size:14px;margin-top:8px">${detalle}</p>` : ''}
   </body></html>`
 }
 
-// El reporte se sirve como respuesta HTTP normal (no como parte del render de
-// la página) y el iframe lo carga con src, no srcDoc: el documento entero
-// (varios MB, incluye TODO el historial de ventas sin recortar) pasaba antes
-// por el pipeline de render/streaming de Next.js (RSC) y eso terminaba en
-// "Connection closed" al crecer. Como respuesta HTTP plana no tiene ese límite.
+// Ahora solo sirve la plantilla estática (HTML/CSS/JS, sin datos). Los datos
+// los pide el propio script de la plantilla a /admin/finanzas/reporte/data
+// por rango — así el tamaño de esta respuesta no depende de cuánto historial
+// haya en Postgres, y el dashboard puede pedir años específicos para
+// comparar sin tener que cargar todo de una vez.
 export async function GET() {
   const session = await getServerSession(authOptions)
   if (!session) return new NextResponse(paginaError('No autorizado.'), { status: 401, headers: { 'Content-Type': 'text/html; charset=utf-8' } })
@@ -34,46 +31,11 @@ export async function GET() {
     return new NextResponse(paginaError('No autorizado.'), { status: 403, headers: { 'Content-Type': 'text/html; charset=utf-8' } })
   }
 
-  let datos
-  try {
-    datos = await getFinanzasPanatickets()
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    return new NextResponse(paginaError('No se pudo cargar el reporte desde SharePoint.', msg), {
-      status: 502,
-      headers: { 'Content-Type': 'text/html; charset=utf-8' },
-    })
-  }
-
-  const template = fs.readFileSync(
+  const html = fs.readFileSync(
     path.join(process.cwd(), 'data', 'finanzas', 'conciliacion-showare-bancos.html'),
     'utf8'
   )
 
-  const generadoEn = new Intl.DateTimeFormat('es-PA', {
-    day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit',
-    timeZone: 'America/Panama',
-  }).format(new Date(datos.generatedAt))
-
-  // Los reemplazos van con función (no string) porque String.replace trata
-  // secuencias como $&, $$, $` de forma especial en el string de reemplazo —
-  // y estos son datos financieros, así que un solo "$" en cualquier monto,
-  // cuenta o descripción corrompe el JSON incrustado.
-  const html = template
-    .replace('__DATA_JSON__', () => JSON.stringify(datos.DATA))
-    .replace('__SALDOS_JSON__', () => JSON.stringify(datos.SALDOS))
-    .replace('__CANCELADAS_JSON__', () => JSON.stringify(datos.CANCELADAS))
-    .replace('__GLOBAL_SUMMARY_JSON__', () => JSON.stringify(datos.GLOBAL_SUMMARY))
-    .replace('__EXEC_SUMMARY_JSON__', () => JSON.stringify(datos.EXEC_SUMMARY))
-    .replaceAll('__FECHA_SALDOS__', () => datos.SALDOS.fecha_saldos)
-    .replaceAll('__GENERADO_EN__', () => generadoEn)
-
-  // El reporte guarda TODO el historial de ventas sin recorte (a propósito,
-  // para comparativos año contra año), así que ya pesa varios MB sin
-  // comprimir — suficiente para chocar con el límite de tamaño de respuesta
-  // de las funciones de Vercel (500 genérico de la plataforma, no de la
-  // app). Texto JSON/HTML comprime muy bien, así que se manda gzip a mano
-  // en vez de confiar en que la plataforma comprima una respuesta grande.
   const gzipped = gzipSync(Buffer.from(html, 'utf8'))
   return new NextResponse(gzipped, {
     headers: {

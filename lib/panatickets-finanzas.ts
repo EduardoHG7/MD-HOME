@@ -1,7 +1,7 @@
 import ExcelJS from 'exceljs'
 import JSZip from 'jszip'
-import { unstable_cache } from 'next/cache'
 import { downloadPanaticketsFinanzasExcel } from './panatickets-sharepoint'
+import { prisma } from './prisma'
 
 /**
  * El equipo edita este Excel a mano en vivo (filtros, tablas dinámicas,
@@ -520,8 +520,121 @@ export async function computeFinanzasPanatickets() {
   return { DATA, CANCELADAS, SALDOS: saldos, GLOBAL_SUMMARY, EXEC_SUMMARY, generatedAt: new Date().toISOString() }
 }
 
-export const getFinanzasPanatickets = unstable_cache(
-  computeFinanzasPanatickets,
-  ['panatickets-finanzas-showare'],
-  { revalidate: 3600 }
-)
+const UPSERT_CHUNK = 200
+
+async function chunked<T>(items: T[], fn: (item: T) => Promise<unknown>) {
+  for (let i = 0; i < items.length; i += UPSERT_CHUNK) {
+    await Promise.all(items.slice(i, i + UPSERT_CHUNK).map(fn))
+  }
+}
+
+/**
+ * Sincroniza el Excel de Panatickets a Postgres, fila por fila, en vez de
+ * dejar que el dashboard lo reprocese en cada carga. Filas de venta/cancelada
+ * sin id de orden de Showare se descartan (no hay con qué hacer upsert
+ * idempotente) — son un caso raro de datos, no algo que el sync deba
+ * bloquear ni inventar una clave sintética para resolver.
+ */
+export async function syncFinanzasPanatickets() {
+  const { DATA, CANCELADAS, SALDOS, GLOBAL_SUMMARY, generatedAt } = await computeFinanzasPanatickets()
+
+  const ventasConId = DATA.filter((v): v is typeof v & { id: number } => v.id !== null)
+  await chunked(ventasConId, v => prisma.panaticketsVenta.upsert({
+    where: { id: v.id },
+    create: {
+      id: v.id, fecha: v.f, hora: v.hora, evento: v.ev,
+      precio: v.p, cxs: v.cxs, spac: v.spac, itbms: v.itbms, total: v.tot,
+      banco: v.bk, fechaAbono: v.ab, estado: v.st,
+    },
+    update: {
+      fecha: v.f, hora: v.hora, evento: v.ev,
+      precio: v.p, cxs: v.cxs, spac: v.spac, itbms: v.itbms, total: v.tot,
+      banco: v.bk, fechaAbono: v.ab, estado: v.st,
+    },
+  }))
+
+  const canceladasConId = CANCELADAS.filter((c): c is typeof c & { id: number } => c.id !== null)
+  await chunked(canceladasConId, c => prisma.panaticketsCancelada.upsert({
+    where: { id: c.id },
+    create: { id: c.id, fecha: c.f, evento: c.ev, codigoPrecio: c.cp, precio: c.p, cxs: c.cxs, total: c.tot },
+    update: { fecha: c.f, evento: c.ev, codigoPrecio: c.cp, precio: c.p, cxs: c.cxs, total: c.tot },
+  }))
+
+  await prisma.panaticketsSnapshot.upsert({
+    where: { id: 1 },
+    create: {
+      id: 1,
+      fechaSaldos: SALDOS.fecha_saldos,
+      bancos: SALDOS.bancos,
+      subtotalBancos: SALDOS.subtotal_bancos,
+      subtotalContable: SALDOS.subtotal_contable,
+      subtotalDiferencia: SALDOS.subtotal_diferencia,
+      conceptos: SALDOS.conceptos,
+      anticipos: SALDOS.anticipos,
+      totalAnticipo: SALDOS.total_anticipo,
+      globalSummary: GLOBAL_SUMMARY,
+      generatedAt: new Date(generatedAt),
+    },
+    update: {
+      fechaSaldos: SALDOS.fecha_saldos,
+      bancos: SALDOS.bancos,
+      subtotalBancos: SALDOS.subtotal_bancos,
+      subtotalContable: SALDOS.subtotal_contable,
+      subtotalDiferencia: SALDOS.subtotal_diferencia,
+      conceptos: SALDOS.conceptos,
+      anticipos: SALDOS.anticipos,
+      totalAnticipo: SALDOS.total_anticipo,
+      globalSummary: GLOBAL_SUMMARY,
+      generatedAt: new Date(generatedAt),
+    },
+  })
+
+  return {
+    ventasSincronizadas: ventasConId.length,
+    ventasDescartadas: DATA.length - ventasConId.length,
+    canceladasSincronizadas: canceladasConId.length,
+    canceladasDescartadas: CANCELADAS.length - canceladasConId.length,
+    generatedAt,
+  }
+}
+
+/**
+ * Lee de Postgres el rango pedido (en vez de reprocesar el Excel) y
+ * recalcula EXEC_SUMMARY con la misma lógica que antes usaba datos en vivo —
+ * sigue siendo "derivado", solo que ahora sobre lo que haya en el rango.
+ */
+export async function getFinanzasPanaticketsRango(desde: string, hasta: string) {
+  const [ventas, canceladas, snapshot, aniosRaw] = await Promise.all([
+    prisma.panaticketsVenta.findMany({ where: { fecha: { gte: desde, lte: hasta } }, orderBy: { fecha: 'asc' } }),
+    prisma.panaticketsCancelada.findMany({ where: { fecha: { gte: desde, lte: hasta } }, orderBy: { fecha: 'asc' } }),
+    prisma.panaticketsSnapshot.findUnique({ where: { id: 1 } }),
+    prisma.$queryRaw<{ anio: string }[]>`SELECT DISTINCT LEFT(fecha, 4) AS anio FROM panatickets_ventas ORDER BY anio DESC`,
+  ])
+
+  const DATA = ventas.map(v => ({
+    id: v.id, f: v.fecha, hora: v.hora, ev: v.evento, p: v.precio, cxs: v.cxs, spac: v.spac,
+    itbms: v.itbms, tot: v.total, bk: v.banco, ab: v.fechaAbono, st: v.estado,
+  }))
+  const CANCELADAS = canceladas.map(c => ({
+    id: c.id, f: c.fecha, ev: c.evento, cp: c.codigoPrecio, dp: 0, p: c.precio, cxs: c.cxs, tot: c.total,
+  }))
+  const GLOBAL_SUMMARY = (snapshot?.globalSummary as { label: string; qty: number; monto: number }[]) ?? []
+  const EXEC_SUMMARY = computeExecSummary(DATA, CANCELADAS, GLOBAL_SUMMARY)
+
+  const SALDOS = snapshot ? {
+    fecha_saldos: snapshot.fechaSaldos,
+    bancos: snapshot.bancos as { label: string; value: number; contable: number; diferencia: number }[],
+    subtotal_bancos: snapshot.subtotalBancos,
+    subtotal_contable: snapshot.subtotalContable,
+    subtotal_diferencia: snapshot.subtotalDiferencia,
+    conceptos: snapshot.conceptos as { label: string; value: number }[],
+    anticipos: snapshot.anticipos as { label: string; value: number }[],
+    total_anticipo: snapshot.totalAnticipo,
+  } : null
+
+  return {
+    DATA, CANCELADAS, SALDOS, GLOBAL_SUMMARY, EXEC_SUMMARY,
+    generatedAt: (snapshot?.generatedAt ?? new Date()).toISOString(),
+    years: aniosRaw.map(r => parseInt(r.anio, 10)).filter(n => !Number.isNaN(n)),
+  }
+}
