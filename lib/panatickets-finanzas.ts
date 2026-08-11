@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs'
 import JSZip from 'jszip'
+import { Prisma } from '@prisma/client'
 import { downloadPanaticketsFinanzasExcel } from './panatickets-sharepoint'
 import { prisma } from './prisma'
 
@@ -520,45 +521,67 @@ export async function computeFinanzasPanatickets() {
   return { DATA, CANCELADAS, SALDOS: saldos, GLOBAL_SUMMARY, EXEC_SUMMARY, generatedAt: new Date().toISOString() }
 }
 
-const UPSERT_CHUNK = 200
+const BULK_BATCH = 500
 
-async function chunked<T>(items: T[], fn: (item: T) => Promise<unknown>) {
-  for (let i = 0; i < items.length; i += UPSERT_CHUNK) {
-    await Promise.all(items.slice(i, i + UPSERT_CHUNK).map(fn))
+/**
+ * Upsert en lote vía SQL crudo (INSERT ... ON CONFLICT), no fila por fila:
+ * con 50 mil+ ventas, hacer un prisma.upsert() por fila (aunque sea en
+ * chunks paralelos) satura la memoria de la función — se vio morir con
+ * "ran out of available memory" en producción. Un INSERT multi-fila por
+ * lote hace muchas menos consultas y evita tener miles de upserts
+ * pendientes en memoria a la vez.
+ */
+async function bulkUpsertVentas(rows: { id: number; f: string; hora: string | null; ev: string; p: number; cxs: number; spac: number; itbms: number; tot: number; bk: string; ab: string; st: string }[]) {
+  const now = new Date()
+  for (let i = 0; i < rows.length; i += BULK_BATCH) {
+    const batch = rows.slice(i, i + BULK_BATCH)
+    const values = Prisma.join(
+      batch.map(v => Prisma.sql`(${v.id}, ${v.f}, ${v.hora}, ${v.ev}, ${v.p}, ${v.cxs}, ${v.spac}, ${v.itbms}, ${v.tot}, ${v.bk}, ${v.ab}, ${v.st}, ${now})`)
+    )
+    await prisma.$executeRaw`
+      INSERT INTO panatickets_ventas (id, fecha, hora, evento, precio, cxs, spac, itbms, total, banco, "fechaAbono", estado, "updatedAt")
+      VALUES ${values}
+      ON CONFLICT (id) DO UPDATE SET
+        fecha = EXCLUDED.fecha, hora = EXCLUDED.hora, evento = EXCLUDED.evento,
+        precio = EXCLUDED.precio, cxs = EXCLUDED.cxs, spac = EXCLUDED.spac,
+        itbms = EXCLUDED.itbms, total = EXCLUDED.total, banco = EXCLUDED.banco,
+        "fechaAbono" = EXCLUDED."fechaAbono", estado = EXCLUDED.estado, "updatedAt" = EXCLUDED."updatedAt"
+    `
+  }
+}
+
+async function bulkUpsertCanceladas(rows: { id: number; f: string; ev: string; cp: string; p: number; cxs: number; tot: number }[]) {
+  const now = new Date()
+  for (let i = 0; i < rows.length; i += BULK_BATCH) {
+    const batch = rows.slice(i, i + BULK_BATCH)
+    const values = Prisma.join(
+      batch.map(c => Prisma.sql`(${c.id}, ${c.f}, ${c.ev}, ${c.cp}, ${c.p}, ${c.cxs}, ${c.tot}, ${now})`)
+    )
+    await prisma.$executeRaw`
+      INSERT INTO panatickets_canceladas (id, fecha, evento, "codigoPrecio", precio, cxs, total, "updatedAt")
+      VALUES ${values}
+      ON CONFLICT (id) DO UPDATE SET
+        fecha = EXCLUDED.fecha, evento = EXCLUDED.evento, "codigoPrecio" = EXCLUDED."codigoPrecio",
+        precio = EXCLUDED.precio, cxs = EXCLUDED.cxs, total = EXCLUDED.total, "updatedAt" = EXCLUDED."updatedAt"
+    `
   }
 }
 
 /**
- * Sincroniza el Excel de Panatickets a Postgres, fila por fila, en vez de
- * dejar que el dashboard lo reprocese en cada carga. Filas de venta/cancelada
- * sin id de orden de Showare se descartan (no hay con qué hacer upsert
- * idempotente) — son un caso raro de datos, no algo que el sync deba
- * bloquear ni inventar una clave sintética para resolver.
+ * Sincroniza el Excel de Panatickets a Postgres en vez de dejar que el
+ * dashboard lo reprocese en cada carga. Filas de venta/cancelada sin id de
+ * orden de Showare se descartan (no hay con qué hacer upsert idempotente) —
+ * son un caso raro de datos, no algo que el sync deba bloquear ni inventar
+ * una clave sintética para resolver.
  */
 export async function syncFinanzasPanatickets() {
   const { DATA, CANCELADAS, SALDOS, GLOBAL_SUMMARY, generatedAt } = await computeFinanzasPanatickets()
 
   const ventasConId = DATA.filter((v): v is typeof v & { id: number } => v.id !== null)
-  await chunked(ventasConId, v => prisma.panaticketsVenta.upsert({
-    where: { id: v.id },
-    create: {
-      id: v.id, fecha: v.f, hora: v.hora, evento: v.ev,
-      precio: v.p, cxs: v.cxs, spac: v.spac, itbms: v.itbms, total: v.tot,
-      banco: v.bk, fechaAbono: v.ab, estado: v.st,
-    },
-    update: {
-      fecha: v.f, hora: v.hora, evento: v.ev,
-      precio: v.p, cxs: v.cxs, spac: v.spac, itbms: v.itbms, total: v.tot,
-      banco: v.bk, fechaAbono: v.ab, estado: v.st,
-    },
-  }))
+  await bulkUpsertVentas(ventasConId)
 
   const canceladasConId = CANCELADAS.filter((c): c is typeof c & { id: number } => c.id !== null)
-  await chunked(canceladasConId, c => prisma.panaticketsCancelada.upsert({
-    where: { id: c.id },
-    create: { id: c.id, fecha: c.f, evento: c.ev, codigoPrecio: c.cp, precio: c.p, cxs: c.cxs, total: c.tot },
-    update: { fecha: c.f, evento: c.ev, codigoPrecio: c.cp, precio: c.p, cxs: c.cxs, total: c.tot },
-  }))
+  await bulkUpsertCanceladas(canceladasConId)
 
   await prisma.panaticketsSnapshot.upsert({
     where: { id: 1 },
