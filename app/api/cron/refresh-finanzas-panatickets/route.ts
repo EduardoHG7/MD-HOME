@@ -2,11 +2,12 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
 import { NextResponse } from 'next/server'
-import { getFinanzasPanatickets } from '@/lib/panatickets-finanzas'
+import { syncFinanzasPanatickets } from '@/lib/panatickets-finanzas'
 
-// Llamado por Vercel Cron para mantener el caché de Finanzas Panatickets
-// siempre tibio, así los usuarios casi nunca esperan el cálculo completo
-// (bajar el Excel de SharePoint + parsear ~37 mil filas).
+// Llamado por Vercel Cron para mantener Postgres al día con el Excel de
+// Panatickets (bajar de SharePoint + parsear ~37 mil filas + upsert), así el
+// dashboard nunca tiene que reprocesar el Excel en vivo — solo consulta
+// Postgres por rango de fechas.
 export async function GET(req: Request) {
   const authHeader = req.headers.get('authorization')
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -14,6 +15,6 @@ export async function GET(req: Request) {
   }
 
   const start = Date.now()
-  await getFinanzasPanatickets()
-  return NextResponse.json({ ok: true, ms: Date.now() - start })
+  const resultado = await syncFinanzasPanatickets()
+  return NextResponse.json({ ok: true, ms: Date.now() - start, ...resultado })
 }
