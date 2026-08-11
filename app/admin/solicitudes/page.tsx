@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { formatDate, formatCurrency, TARIFA_LABELS, ESTADO_COLORS, ESTADO_SOLICITUD_LABELS } from '@/lib/utils'
 
 interface Tarifa   { id: string; tipo: string; precioPorDia: number }
@@ -86,7 +87,8 @@ const CM_LABELS: Record<string, string> = {
   PAGADA:               'Pagada',
 }
 
-export default function SolicitudesAdminPage() {
+function SolicitudesAdminContent() {
+  const searchParams = useSearchParams()
   const [mainTab,     setMainTab]     = useState<'personal' | 'cotizaciones' | 'caja_menuda'>('personal')
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([])
   const [cotizaciones, setCotizaciones] = useState<CotAdmin[]>([])
@@ -134,11 +136,35 @@ export default function SolicitudesAdminPage() {
       fetch('/api/cotizaciones').then(r => r.json()),
       fetch('/api/caja-menuda').then(r => r.json()),
     ]).then(([sol, tar, cot, cm]) => {
-      setSolicitudes(Array.isArray(sol) ? sol : [])
+      const solList = Array.isArray(sol) ? sol : []
+      const cotList = Array.isArray(cot) ? cot : []
+      setSolicitudes(solList)
       setTarifas(Array.isArray(tar) ? tar : [])
-      setCotizaciones(Array.isArray(cot) ? cot : [])
+      setCotizaciones(cotList)
       setCajasMenuda(Array.isArray(cm) ? cm : [])
+
+      // Deep-link desde el correo de aprobación: ?tab=personal|cotizaciones&id=<id>
+      // abre directo el detalle en vez de dejar al admin en el dashboard general.
+      const tab = searchParams.get('tab')
+      const id  = searchParams.get('id')
+      if (tab === 'cotizaciones' && id) {
+        const match = cotList.find((c: CotAdmin) => c.id === id)
+        if (match) {
+          setMainTab('cotizaciones')
+          setCotFilter('TODAS')
+          setSelectedCot(match)
+          setCotNota(match.notaAdmin ?? '')
+        }
+      } else if (tab === 'personal' && id) {
+        const match = solList.find((s: Solicitud) => s.id === id)
+        if (match) {
+          setMainTab('personal')
+          setFilter('TODAS')
+          selectSolicitud(match)
+        }
+      }
     })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Listas únicas para los selects
@@ -871,6 +897,15 @@ export default function SolicitudesAdminPage() {
         </>
       )}
     </div>
+  )
+}
+
+// Página exportada con Suspense boundary (requerido por useSearchParams en Next.js 14)
+export default function SolicitudesAdminPage() {
+  return (
+    <Suspense fallback={<div className="text-gray-400 text-sm p-6">Cargando...</div>}>
+      <SolicitudesAdminContent />
+    </Suspense>
   )
 }
 

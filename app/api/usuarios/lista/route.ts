@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getActiveTenantId } from '@/lib/tenant'
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -11,8 +12,11 @@ export async function GET() {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
 
+  const tenantId = getActiveTenantId()
+  const tenantFilter = tenantId ? { tenants: { some: { tenantId } } } : {}
+
   const usuarios = await prisma.user.findMany({
-    where: { role: { in: ['USER', 'ADMIN'] } },
+    where: { role: { in: ['USER', 'ADMIN'] }, ...tenantFilter },
     select: { id: true, name: true, email: true, role: true },
     orderBy: { name: 'asc' },
   })
