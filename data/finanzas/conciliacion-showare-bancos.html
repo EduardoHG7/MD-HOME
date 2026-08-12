@@ -250,6 +250,10 @@
       <select id="rangeSelect"></select>
     </div>
     <div class="filter-group">
+      <label>Mes</label>
+      <select id="mesSelect"></select>
+    </div>
+    <div class="filter-group">
       <label>Día de compra</label>
       <select id="daySelect"></select>
     </div>
@@ -689,13 +693,19 @@
 // /admin/finanzas/reporte/data, así el tamaño de esta página no depende de
 // cuánto historial haya. Ver loadRange() más abajo.
 let DATA = [], SALDOS = null, SALDOS_POR_DIA = {}, CANCELADAS = [], GLOBAL_SUMMARY = [], EXEC_SUMMARY = null;
-let days = [], eventos = [];
+let days = [], meses = [], eventos = [];
 
 // El filtro "Día de compra" también decide qué día de Saldos Bancarios se
-// muestra (si ese día tiene saldo guardado); "Todos los días" usa el más
-// reciente del rango, igual que antes.
+// muestra. No todos los días tienen fila en "Saldos Banco" (esa hoja no se
+// llena a diario), así que si el día elegido no tiene saldo exacto se usa
+// el más reciente disponible EN O ANTES de ese día — no "el más reciente
+// en general", que nunca cambiaba sin importar qué día se eligiera.
 function saldosParaDiaActual(){
-  return (state.day !== 'ALL' && SALDOS_POR_DIA[state.day]) || SALDOS;
+  if(state.day === 'ALL') return SALDOS;
+  if(SALDOS_POR_DIA[state.day]) return SALDOS_POR_DIA[state.day];
+  const disponibles = Object.keys(SALDOS_POR_DIA).filter(f=>f<=state.day).sort();
+  const cercano = disponibles[disponibles.length-1];
+  return cercano ? SALDOS_POR_DIA[cercano] : SALDOS;
 }
 
 const money = n => {
@@ -706,19 +716,41 @@ const money = n => {
 };
 const num = n => Number(n).toLocaleString('en-US');
 
-let state = { day:'ALL', evento:'ALL', status:'ALL', sortKey:'tot', sortDir:-1 };
+let state = { month:'ALL', day:'ALL', evento:'ALL', status:'ALL', sortKey:'tot', sortDir:-1 };
+
+const MESES_LARGO = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+const MESES_CORTO = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 
 function fmtDay(iso){
   if(!iso) return '—';
   const [y,m,d] = iso.split('-');
-  const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
-  return d + ' ' + meses[parseInt(m,10)-1];
+  return d + ' ' + MESES_CORTO[parseInt(m,10)-1];
 }
+function fmtMes(ym){
+  const [y,m] = ym.split('-');
+  return `${MESES_LARGO[parseInt(m,10)-1]} ${y}`;
+}
+
+const mesSelect = document.getElementById('mesSelect');
+function renderMesSelect(){
+  let html = '<option value="ALL">Todos los meses</option>';
+  meses.forEach(m=>{ html += `<option value="${m}">${fmtMes(m)}</option>`; });
+  mesSelect.innerHTML = html;
+  mesSelect.value = state.month;
+}
+mesSelect.addEventListener('change', ()=>{
+  state.month = mesSelect.value;
+  state.day = 'ALL'; // el día elegido puede no pertenecer al nuevo mes
+  renderDaySelect();
+  renderAll();
+  renderSeccionSaldos();
+});
 
 const daySelect = document.getElementById('daySelect');
 function renderDaySelect(){
+  const diasDelMes = state.month==='ALL' ? days : days.filter(d=>d.startsWith(state.month));
   let html = '<option value="ALL">Todos los días</option>';
-  days.forEach(d=>{ html += `<option value="${d}">${fmtDay(d)}</option>`; });
+  diasDelMes.forEach(d=>{ html += `<option value="${d}">${fmtDay(d)}</option>`; });
   daySelect.innerHTML = html;
   daySelect.value = state.day;
 }
@@ -737,13 +769,15 @@ const statusSelect = document.getElementById('statusSelect');
 statusSelect.addEventListener('change', ()=>{ state.status = statusSelect.value; renderAll(); });
 
 document.getElementById('resetBtn').addEventListener('click', ()=>{
-  state.day='ALL'; state.evento='ALL'; state.status='ALL'; statusSelect.value='ALL';
+  state.month='ALL'; state.day='ALL'; state.evento='ALL'; state.status='ALL'; statusSelect.value='ALL';
+  renderDaySelect();
   renderAll();
   renderSeccionSaldos();
 });
 
 function getFiltered(){
   return DATA.filter(d=>{
+    if(state.month!=='ALL' && !d.f.startsWith(state.month)) return false;
     if(state.day!=='ALL' && d.f!==state.day) return false;
     if(state.evento!=='ALL' && d.ev!==state.evento) return false;
     if(state.status!=='ALL' && d.st!==state.status) return false;
@@ -940,6 +974,7 @@ function renderAbonoTable(){
 }
 
 function renderAll(){
+  mesSelect.value = state.month;
   daySelect.value = state.day;
   eventoSelect.value = state.evento;
   statusSelect.value = state.status;
@@ -1506,7 +1541,9 @@ function renderSeccionSaldos(){
 
 function renderEverything(){
   days = [...new Set(DATA.map(d=>d.f))].sort();
+  meses = [...new Set(days.map(d=>d.slice(0,7)))].sort();
   eventos = [...new Set(DATA.map(d=>d.ev).filter(Boolean))].sort();
+  renderMesSelect();
   renderDaySelect();
   renderEventoSelect();
   renderAll();
@@ -1541,7 +1578,7 @@ async function loadRange(year){
     SALDOS_POR_DIA = json.SALDOS_POR_DIA ?? {};
     GLOBAL_SUMMARY = json.GLOBAL_SUMMARY;
     EXEC_SUMMARY = json.EXEC_SUMMARY;
-    state = { day:'ALL', evento:'ALL', status:'ALL', sortKey:'tot', sortDir:-1 };
+    state = { month:'ALL', day:'ALL', evento:'ALL', status:'ALL', sortKey:'tot', sortDir:-1 };
 
     document.getElementById('generadoEnHeader').textContent = fmtGeneradoEn(json.generatedAt);
 
