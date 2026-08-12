@@ -165,6 +165,13 @@ const EXCLUDE_DETALLE_PAGO = new Set([
   'Free (52)', 'WEB USER (24)', 'Yappywebuser (101)', 'PRUEBA (41)', 'PROMOTOR (25)',
 ])
 
+// Number.isNaN(d.getTime()) detecta un Date inválido (ej. fórmula rota o
+// referencia a una celda vacía) sin que .toISOString() reviente con
+// "RangeError: Invalid time value" y tumbe todo el sync por una sola celda.
+function dateToIsoSafe(d: Date): string | null {
+  return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10)
+}
+
 function extractValue(v: ExcelJS.CellValue): string | number | null {
   if (v === null || v === undefined) return null
   if (typeof v === 'object') {
@@ -177,11 +184,11 @@ function extractValue(v: ExcelJS.CellValue): string | number | null {
       // silenciosamente excluida (String(Date) no matchea el regex ISO).
       const r = (v as { result?: unknown }).result
       if (r === null || r === undefined) return null
-      if (r instanceof Date) return r.toISOString().slice(0, 10)
+      if (r instanceof Date) return dateToIsoSafe(r)
       return r as string | number
     }
     if ('text' in v) return (v as { text: string }).text
-    if (v instanceof Date) return v.toISOString().slice(0, 10)
+    if (v instanceof Date) return dateToIsoSafe(v)
     return null
   }
   return typeof v === 'boolean' ? String(v) : v
