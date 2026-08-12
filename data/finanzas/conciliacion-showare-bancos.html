@@ -263,11 +263,7 @@
     </div>
     <div class="filter-group">
       <label>Estado del Evento</label>
-      <select id="statusSelect">
-        <option value="ALL">Todos</option>
-        <option value="Activo">Activo</option>
-        <option value="Cerrado">Cerrado</option>
-      </select>
+      <select id="statusSelect"></select>
     </div>
     <button class="reset-btn" id="resetBtn">Quitar filtros</button>
   </div>
@@ -319,9 +315,9 @@
   <div class="section-note">Promotores que recibieron anticipo / Eventos Activos.</div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th class="no-sort" style="text-align:left">Evento</th><th class="no-sort">Monto (U$D)</th></tr></thead>
+      <thead><tr><th class="no-sort" style="text-align:left">Evento</th><th class="no-sort">Estado</th><th class="no-sort">Monto (U$D)</th></tr></thead>
       <tbody id="anticiposBody2"></tbody>
-      <tfoot><tr><td>TOTAL ANTICIPO EVENTOS</td><td id="footAnticipos2">$0.00</td></tr></tfoot>
+      <tfoot><tr><td colspan="2">TOTAL ANTICIPO EVENTOS</td><td id="footAnticipos2">$0.00</td></tr></tfoot>
     </table>
   </div>
 
@@ -437,9 +433,9 @@
   <div class="section-note">Promotores que recibieron anticipo / Eventos Activos.</div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th class="no-sort" style="text-align:left">Evento</th><th class="no-sort">Monto (U$D)</th></tr></thead>
+      <thead><tr><th class="no-sort" style="text-align:left">Evento</th><th class="no-sort">Estado</th><th class="no-sort">Monto (U$D)</th></tr></thead>
       <tbody id="anticiposBody"></tbody>
-      <tfoot><tr><td>TOTAL ANTICIPO EVENTOS</td><td id="footAnticipos">$0.00</td></tr></tfoot>
+      <tfoot><tr><td colspan="2">TOTAL ANTICIPO EVENTOS</td><td id="footAnticipos">$0.00</td></tr></tfoot>
     </table>
   </div>
 
@@ -699,7 +695,7 @@
 // /admin/finanzas/reporte/data, así el tamaño de esta página no depende de
 // cuánto historial haya. Ver loadRange() más abajo.
 let DATA = [], SALDOS = null, SALDOS_POR_DIA = {}, CANCELADAS = [], GLOBAL_SUMMARY = [], EXEC_SUMMARY = null;
-let days = [], meses = [], eventos = [];
+let days = [], meses = [], eventos = [], estados = [];
 
 // El filtro "Día de compra" también decide qué día de Saldos Bancarios se
 // muestra. No todos los días tienen fila en "Saldos Banco" (esa hoja no se
@@ -773,13 +769,20 @@ function renderEventoSelect(){
 eventoSelect.addEventListener('change', ()=>{ state.evento = eventoSelect.value; renderAll(); });
 
 const statusSelect = document.getElementById('statusSelect');
-statusSelect.addEventListener('change', ()=>{ state.status = statusSelect.value; renderAll(); });
+function renderStatusSelect(){
+  let html = '<option value="ALL">Todos</option>';
+  estados.forEach(e=>{ html += `<option value="${e.replace(/"/g,'&quot;')}">${e}</option>`; });
+  statusSelect.innerHTML = html;
+  statusSelect.value = state.status;
+}
+statusSelect.addEventListener('change', ()=>{ state.status = statusSelect.value; renderAll(); renderAnticipos(); });
 
 document.getElementById('resetBtn').addEventListener('click', ()=>{
   state.month='ALL'; state.day='ALL'; state.evento='ALL'; state.status='ALL'; statusSelect.value='ALL';
   renderDaySelect();
   renderAll();
   renderSeccionSaldos();
+  renderAnticipos();
 });
 
 function getFiltered(){
@@ -923,12 +926,13 @@ function renderConcepto(){
 }
 
 function renderAnticipos(){
-  const rowsHtml = !SALDOS.anticipos.length
-    ? `<tr><td colspan="2"><div class="empty-state">Sin eventos con monto de adelanto registrado todavía.</div></td></tr>`
-    : SALDOS.anticipos.map(a=>`
-        <tr><td>${a.label}</td><td class="${a.value<0?'neg':''}">${money(a.value)}</td></tr>
+  const filtrados = SALDOS.anticipos.filter(a => state.status==='ALL' || a.estado===state.status);
+  const rowsHtml = !filtrados.length
+    ? `<tr><td colspan="3"><div class="empty-state">Sin eventos con monto de adelanto registrado todavía.</div></td></tr>`
+    : filtrados.map(a=>`
+        <tr><td>${a.label}</td><td>${a.estado || '—'}</td><td class="${a.value<0?'neg':''}">${money(a.value)}</td></tr>
       `).join('');
-  const totalText = money(SALDOS.total_anticipo);
+  const totalText = money(filtrados.reduce((s,a)=>s+a.value,0));
 
   document.getElementById('anticiposBody').innerHTML = rowsHtml;
   document.getElementById('footAnticipos').textContent = totalText;
@@ -1604,9 +1608,13 @@ function renderEverything(){
   days = [...new Set(DATA.map(d=>d.f))].sort();
   meses = [...new Set(days.map(d=>d.slice(0,7)))].sort();
   eventos = [...new Set(DATA.map(d=>d.ev).filter(Boolean))].sort();
+  // Unión de estados de ventas ("Reporte Showare") y de "Estatus evento"
+  // (anticipos) — el widget filtra ambas tablas con el mismo valor.
+  estados = [...new Set([...DATA.map(d=>d.st), ...SALDOS.anticipos.map(a=>a.estado)])].filter(Boolean).sort();
   renderMesSelect();
   renderDaySelect();
   renderEventoSelect();
+  renderStatusSelect();
   renderAll();
   renderSeccionSaldos();
   renderAnticipos();
