@@ -111,24 +111,24 @@
   .table-wrap{background:#fff;border:1px solid var(--line);border-radius:16px;overflow:hidden;}
   table{width:100%;border-collapse:collapse;font-size:13px;}
   thead th{
-    background:#000; color:#fff; font-family:var(--font-body); font-weight:700;
+    background:#002060; color:#fff; font-family:var(--font-body); font-weight:700;
     text-transform:uppercase; letter-spacing:.05em; font-size:11px; padding:12px 14px; text-align:right;
-    cursor:pointer; user-select:none; white-space:nowrap; border-bottom:1px solid #000;
+    cursor:pointer; user-select:none; white-space:nowrap; border-bottom:1px solid #002060;
   }
   thead th.no-sort{cursor:default;}
   thead th:first-child{text-align:left;}
   thead th .arrow{opacity:.5;font-size:9px;margin-left:4px;}
   tbody td{padding:10px 14px;text-align:right;font-family:var(--font-body);border-bottom:1px solid #f3f4f6;color:var(--text);}
   tbody td:first-child{text-align:left;font-family:var(--font-body);}
-  tbody tr:nth-child(odd){background:#fff;}
+  tbody tr:nth-child(odd){background:#e8f0fb;}
   tbody tr:nth-child(even){background:#fff;}
   tbody tr:hover{background:#f9fafb !important;}
   tbody tr:last-child td{border-bottom:none;}
-  tfoot td{padding:13px 14px;text-align:right;font-family:var(--font-body);font-weight:700;background:#000;border-top:2px solid #000;color:#fff;}
+  tfoot td{padding:13px 14px;text-align:right;font-family:var(--font-body);font-weight:700;background:#002060;border-top:2px solid #002060;color:#fff;}
   tfoot td:first-child{text-align:left;letter-spacing:normal;}
 
   tr.row-subtotal td{background:#f9fafb;font-weight:700;color:var(--ink);border-top:1px solid var(--line);}
-  tr.row-grandtotal td{background:var(--ink);font-weight:700;color:#fff;}
+  tr.row-grandtotal td{background:#002060;font-weight:700;color:#fff;}
   tr.row-negative td:last-child{color:var(--neg);}
   tr.row-positive td:last-child{color:var(--pos);}
   td.neg{color:var(--neg);}
@@ -142,12 +142,12 @@
   #abonoTable tbody td:nth-child(3){text-align:center;}
 
   /* Ventas por Evento: mismo estilo que el resto de tablas */
-  #totalsTable thead th{background:#000;}
-  #totalsTable tfoot td{background:#000;border-top-color:#000;}
+  #totalsTable thead th{background:#002060;}
+  #totalsTable tfoot td{background:#002060;border-top-color:#002060;}
 
   /* Canceladas por Día: mismo estilo que el resto de tablas */
-  #canceladasTable thead th{background:#000;}
-  #canceladasTable tfoot td{background:#000;border-top-color:#000;}
+  #canceladasTable thead th{background:#002060;}
+  #canceladasTable tfoot td{background:#002060;border-top-color:#002060;}
 
   .two-col{display:grid;grid-template-columns:1.1fr 0.9fr;gap:20px;align-items:start;}
   @media (max-width:900px){.two-col{grid-template-columns:1fr;}}
@@ -409,6 +409,12 @@
       <svg id="pieChart" viewBox="0 0 200 200" width="200" height="200" style="flex-shrink:0;"></svg>
       <div class="legend" id="pieLegend" style="max-width:360px;"></div>
     </div>
+  </div>
+
+  <div class="chart-wrap" style="margin-top:20px;">
+    <h3>Saldo Bancario — tendencia (últimos 7 días con dato)</h3>
+    <svg id="bankTrendChart" viewBox="0 0 700 220" width="100%" height="220" style="display:block;"></svg>
+    <div id="bankTrendEmpty" class="empty-state" style="display:none;">No hay suficientes días con saldo para mostrar la tendencia.</div>
   </div>
 
   <div class="section-head">
@@ -715,6 +721,7 @@ const money = n => {
   return (num < 0 ? '-$' : '$') + abs;
 };
 const num = n => Number(n).toLocaleString('en-US');
+const moneyMM = n => '$' + ((Number(n)||0)/1000000).toFixed(3) + 'MM';
 
 let state = { month:'ALL', day:'ALL', evento:'ALL', status:'ALL', sortKey:'tot', sortDir:-1 };
 
@@ -1529,6 +1536,59 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
   });
 });
 
+// Tendencia del Saldo Bancario total (no detalle por banco) en los últimos
+// 7 días CON dato guardado, hasta el día que se esté mostrando (o el más
+// reciente si el filtro está en "Todos los días").
+function renderBankTrendChart(){
+  const fechaRef = state.day !== 'ALL' ? state.day : (Object.keys(SALDOS_POR_DIA).sort().pop() || null);
+  const disponibles = Object.keys(SALDOS_POR_DIA).filter(f => !fechaRef || f <= fechaRef).sort();
+  const puntos = disponibles.slice(-7).map(f => ({ fecha: f, monto: SALDOS_POR_DIA[f].subtotal_bancos }));
+
+  const svg = document.getElementById('bankTrendChart');
+  const vacio = document.getElementById('bankTrendEmpty');
+  if(puntos.length < 2){
+    svg.innerHTML = '';
+    vacio.style.display = 'block';
+    return;
+  }
+  vacio.style.display = 'none';
+
+  const W = 700, H = 220;
+  const padL = 74, padR = 20, padT = 20, padB = 34;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const montos = puntos.map(p=>p.monto);
+  const max = Math.max(...montos, 1), min = Math.min(0, ...montos);
+  const rango = (max - min) || 1;
+  const xOf = i => padL + (puntos.length===1 ? plotW/2 : i*(plotW/(puntos.length-1)));
+  const yOf = v => padT + plotH - ((v-min)/rango)*plotH;
+
+  let grid = '';
+  const steps = 3;
+  for(let i=0;i<=steps;i++){
+    const v = min + rango*i/steps;
+    const y = yOf(v);
+    grid += `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${W-padR}" y2="${y.toFixed(1)}" stroke="#e5e7eb" stroke-width="1"/>`;
+    grid += `<text x="${padL-8}" y="${(y+4).toFixed(1)}" text-anchor="end" font-family="ui-monospace,monospace" font-size="10.5" fill="#6b7280">${moneyMM(v)}</text>`;
+  }
+
+  const pathD = puntos.map((p,i)=> `${i===0?'M':'L'}${xOf(i).toFixed(1)},${yOf(p.monto).toFixed(1)}`).join(' ');
+  let puntosSvg = '', labels = '';
+  puntos.forEach((p,i)=>{
+    const x = xOf(i), y = yOf(p.monto);
+    puntosSvg += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4" fill="#002060" stroke="#fff" stroke-width="1.5"><title>${fmtDay(p.fecha)}: ${money(p.monto)} (${moneyMM(p.monto)})</title></circle>`;
+    labels += `<text x="${x.toFixed(1)}" y="${H-padB+18}" text-anchor="middle" font-family="ui-monospace,monospace" font-size="10.5" fill="#111827">${fmtDay(p.fecha)}</text>`;
+  });
+
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.innerHTML = `
+    <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT+plotH}" stroke="#e5e7eb"/>
+    <line x1="${padL}" y1="${padT+plotH}" x2="${W-padR}" y2="${padT+plotH}" stroke="#e5e7eb"/>
+    ${grid}
+    <path d="${pathD}" fill="none" stroke="#002060" stroke-width="2.5"/>
+    ${puntosSvg}${labels}
+  `;
+}
+
 function renderSeccionSaldos(){
   const s = saldosParaDiaActual();
   document.getElementById('fechaSaldosHeader').textContent = s.fecha_saldos;
@@ -1536,6 +1596,7 @@ function renderSeccionSaldos(){
   document.getElementById('fechaSaldosCapital').textContent = s.fecha_saldos;
   renderBancos();
   renderPie();
+  renderBankTrendChart();
   renderConcepto();
 }
 
