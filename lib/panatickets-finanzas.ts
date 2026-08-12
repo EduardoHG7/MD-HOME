@@ -523,102 +523,78 @@ export async function computeFinanzasPanatickets() {
 
 const BULK_BATCH = 500
 
+type TxClient = Prisma.TransactionClient
+
 /**
- * Upsert en lote vía SQL crudo (INSERT ... ON CONFLICT), no fila por fila:
- * con 50 mil+ ventas, hacer un prisma.upsert() por fila (aunque sea en
- * chunks paralelos) satura la memoria de la función — se vio morir con
- * "ran out of available memory" en producción. Un INSERT multi-fila por
- * lote hace muchas menos consultas y evita tener miles de upserts
- * pendientes en memoria a la vez.
+ * Reemplaza la tabla completa (TRUNCATE + INSERT en lote) en vez de upsert
+ * por id: el N° de orden de Showare no es único por fila (una orden puede
+ * traer varias líneas, ej. distintos tipos de boleto), así que no sirve
+ * como llave de upsert — Postgres lo rechazó con "cardinality violation" en
+ * cuanto un lote traía el mismo orden dos veces. Como cada sync ya trae el
+ * estado completo y actual del Excel, reemplazar toda la tabla es más
+ * simple y correcto que tratar de reconciliar fila por fila.
  */
-async function bulkUpsertVentas(rows: { id: number; f: string; hora: string | null; ev: string; p: number; cxs: number; spac: number; itbms: number; tot: number; bk: string; ab: string; st: string }[]) {
+async function replaceVentas(tx: TxClient, rows: { id: number | null; f: string; hora: string | null; ev: string; p: number; cxs: number; spac: number; itbms: number; tot: number; bk: string; ab: string; st: string }[]) {
+  await tx.$executeRaw`TRUNCATE TABLE panatickets_ventas RESTART IDENTITY`
   const now = new Date()
   for (let i = 0; i < rows.length; i += BULK_BATCH) {
     const batch = rows.slice(i, i + BULK_BATCH)
     const values = Prisma.join(
       batch.map(v => Prisma.sql`(${v.id}, ${v.f}, ${v.hora}, ${v.ev}, ${v.p}, ${v.cxs}, ${v.spac}, ${v.itbms}, ${v.tot}, ${v.bk}, ${v.ab}, ${v.st}, ${now})`)
     )
-    await prisma.$executeRaw`
-      INSERT INTO panatickets_ventas (id, fecha, hora, evento, precio, cxs, spac, itbms, total, banco, "fechaAbono", estado, "updatedAt")
+    await tx.$executeRaw`
+      INSERT INTO panatickets_ventas ("ordenId", fecha, hora, evento, precio, cxs, spac, itbms, total, banco, "fechaAbono", estado, "updatedAt")
       VALUES ${values}
-      ON CONFLICT (id) DO UPDATE SET
-        fecha = EXCLUDED.fecha, hora = EXCLUDED.hora, evento = EXCLUDED.evento,
-        precio = EXCLUDED.precio, cxs = EXCLUDED.cxs, spac = EXCLUDED.spac,
-        itbms = EXCLUDED.itbms, total = EXCLUDED.total, banco = EXCLUDED.banco,
-        "fechaAbono" = EXCLUDED."fechaAbono", estado = EXCLUDED.estado, "updatedAt" = EXCLUDED."updatedAt"
     `
   }
 }
 
-async function bulkUpsertCanceladas(rows: { id: number; f: string; ev: string; cp: string; p: number; cxs: number; tot: number }[]) {
+async function replaceCanceladas(tx: TxClient, rows: { id: number | null; f: string; ev: string; cp: string; p: number; cxs: number; tot: number }[]) {
+  await tx.$executeRaw`TRUNCATE TABLE panatickets_canceladas RESTART IDENTITY`
   const now = new Date()
   for (let i = 0; i < rows.length; i += BULK_BATCH) {
     const batch = rows.slice(i, i + BULK_BATCH)
     const values = Prisma.join(
       batch.map(c => Prisma.sql`(${c.id}, ${c.f}, ${c.ev}, ${c.cp}, ${c.p}, ${c.cxs}, ${c.tot}, ${now})`)
     )
-    await prisma.$executeRaw`
-      INSERT INTO panatickets_canceladas (id, fecha, evento, "codigoPrecio", precio, cxs, total, "updatedAt")
+    await tx.$executeRaw`
+      INSERT INTO panatickets_canceladas ("ordenId", fecha, evento, "codigoPrecio", precio, cxs, total, "updatedAt")
       VALUES ${values}
-      ON CONFLICT (id) DO UPDATE SET
-        fecha = EXCLUDED.fecha, evento = EXCLUDED.evento, "codigoPrecio" = EXCLUDED."codigoPrecio",
-        precio = EXCLUDED.precio, cxs = EXCLUDED.cxs, total = EXCLUDED.total, "updatedAt" = EXCLUDED."updatedAt"
     `
   }
 }
 
 /**
  * Sincroniza el Excel de Panatickets a Postgres en vez de dejar que el
- * dashboard lo reprocese en cada carga. Filas de venta/cancelada sin id de
- * orden de Showare se descartan (no hay con qué hacer upsert idempotente) —
- * son un caso raro de datos, no algo que el sync deba bloquear ni inventar
- * una clave sintética para resolver.
+ * dashboard lo reprocese en cada carga. Todo en una sola transacción para
+ * que un fallo a mitad de camino no deje las tablas vacías/a medias.
  */
+async function upsertSnapshot(tx: TxClient, saldos: Awaited<ReturnType<typeof parseSaldosBanco>>, globalSummary: { label: string; qty: number; monto: number }[], generatedAt: string) {
+  const data = {
+    fechaSaldos: saldos.fecha_saldos,
+    bancos: saldos.bancos,
+    subtotalBancos: saldos.subtotal_bancos,
+    subtotalContable: saldos.subtotal_contable,
+    subtotalDiferencia: saldos.subtotal_diferencia,
+    conceptos: saldos.conceptos,
+    anticipos: saldos.anticipos,
+    totalAnticipo: saldos.total_anticipo,
+    globalSummary,
+    generatedAt: new Date(generatedAt),
+  }
+  await tx.panaticketsSnapshot.upsert({ where: { id: 1 }, create: { id: 1, ...data }, update: data })
+}
+
 export async function syncFinanzasPanatickets() {
   const { DATA, CANCELADAS, SALDOS, GLOBAL_SUMMARY, generatedAt } = await computeFinanzasPanatickets()
 
-  const ventasConId = DATA.filter((v): v is typeof v & { id: number } => v.id !== null)
-  await bulkUpsertVentas(ventasConId)
+  await prisma.$transaction(async tx => {
+    await replaceVentas(tx, DATA)
+    await replaceCanceladas(tx, CANCELADAS)
+    await upsertSnapshot(tx, SALDOS, GLOBAL_SUMMARY, generatedAt)
+  }, { timeout: 120_000 })
 
-  const canceladasConId = CANCELADAS.filter((c): c is typeof c & { id: number } => c.id !== null)
-  await bulkUpsertCanceladas(canceladasConId)
-
-  await prisma.panaticketsSnapshot.upsert({
-    where: { id: 1 },
-    create: {
-      id: 1,
-      fechaSaldos: SALDOS.fecha_saldos,
-      bancos: SALDOS.bancos,
-      subtotalBancos: SALDOS.subtotal_bancos,
-      subtotalContable: SALDOS.subtotal_contable,
-      subtotalDiferencia: SALDOS.subtotal_diferencia,
-      conceptos: SALDOS.conceptos,
-      anticipos: SALDOS.anticipos,
-      totalAnticipo: SALDOS.total_anticipo,
-      globalSummary: GLOBAL_SUMMARY,
-      generatedAt: new Date(generatedAt),
-    },
-    update: {
-      fechaSaldos: SALDOS.fecha_saldos,
-      bancos: SALDOS.bancos,
-      subtotalBancos: SALDOS.subtotal_bancos,
-      subtotalContable: SALDOS.subtotal_contable,
-      subtotalDiferencia: SALDOS.subtotal_diferencia,
-      conceptos: SALDOS.conceptos,
-      anticipos: SALDOS.anticipos,
-      totalAnticipo: SALDOS.total_anticipo,
-      globalSummary: GLOBAL_SUMMARY,
-      generatedAt: new Date(generatedAt),
-    },
-  })
-
-  return {
-    ventasSincronizadas: ventasConId.length,
-    ventasDescartadas: DATA.length - ventasConId.length,
-    canceladasSincronizadas: canceladasConId.length,
-    canceladasDescartadas: CANCELADAS.length - canceladasConId.length,
-    generatedAt,
-  }
+  return { ventasSincronizadas: DATA.length, canceladasSincronizadas: CANCELADAS.length, generatedAt }
 }
 
 /**
@@ -635,11 +611,11 @@ export async function getFinanzasPanaticketsRango(desde: string, hasta: string) 
   ])
 
   const DATA = ventas.map(v => ({
-    id: v.id, f: v.fecha, hora: v.hora, ev: v.evento, p: v.precio, cxs: v.cxs, spac: v.spac,
+    id: v.ordenId, f: v.fecha, hora: v.hora, ev: v.evento, p: v.precio, cxs: v.cxs, spac: v.spac,
     itbms: v.itbms, tot: v.total, bk: v.banco, ab: v.fechaAbono, st: v.estado,
   }))
   const CANCELADAS = canceladas.map(c => ({
-    id: c.id, f: c.fecha, ev: c.evento, cp: c.codigoPrecio, dp: 0, p: c.precio, cxs: c.cxs, tot: c.total,
+    id: c.ordenId, f: c.fecha, ev: c.evento, cp: c.codigoPrecio, dp: 0, p: c.precio, cxs: c.cxs, tot: c.total,
   }))
   const GLOBAL_SUMMARY = (snapshot?.globalSummary as { label: string; qty: number; monto: number }[]) ?? []
   const EXEC_SUMMARY = computeExecSummary(DATA, CANCELADAS, GLOBAL_SUMMARY)
