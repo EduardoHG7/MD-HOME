@@ -398,15 +398,16 @@ async function parseSaldosBanco(wb: ExcelJS.Workbook): Promise<SaldoDia[]> {
 
 async function parseAnticipos(wb: ExcelJS.Workbook) {
   const sheet = wb.getWorksheet('Estatus evento')
-  if (!sheet) return { anticipos: [] as { label: string; value: number }[], total_anticipo: 0 }
+  if (!sheet) return { anticipos: [] as { label: string; value: number; estado: string }[], total_anticipo: 0 }
 
-  const anticipos: { label: string; value: number }[] = []
+  const anticipos: { label: string; value: number; estado: string }[] = []
   sheet.eachRow({ includeEmpty: false }, (row, rowNum) => {
     if (rowNum < 8) return
     const evento = extractValue(row.getCell(2).value)
+    const estado = extractValue(row.getCell(3).value)
     const adelanto = toNumber(extractValue(row.getCell(4).value))
     if (!evento || adelanto === null) return
-    anticipos.push({ label: String(evento), value: adelanto })
+    anticipos.push({ label: String(evento), value: adelanto, estado: String(estado ?? '') })
   })
   const total_anticipo = anticipos.reduce((s, a) => s + a.value, 0)
   return { anticipos, total_anticipo }
@@ -603,7 +604,7 @@ async function replaceSaldosDia(tx: TxClient, dias: SaldoDia[]) {
  * dashboard lo reprocese en cada carga. Todo en una sola transacción para
  * que un fallo a mitad de camino no deje las tablas vacías/a medias.
  */
-async function upsertSnapshot(tx: TxClient, anticipos: { label: string; value: number }[], totalAnticipo: number, globalSummary: { label: string; qty: number; monto: number }[], generatedAt: string) {
+async function upsertSnapshot(tx: TxClient, anticipos: { label: string; value: number; estado: string }[], totalAnticipo: number, globalSummary: { label: string; qty: number; monto: number }[], generatedAt: string) {
   const data = { anticipos, totalAnticipo, globalSummary, generatedAt: new Date(generatedAt) }
   await tx.panaticketsSnapshot.upsert({ where: { id: 1 }, create: { id: 1, ...data }, update: data })
 }
@@ -645,7 +646,7 @@ export async function getFinanzasPanaticketsRango(desde: string, hasta: string) 
   const GLOBAL_SUMMARY = (snapshot?.globalSummary as { label: string; qty: number; monto: number }[]) ?? []
   const EXEC_SUMMARY = computeExecSummary(DATA, CANCELADAS, GLOBAL_SUMMARY)
 
-  const anticipos = (snapshot?.anticipos as { label: string; value: number }[]) ?? []
+  const anticipos = (snapshot?.anticipos as { label: string; value: number; estado: string }[]) ?? []
   const totalAnticipo = snapshot?.totalAnticipo ?? 0
 
   const toSaldos = (d: (typeof saldosDia)[number]) => ({
