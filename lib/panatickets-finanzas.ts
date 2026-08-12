@@ -326,7 +326,24 @@ async function parseReporteShoware(wb: ExcelJS.Workbook) {
   return { ventas, canceladas, pendientes }
 }
 
-async function parseSaldosBanco(wb: ExcelJS.Workbook) {
+interface SaldoDia {
+  fecha: string // ISO YYYY-MM-DD
+  fecha_display: string // dd/mm/yyyy
+  bancos: { label: string; value: number; contable: number; diferencia: number }[]
+  subtotal_bancos: number
+  subtotal_contable: number
+  subtotal_diferencia: number
+  conceptos: { label: string; value: number }[]
+}
+
+/**
+ * Devuelve TODOS los días con saldos bancarios completos (no solo el más
+ * reciente) — así el dashboard puede mostrar el saldo "al día X" según el
+ * filtro de fecha en vez de estar pegado siempre al último día del Excel,
+ * que a veces trae el Saldo Bancario ya cargado pero el Contable todavía no
+ * (contabilidad va con retraso) y por eso sale en $0.
+ */
+async function parseSaldosBanco(wb: ExcelJS.Workbook): Promise<SaldoDia[]> {
   const sheet = wb.getWorksheet('Saldos Banco')
   if (!sheet) throw new Error('No se encontró la hoja "Saldos Banco" en el Excel')
 
@@ -342,44 +359,41 @@ async function parseSaldosBanco(wb: ExcelJS.Workbook) {
     if (conceptCols.includes(colNum)) conceptLabels[colNum] = String(v)
   })
 
-  let bestRow: ExcelJS.Row | null = null
-  let bestFecha: string | null = null
-  for (let r = sheet.rowCount; r >= 7; r--) {
+  const dias: SaldoDia[] = []
+  for (let r = 7; r <= sheet.rowCount; r++) {
     const row = sheet.getRow(r)
     const allBanksFilled = bankCols.every(c => toNumber(extractValue(row.getCell(c).value)) !== null)
-    if (allBanksFilled) {
-      bestRow = row
-      const fechaRaw = extractValue(row.getCell(2).value)
-      const fechaStr = typeof fechaRaw === 'string' ? fechaRaw : String(fechaRaw ?? '')
-      const isoMatch = fechaStr.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-      bestFecha = isoMatch ? `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}` : fechaStr
-      break
-    }
+    if (!allBanksFilled) continue
+
+    const fechaRaw = extractValue(row.getCell(2).value)
+    const fechaStr = typeof fechaRaw === 'string' ? fechaRaw : String(fechaRaw ?? '')
+    const isoMatch = fechaStr.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+    if (!isoMatch) continue // necesitamos fecha ISO real para poder indexar por día
+
+    const get = (col: number) => toNumber(extractValue(row.getCell(col).value)) ?? 0
+    const bancos = bankCols.map((c, i) => {
+      const value = get(c)
+      const contable = get(contableCols[i])
+      return { label: bankLabels[c], value, contable, diferencia: value - contable }
+    })
+    const subtotal_bancos = get(13)
+    const subtotal_contable = bancos.reduce((s, b) => s + b.contable, 0)
+    const conceptos = conceptCols.map(c => ({ label: conceptLabels[c], value: get(c) }))
+    const capitalTrabajo = get(23)
+
+    dias.push({
+      fecha: fechaStr,
+      fecha_display: `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`,
+      bancos,
+      subtotal_bancos,
+      subtotal_contable,
+      subtotal_diferencia: subtotal_bancos - subtotal_contable,
+      conceptos: [...conceptos, { label: 'Capital de Trabajo', value: capitalTrabajo }],
+    })
   }
-  if (!bestRow) throw new Error('No se encontró un día con saldos bancarios completos en "Saldos Banco"')
 
-  const get = (col: number) => toNumber(extractValue(bestRow!.getCell(col).value)) ?? 0
-
-  const bancos = bankCols.map((c, i) => {
-    const value = get(c)
-    const contable = get(contableCols[i])
-    return { label: bankLabels[c], value, contable, diferencia: value - contable }
-  })
-  const subtotal_bancos = get(13)
-  const subtotal_contable = bancos.reduce((s, b) => s + b.contable, 0)
-  const conceptos = conceptCols.map(c => ({ label: conceptLabels[c], value: get(c) }))
-  const capitalTrabajo = get(23)
-
-  return {
-    fecha_saldos: bestFecha ?? '',
-    bancos,
-    subtotal_bancos,
-    subtotal_contable,
-    subtotal_diferencia: subtotal_bancos - subtotal_contable,
-    conceptos: [...conceptos, { label: 'Capital de Trabajo', value: capitalTrabajo }],
-    anticipos: [] as { label: string; value: number }[],
-    total_anticipo: 0,
-  }
+  if (!dias.length) throw new Error('No se encontró ningún día con saldos bancarios completos en "Saldos Banco"')
+  return dias
 }
 
 async function parseAnticipos(wb: ExcelJS.Workbook) {
@@ -496,10 +510,8 @@ export async function computeFinanzasPanatickets() {
 
   const { ventas, canceladas, pendientes } = await parseReporteShoware(wb)
   const t4 = Date.now()
-  const saldos = await parseSaldosBanco(wb)
+  const saldosPorDia = await parseSaldosBanco(wb)
   const { anticipos, total_anticipo } = await parseAnticipos(wb)
-  saldos.anticipos = anticipos
-  saldos.total_anticipo = total_anticipo
   const t5 = Date.now()
 
   console.log(
@@ -518,7 +530,14 @@ export async function computeFinanzasPanatickets() {
   }))
   const CANCELADAS = canceladas
 
-  return { DATA, CANCELADAS, SALDOS: saldos, GLOBAL_SUMMARY, EXEC_SUMMARY, generatedAt: new Date().toISOString() }
+  return {
+    DATA, CANCELADAS,
+    SALDOS_POR_DIA: saldosPorDia,
+    ANTICIPOS: anticipos,
+    TOTAL_ANTICIPO: total_anticipo,
+    GLOBAL_SUMMARY, EXEC_SUMMARY,
+    generatedAt: new Date().toISOString(),
+  }
 }
 
 const BULK_BATCH = 500
@@ -564,37 +583,42 @@ async function replaceCanceladas(tx: TxClient, rows: { id: number | null; f: str
   }
 }
 
+async function replaceSaldosDia(tx: TxClient, dias: SaldoDia[]) {
+  await tx.$executeRaw`TRUNCATE TABLE panatickets_saldos_dia`
+  const now = new Date()
+  for (let i = 0; i < dias.length; i += BULK_BATCH) {
+    const batch = dias.slice(i, i + BULK_BATCH)
+    const values = Prisma.join(
+      batch.map(d => Prisma.sql`(${d.fecha}, ${d.fecha_display}, ${JSON.stringify(d.bancos)}::jsonb, ${d.subtotal_bancos}, ${d.subtotal_contable}, ${d.subtotal_diferencia}, ${JSON.stringify(d.conceptos)}::jsonb, ${now})`)
+    )
+    await tx.$executeRaw`
+      INSERT INTO panatickets_saldos_dia (fecha, "fechaDisplay", bancos, "subtotalBancos", "subtotalContable", "subtotalDiferencia", conceptos, "updatedAt")
+      VALUES ${values}
+    `
+  }
+}
+
 /**
  * Sincroniza el Excel de Panatickets a Postgres en vez de dejar que el
  * dashboard lo reprocese en cada carga. Todo en una sola transacción para
  * que un fallo a mitad de camino no deje las tablas vacías/a medias.
  */
-async function upsertSnapshot(tx: TxClient, saldos: Awaited<ReturnType<typeof parseSaldosBanco>>, globalSummary: { label: string; qty: number; monto: number }[], generatedAt: string) {
-  const data = {
-    fechaSaldos: saldos.fecha_saldos,
-    bancos: saldos.bancos,
-    subtotalBancos: saldos.subtotal_bancos,
-    subtotalContable: saldos.subtotal_contable,
-    subtotalDiferencia: saldos.subtotal_diferencia,
-    conceptos: saldos.conceptos,
-    anticipos: saldos.anticipos,
-    totalAnticipo: saldos.total_anticipo,
-    globalSummary,
-    generatedAt: new Date(generatedAt),
-  }
+async function upsertSnapshot(tx: TxClient, anticipos: { label: string; value: number }[], totalAnticipo: number, globalSummary: { label: string; qty: number; monto: number }[], generatedAt: string) {
+  const data = { anticipos, totalAnticipo, globalSummary, generatedAt: new Date(generatedAt) }
   await tx.panaticketsSnapshot.upsert({ where: { id: 1 }, create: { id: 1, ...data }, update: data })
 }
 
 export async function syncFinanzasPanatickets() {
-  const { DATA, CANCELADAS, SALDOS, GLOBAL_SUMMARY, generatedAt } = await computeFinanzasPanatickets()
+  const { DATA, CANCELADAS, SALDOS_POR_DIA, ANTICIPOS, TOTAL_ANTICIPO, GLOBAL_SUMMARY, generatedAt } = await computeFinanzasPanatickets()
 
   await prisma.$transaction(async tx => {
     await replaceVentas(tx, DATA)
     await replaceCanceladas(tx, CANCELADAS)
-    await upsertSnapshot(tx, SALDOS, GLOBAL_SUMMARY, generatedAt)
+    await replaceSaldosDia(tx, SALDOS_POR_DIA)
+    await upsertSnapshot(tx, ANTICIPOS, TOTAL_ANTICIPO, GLOBAL_SUMMARY, generatedAt)
   }, { timeout: 120_000 })
 
-  return { ventasSincronizadas: DATA.length, canceladasSincronizadas: CANCELADAS.length, generatedAt }
+  return { ventasSincronizadas: DATA.length, canceladasSincronizadas: CANCELADAS.length, diasConSaldos: SALDOS_POR_DIA.length, generatedAt }
 }
 
 /**
@@ -603,10 +627,11 @@ export async function syncFinanzasPanatickets() {
  * sigue siendo "derivado", solo que ahora sobre lo que haya en el rango.
  */
 export async function getFinanzasPanaticketsRango(desde: string, hasta: string) {
-  const [ventas, canceladas, snapshot, aniosRaw] = await Promise.all([
+  const [ventas, canceladas, snapshot, saldosDia, aniosRaw] = await Promise.all([
     prisma.panaticketsVenta.findMany({ where: { fecha: { gte: desde, lte: hasta } }, orderBy: { fecha: 'asc' } }),
     prisma.panaticketsCancelada.findMany({ where: { fecha: { gte: desde, lte: hasta } }, orderBy: { fecha: 'asc' } }),
     prisma.panaticketsSnapshot.findUnique({ where: { id: 1 } }),
+    prisma.panaticketsSaldoDia.findMany({ where: { fecha: { gte: desde, lte: hasta } }, orderBy: { fecha: 'asc' } }),
     prisma.$queryRaw<{ anio: string }[]>`SELECT DISTINCT LEFT(fecha, 4) AS anio FROM panatickets_ventas ORDER BY anio DESC`,
   ])
 
@@ -620,19 +645,27 @@ export async function getFinanzasPanaticketsRango(desde: string, hasta: string) 
   const GLOBAL_SUMMARY = (snapshot?.globalSummary as { label: string; qty: number; monto: number }[]) ?? []
   const EXEC_SUMMARY = computeExecSummary(DATA, CANCELADAS, GLOBAL_SUMMARY)
 
-  const SALDOS = snapshot ? {
-    fecha_saldos: snapshot.fechaSaldos,
-    bancos: snapshot.bancos as { label: string; value: number; contable: number; diferencia: number }[],
-    subtotal_bancos: snapshot.subtotalBancos,
-    subtotal_contable: snapshot.subtotalContable,
-    subtotal_diferencia: snapshot.subtotalDiferencia,
-    conceptos: snapshot.conceptos as { label: string; value: number }[],
-    anticipos: snapshot.anticipos as { label: string; value: number }[],
-    total_anticipo: snapshot.totalAnticipo,
-  } : null
+  const anticipos = (snapshot?.anticipos as { label: string; value: number }[]) ?? []
+  const totalAnticipo = snapshot?.totalAnticipo ?? 0
+
+  const toSaldos = (d: (typeof saldosDia)[number]) => ({
+    fecha_saldos: d.fechaDisplay,
+    bancos: d.bancos as { label: string; value: number; contable: number; diferencia: number }[],
+    subtotal_bancos: d.subtotalBancos,
+    subtotal_contable: d.subtotalContable,
+    subtotal_diferencia: d.subtotalDiferencia,
+    conceptos: d.conceptos as { label: string; value: number }[],
+    anticipos, total_anticipo: totalAnticipo,
+  })
+
+  // El más reciente dentro del rango es el default (equivalente al
+  // comportamiento de antes); SALDOS_POR_DIA deja que el filtro de día del
+  // dashboard pida cualquier otro día sin otro viaje al servidor.
+  const SALDOS = saldosDia.length ? toSaldos(saldosDia[saldosDia.length - 1]) : null
+  const SALDOS_POR_DIA = Object.fromEntries(saldosDia.map(d => [d.fecha, toSaldos(d)]))
 
   return {
-    DATA, CANCELADAS, SALDOS, GLOBAL_SUMMARY, EXEC_SUMMARY,
+    DATA, CANCELADAS, SALDOS, SALDOS_POR_DIA, GLOBAL_SUMMARY, EXEC_SUMMARY,
     generatedAt: (snapshot?.generatedAt ?? new Date()).toISOString(),
     years: aniosRaw.map(r => parseInt(r.anio, 10)).filter(n => !Number.isNaN(n)),
   }
