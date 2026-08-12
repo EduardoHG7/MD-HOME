@@ -571,11 +571,16 @@ model FacturaCajaMenuda {
 }
 
 // Ventas ya reconciliadas (filtroBancos = OK) del Reporte Showare de
-// Panatickets. Sincronizado por el cron de finanzas — fila por fila, para
-// poder consultar por rango de fechas/año en vez de reprocesar el Excel
-// completo (varios MB, crece a diario) en cada carga del dashboard.
+// Panatickets. Sincronizado por el cron de finanzas para poder consultar por
+// rango de fechas/año en vez de reprocesar el Excel completo (varios MB,
+// crece a diario) en cada carga del dashboard. ordenId es el N° de orden de
+// Showare — NO es único por fila (una orden puede tener varias líneas, ej.
+// distintos tipos de boleto), así que es solo un campo de referencia/display,
+// no la llave primaria. El sync reemplaza la tabla completa en cada corrida
+// (ver syncFinanzasPanatickets) en vez de hacer upsert por id.
 model PanaticketsVenta {
-  id         Int      @id
+  id         Int      @id @default(autoincrement())
+  ordenId    Int?
   fecha      String // YYYY-MM-DD
   hora       String?
   evento     String
@@ -594,7 +599,8 @@ model PanaticketsVenta {
 }
 
 model PanaticketsCancelada {
-  id           Int      @id
+  id           Int      @id @default(autoincrement())
+  ordenId      Int?
   fecha        String
   evento       String
   codigoPrecio String
