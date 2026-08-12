@@ -613,17 +613,30 @@ model PanaticketsCancelada {
   @@map("panatickets_canceladas")
 }
 
-// Snapshot único (no histórico): saldos bancarios + pendientes de
-// reconciliar "a hoy", tal como los usa el dashboard. Se sobreescribe en
-// cada sincronización del cron.
-model PanaticketsSnapshot {
-  id                 Int      @id @default(1)
-  fechaSaldos        String
+// Saldos Banco por día (uno por cada fila de la hoja con los bancos
+// completos) — permite que el filtro "Día de compra" del dashboard también
+// controle qué día de saldos se muestra, en vez de solo el más reciente.
+// El sync reemplaza la tabla completa en cada corrida (mismo patrón que
+// PanaticketsVenta).
+model PanaticketsSaldoDia {
+  fecha              String   @id // YYYY-MM-DD
+  fechaDisplay       String   // dd/mm/yyyy tal como se muestra
   bancos             Json
   subtotalBancos     Float
   subtotalContable   Float
   subtotalDiferencia Float
   conceptos          Json
+  updatedAt          DateTime @updatedAt
+
+  @@map("panatickets_saldos_dia")
+}
+
+// Snapshot único (no histórico): pendientes de reconciliar "a hoy" y
+// anticipos por evento — no vienen fechados por día en el Excel origen, así
+// que se quedan como "estado actual", no por día. Se sobreescribe en cada
+// sincronización del cron.
+model PanaticketsSnapshot {
+  id                 Int      @id @default(1)
   anticipos          Json
   totalAnticipo      Float
   globalSummary      Json

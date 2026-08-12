@@ -688,8 +688,15 @@
 // Los datos ya no vienen embebidos en el HTML — se piden por rango (año) a
 // /admin/finanzas/reporte/data, así el tamaño de esta página no depende de
 // cuánto historial haya. Ver loadRange() más abajo.
-let DATA = [], SALDOS = null, CANCELADAS = [], GLOBAL_SUMMARY = [], EXEC_SUMMARY = null;
+let DATA = [], SALDOS = null, SALDOS_POR_DIA = {}, CANCELADAS = [], GLOBAL_SUMMARY = [], EXEC_SUMMARY = null;
 let days = [], eventos = [];
+
+// El filtro "Día de compra" también decide qué día de Saldos Bancarios se
+// muestra (si ese día tiene saldo guardado); "Todos los días" usa el más
+// reciente del rango, igual que antes.
+function saldosParaDiaActual(){
+  return (state.day !== 'ALL' && SALDOS_POR_DIA[state.day]) || SALDOS;
+}
 
 const money = n => {
   const num = Number(n) || 0;
@@ -715,7 +722,7 @@ function renderDaySelect(){
   daySelect.innerHTML = html;
   daySelect.value = state.day;
 }
-daySelect.addEventListener('change', ()=>{ state.day = daySelect.value; renderAll(); });
+daySelect.addEventListener('change', ()=>{ state.day = daySelect.value; renderAll(); renderSeccionSaldos(); });
 
 const eventoSelect = document.getElementById('eventoSelect');
 function renderEventoSelect(){
@@ -732,6 +739,7 @@ statusSelect.addEventListener('change', ()=>{ state.status = statusSelect.value;
 document.getElementById('resetBtn').addEventListener('click', ()=>{
   state.day='ALL'; state.evento='ALL'; state.status='ALL'; statusSelect.value='ALL';
   renderAll();
+  renderSeccionSaldos();
 });
 
 function getFiltered(){
@@ -805,8 +813,9 @@ document.querySelectorAll('#totalsTable thead th').forEach(th=>{
 const PIE_COLORS = ['#2563eb','#f43f5e','#f59e0b','#10b981','#8b5cf6','#f97316','#14b8a6','#64748b','#ea580c'];
 
 function renderBancos(){
+  const s = saldosParaDiaActual();
   const body = document.getElementById('bancosBody');
-  const sorted = [...SALDOS.bancos].sort((a,b)=>b.value-a.value);
+  const sorted = [...s.bancos].sort((a,b)=>b.value-a.value);
   body.innerHTML = sorted.map(b=>`
     <tr>
       <td>${b.label}</td>
@@ -815,9 +824,9 @@ function renderBancos(){
       <td class="${b.diferencia < 0 ? 'neg' : (b.diferencia > 0 ? 'pos' : '')}">${money(b.diferencia)}</td>
     </tr>
   `).join('');
-  document.getElementById('footBancos').textContent = money(SALDOS.subtotal_bancos);
-  document.getElementById('footBancosContable').textContent = money(SALDOS.subtotal_contable);
-  document.getElementById('footBancosDiferencia').textContent = money(SALDOS.subtotal_diferencia);
+  document.getElementById('footBancos').textContent = money(s.subtotal_bancos);
+  document.getElementById('footBancosContable').textContent = money(s.subtotal_contable);
+  document.getElementById('footBancosDiferencia').textContent = money(s.subtotal_diferencia);
 }
 
 function polarToCartesian(cx, cy, r, angleDeg){
@@ -826,7 +835,7 @@ function polarToCartesian(cx, cy, r, angleDeg){
 }
 
 function renderPie(){
-  const sorted = [...SALDOS.bancos].sort((a,b)=>b.value-a.value);
+  const sorted = [...saldosParaDiaActual().bancos].sort((a,b)=>b.value-a.value);
   const total = sorted.reduce((s,b)=>s + (b.value>0?b.value:0), 0);
   const svg = document.getElementById('pieChart');
   const legend = document.getElementById('pieLegend');
@@ -863,7 +872,7 @@ function renderPie(){
 
 function renderConcepto(){
   const body = document.getElementById('conceptoBody');
-  body.innerHTML = SALDOS.conceptos.map(c=>{
+  body.innerHTML = saldosParaDiaActual().conceptos.map(c=>{
     const isTotal = c.label.trim().toLowerCase().startsWith('capital de trab');
     const isOperativo = c.label.trim().toLowerCase().startsWith('saldo bancario');
     const cls = c.value<0 ? 'neg' : (c.value>0 && !isOperativo && !isTotal ? '' : '');
@@ -1485,15 +1494,23 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
   });
 });
 
+function renderSeccionSaldos(){
+  const s = saldosParaDiaActual();
+  document.getElementById('fechaSaldosHeader').textContent = s.fecha_saldos;
+  document.getElementById('fechaSaldosBancos').textContent = s.fecha_saldos;
+  document.getElementById('fechaSaldosCapital').textContent = s.fecha_saldos;
+  renderBancos();
+  renderPie();
+  renderConcepto();
+}
+
 function renderEverything(){
   days = [...new Set(DATA.map(d=>d.f))].sort();
   eventos = [...new Set(DATA.map(d=>d.ev).filter(Boolean))].sort();
   renderDaySelect();
   renderEventoSelect();
   renderAll();
-  renderBancos();
-  renderPie();
-  renderConcepto();
+  renderSeccionSaldos();
   renderAnticipos();
   renderGlobalSummary();
   renderExecSummary();
@@ -1519,14 +1536,13 @@ async function loadRange(year){
 
     DATA = json.DATA;
     CANCELADAS = json.CANCELADAS;
-    SALDOS = json.SALDOS ?? { fecha_saldos:'—', bancos:[], subtotal_bancos:0, subtotal_contable:0, subtotal_diferencia:0, conceptos:[], anticipos:[], total_anticipo:0 };
+    const saldosVacio = { fecha_saldos:'—', bancos:[], subtotal_bancos:0, subtotal_contable:0, subtotal_diferencia:0, conceptos:[], anticipos:[], total_anticipo:0 };
+    SALDOS = json.SALDOS ?? saldosVacio;
+    SALDOS_POR_DIA = json.SALDOS_POR_DIA ?? {};
     GLOBAL_SUMMARY = json.GLOBAL_SUMMARY;
     EXEC_SUMMARY = json.EXEC_SUMMARY;
     state = { day:'ALL', evento:'ALL', status:'ALL', sortKey:'tot', sortDir:-1 };
 
-    document.getElementById('fechaSaldosHeader').textContent = SALDOS.fecha_saldos;
-    document.getElementById('fechaSaldosBancos').textContent = SALDOS.fecha_saldos;
-    document.getElementById('fechaSaldosCapital').textContent = SALDOS.fecha_saldos;
     document.getElementById('generadoEnHeader').textContent = fmtGeneradoEn(json.generatedAt);
 
     if(rangeSelect.options.length === 0){
