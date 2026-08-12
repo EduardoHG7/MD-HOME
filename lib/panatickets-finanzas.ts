@@ -170,14 +170,32 @@ function extractValue(v: ExcelJS.CellValue): string | number | null {
   if (typeof v === 'object') {
     if ('richText' in v) return (v.richText as { text: string }[]).map(t => t.text).join('')
     if ('result' in v) {
+      // El resultado de una fórmula (ej. "=fecha_anterior+1", común para
+      // autocompletar fechas consecutivas) puede ser un Date real — sin
+      // este chequeo se devolvía el objeto Date crudo en vez de ISO, y
+      // cualquier columna de fecha calculada por fórmula quedaba
+      // silenciosamente excluida (String(Date) no matchea el regex ISO).
       const r = (v as { result?: unknown }).result
-      return r === null || r === undefined ? null : (r as string | number)
+      if (r === null || r === undefined) return null
+      if (r instanceof Date) return r.toISOString().slice(0, 10)
+      return r as string | number
     }
     if ('text' in v) return (v as { text: string }).text
     if (v instanceof Date) return v.toISOString().slice(0, 10)
     return null
   }
   return typeof v === 'boolean' ? String(v) : v
+}
+
+// Acepta ISO (YYYY-MM-DD) o d/m/yyyy · d-m-yyyy (formato usado en Panamá) y
+// normaliza a ISO. Las fechas de "Saldos Banco" no siempre son un Date real
+// de Excel — a veces son texto tecleado a mano en cualquiera de estos formatos.
+function parseFechaFlexible(raw: string): string | null {
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`
+  const dmy = raw.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/)
+  if (dmy) return `${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`
+  return null
 }
 
 function extractTime(v: ExcelJS.CellValue): string | null {
@@ -367,8 +385,9 @@ async function parseSaldosBanco(wb: ExcelJS.Workbook): Promise<SaldoDia[]> {
 
     const fechaRaw = extractValue(row.getCell(2).value)
     const fechaStr = typeof fechaRaw === 'string' ? fechaRaw : String(fechaRaw ?? '')
-    const isoMatch = fechaStr.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-    if (!isoMatch) continue // necesitamos fecha ISO real para poder indexar por día
+    const fechaIso = parseFechaFlexible(fechaStr)
+    if (!fechaIso) continue // necesitamos poder interpretar la fecha para indexar por día
+    const [, mFecha, dFecha] = fechaIso.split('-')
 
     const get = (col: number) => toNumber(extractValue(row.getCell(col).value)) ?? 0
     const bancos = bankCols.map((c, i) => {
@@ -382,8 +401,8 @@ async function parseSaldosBanco(wb: ExcelJS.Workbook): Promise<SaldoDia[]> {
     const capitalTrabajo = get(23)
 
     dias.push({
-      fecha: fechaStr,
-      fecha_display: `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`,
+      fecha: fechaIso,
+      fecha_display: `${dFecha}/${mFecha}/${fechaIso.slice(0, 4)}`,
       bancos,
       subtotal_bancos,
       subtotal_contable,
