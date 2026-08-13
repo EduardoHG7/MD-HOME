@@ -5,7 +5,7 @@ import { useSession, signOut } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
-import { formatDate } from '@/lib/utils'
+import { formatDate, esChofer } from '@/lib/utils'
 
 interface Asignacion {
   id:      string
@@ -134,7 +134,7 @@ export default function AplicantePerfilPage() {
                     href={`/aplicante/${aplicante.id}?evento=${a.eventoId}`}
                     className="mt-3 flex items-center justify-center gap-2 w-full py-2 rounded-xl bg-gray-900 text-white text-sm font-medium hover:bg-gray-700 transition-all"
                   >
-                    📱 Ver mi QR de asistencia
+                    {esChofer(a.funcion) ? '🚗 Marcar entrada / salida' : '📱 Ver mi QR de asistencia'}
                   </Link>
                 )}
               </div>
