@@ -17,6 +17,7 @@ declare module 'next-auth' {
       image?:            string | null
       role:              'ADMIN' | 'USER' | 'APLICANTE' | 'CONTABILIDAD' | 'OPERACIONES'
       isSuperAdmin:      boolean
+      puedeVerFinanzas:  boolean
       availableTenants:  TenantInfo[]
     }
   }

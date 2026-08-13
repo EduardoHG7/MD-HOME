@@ -4,7 +4,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { AdminSidebar } from '@/components/AdminSidebar'
-import { esOperadorPanatickets } from '@/lib/permisos'
+import { esOperadorPanatickets, puedeVerFinanzas } from '@/lib/permisos'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions)
@@ -12,7 +12,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   // Operador Panatickets (usuario @panatickets.com): visual de admin acotada a Eventos
   const soloEventos = esOperadorPanatickets(session.user.email, session.user.role)
-  if (session.user.role !== 'ADMIN' && !soloEventos) redirect('/usuario/solicitar')
+  // Usuario sin rol admin al que se le concedió ver Finanzas: entra acotado a esa sección
+  // (el acotamiento real de qué rutas puede visitar vive en middleware.ts)
+  if (session.user.role !== 'ADMIN' && !soloEventos && !puedeVerFinanzas(session.user)) {
+    redirect('/usuario/solicitar')
+  }
 
   return (
     <div className="min-h-screen flex">

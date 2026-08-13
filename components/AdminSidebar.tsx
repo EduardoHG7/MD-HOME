@@ -7,6 +7,9 @@ import { Session } from 'next-auth'
 import Image from 'next/image'
 import { useState, useEffect } from 'react'
 import { useTenant } from '@/hooks/useTenant'
+import { puedeVerFinanzas } from '@/lib/permisos'
+
+const FINANZAS_ITEM = { href: '/admin/finanzas', label: 'Finanzas', icon: '📊' }
 
 const ADMIN_NAV = [
   { href: '/admin',                label: 'Dashboard',       icon: '◉' },
@@ -19,7 +22,6 @@ const ADMIN_NAV = [
   { href: '/admin/puestos',        label: 'Puestos',         icon: '🔧' },
   { href: '/admin/facturas',       label: 'Facturas',        icon: '🧾' },
   { href: '/admin/tarifas',        label: 'Tarifas',         icon: '💰' },
-  { href: '/admin/finanzas',       label: 'Finanzas',        icon: '📊' },
 ]
 
 const CONTABILIDAD_NAV = [
@@ -29,8 +31,10 @@ const CONTABILIDAD_NAV = [
 
 export function AdminSidebar({ session, role, soloEventos }: { session: Session; role?: string; soloEventos?: boolean }) {
   const efectiveRole = role ?? 'ADMIN'
-  const rootHref     = soloEventos ? '/admin' : efectiveRole === 'CONTABILIDAD' ? '/contabilidad' : '/admin'
-  const panelLabel   = soloEventos ? 'Panatickets' : efectiveRole === 'CONTABILIDAD' ? 'Panel Contabilidad' : 'Panel Administrativo'
+  // Usuario sin rol admin al que solo se le concedió ver Finanzas (ni ADMIN ni operador de Eventos)
+  const soloFinanzas = !soloEventos && session.user.role !== 'ADMIN' && puedeVerFinanzas(session.user)
+  const rootHref     = soloEventos || soloFinanzas ? '/admin' : efectiveRole === 'CONTABILIDAD' ? '/contabilidad' : '/admin'
+  const panelLabel   = soloEventos ? 'Panatickets' : soloFinanzas ? 'Finanzas' : efectiveRole === 'CONTABILIDAD' ? 'Panel Contabilidad' : 'Panel Administrativo'
   const baseNav      = soloEventos
     ? [
         { href: '/admin',             label: 'Dashboard',   icon: '◉' },
@@ -38,15 +42,22 @@ export function AdminSidebar({ session, role, soloEventos }: { session: Session;
         { href: '/admin/venues',      label: 'Venues',      icon: '🏟️' },
         { href: '/usuario/solicitar', label: 'Solicitudes', icon: '📋' },
       ]
+    : soloFinanzas
+    ? [{ href: '/admin', label: 'Dashboard', icon: '◉' }]
     : efectiveRole === 'CONTABILIDAD' ? CONTABILIDAD_NAV : ADMIN_NAV
   const pathname     = usePathname()
   const [open, setOpen] = useState(false)
   const { activeTenant } = useTenant()
 
+  // Agrega Finanzas al final si el usuario tiene acceso concedido
+  const navConAcceso = puedeVerFinanzas(session.user)
+    ? [...baseNav, FINANZAS_ITEM]
+    : baseNav
+
   // Append Empresas link for super-admins (nunca para operadores acotados)
   const NAV_ITEMS = session.user.isSuperAdmin && !soloEventos
-    ? [...baseNav, { href: '/admin/tenants', label: 'Empresas', icon: '🏢' }]
-    : baseNav
+    ? [...navConAcceso, { href: '/admin/tenants', label: 'Empresas', icon: '🏢' }]
+    : navConAcceso
 
   // Logo: active tenant logo or fallback /logo.png
   const logoSrc    = activeTenant?.logo ?? '/logo.png'

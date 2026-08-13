@@ -5,11 +5,21 @@ import { authOptions } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { getActiveTenantId } from '@/lib/tenant'
 import { prisma } from '@/lib/prisma'
+import { puedeVerFinanzas } from '@/lib/permisos'
 import { ReporteFrame } from './ReporteFrame'
 
 export default async function FinanzasPage() {
   const session = await getServerSession(authOptions)
   if (!session) redirect('/login')
+
+  if (!puedeVerFinanzas(session.user)) {
+    return (
+      <div className="max-w-2xl">
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Finanzas</h1>
+        <p className="text-gray-500">No tienes acceso a los reportes financieros. Pídele a un administrador que te lo habilite.</p>
+      </div>
+    )
+  }
 
   const tenantId = getActiveTenantId()
   const tenant = tenantId ? await prisma.tenant.findUnique({ where: { id: tenantId } }) : null

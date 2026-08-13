@@ -17,11 +17,11 @@ export async function GET() {
   const users = tenantId
     ? await prisma.user.findMany({
         where: { tenants: { some: { tenantId } } },
-        select: { id: true, name: true, email: true, role: true, createdAt: true },
+        select: { id: true, name: true, email: true, role: true, puedeVerFinanzas: true, createdAt: true },
         orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
       })
     : await prisma.user.findMany({
-        select: { id: true, name: true, email: true, role: true, createdAt: true },
+        select: { id: true, name: true, email: true, role: true, puedeVerFinanzas: true, createdAt: true },
         orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
       })
 
