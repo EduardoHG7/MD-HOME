@@ -11,15 +11,15 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
 
-  // No permitir que el admin se quite su propio rol
-  if (params.id === session.user.id) {
-    return NextResponse.json({ error: 'No puedes cambiar tu propio rol' }, { status: 400 })
-  }
-
   const { role, puedeVerFinanzas } = await req.json()
   const data: { role?: string; puedeVerFinanzas?: boolean } = {}
 
   if (role !== undefined) {
+    // No permitir que el admin se quite su propio rol (sí puede tocar su
+    // propio puedeVerFinanzas, por ejemplo para concederse acceso a Finanzas)
+    if (params.id === session.user.id) {
+      return NextResponse.json({ error: 'No puedes cambiar tu propio rol' }, { status: 400 })
+    }
     if (!['ADMIN', 'USER', 'CONTABILIDAD'].includes(role)) {
       return NextResponse.json({ error: 'Rol inválido' }, { status: 400 })
     }
