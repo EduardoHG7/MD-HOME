@@ -77,6 +77,7 @@ export const authOptions: NextAuthOptions = {
             token.role         = created.role
             token.dbId         = created.id
             token.isSuperAdmin = created.isSuperAdmin
+            token.puedeVerFinanzas = created.puedeVerFinanzas
             token.availableTenants = []
           } else if (dbUser) {
             // Update name on each login
@@ -86,6 +87,7 @@ export const authOptions: NextAuthOptions = {
             token.role         = dbUser.role
             token.dbId         = dbUser.id
             token.isSuperAdmin = dbUser.isSuperAdmin
+            token.puedeVerFinanzas = dbUser.puedeVerFinanzas
 
             const activeTenants = dbUser.tenants
               .filter(ut => ut.tenant.activo)
@@ -119,6 +121,7 @@ export const authOptions: NextAuthOptions = {
         session.user.role          = (token.role as string) as 'ADMIN' | 'USER' | 'CONTABILIDAD' | 'APLICANTE'
         session.user.id            = (token.dbId as string) ?? (token.sub ?? '')
         session.user.isSuperAdmin  = (token.isSuperAdmin as boolean) ?? false
+        session.user.puedeVerFinanzas = (token.puedeVerFinanzas as boolean) ?? false
         session.user.availableTenants = (token.availableTenants as never[]) ?? []
       }
       return session

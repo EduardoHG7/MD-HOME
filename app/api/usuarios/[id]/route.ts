@@ -16,15 +16,31 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ error: 'No puedes cambiar tu propio rol' }, { status: 400 })
   }
 
-  const { role } = await req.json()
-  if (!['ADMIN', 'USER', 'CONTABILIDAD'].includes(role)) {
-    return NextResponse.json({ error: 'Rol inválido' }, { status: 400 })
+  const { role, puedeVerFinanzas } = await req.json()
+  const data: { role?: string; puedeVerFinanzas?: boolean } = {}
+
+  if (role !== undefined) {
+    if (!['ADMIN', 'USER', 'CONTABILIDAD'].includes(role)) {
+      return NextResponse.json({ error: 'Rol inválido' }, { status: 400 })
+    }
+    data.role = role
+  }
+
+  if (puedeVerFinanzas !== undefined) {
+    if (typeof puedeVerFinanzas !== 'boolean') {
+      return NextResponse.json({ error: 'puedeVerFinanzas inválido' }, { status: 400 })
+    }
+    data.puedeVerFinanzas = puedeVerFinanzas
+  }
+
+  if (Object.keys(data).length === 0) {
+    return NextResponse.json({ error: 'Nada que actualizar' }, { status: 400 })
   }
 
   const user = await prisma.user.update({
     where: { id: params.id },
-    data: { role },
-    select: { id: true, name: true, email: true, role: true, createdAt: true },
+    data,
+    select: { id: true, name: true, email: true, role: true, puedeVerFinanzas: true, createdAt: true },
   })
 
   return NextResponse.json(user)

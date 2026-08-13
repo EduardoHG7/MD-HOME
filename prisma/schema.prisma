@@ -49,6 +49,7 @@ model User {
   telefono     String?
   role         String   @default("USER")
   isSuperAdmin Boolean  @default(false)
+  puedeVerFinanzas Boolean @default(false) // acceso al dashboard de Finanzas Panatickets (ADMIN/isSuperAdmin siempre lo tienen)
   firmaImagen  String?  // Data URL (PNG) de la firma para estampar en contratos
   createdAt    DateTime @default(now())
 

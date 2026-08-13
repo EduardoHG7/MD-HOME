@@ -5,11 +5,12 @@ import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 
 interface User {
-  id:        string
-  name:      string | null
-  email:     string
-  role:      string
-  createdAt: string
+  id:               string
+  name:             string | null
+  email:            string
+  role:             string
+  puedeVerFinanzas: boolean
+  createdAt:        string
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -52,6 +53,20 @@ export default function UsuariosAdminPage() {
     setLoading(null)
   }
 
+  async function toggleFinanzas(user: User) {
+    setLoading(user.id)
+    const res = await fetch(`/api/usuarios/${user.id}`, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ puedeVerFinanzas: !user.puedeVerFinanzas }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      setUsers(prev => prev.map(u => u.id === updated.id ? updated : u))
+    }
+    setLoading(null)
+  }
+
   const admins       = users.filter(u => u.role === 'ADMIN')
   const contabilidad = users.filter(u => u.role === 'CONTABILIDAD')
   const operaciones  = users.filter(u => u.role === 'OPERACIONES')
@@ -82,7 +97,7 @@ export default function UsuariosAdminPage() {
       {admins.length > 0 && (
         <Section title="Administradores">
           {admins.map(u => (
-            <UserRow key={u.id} user={u} isSelf={u.id === session?.user?.id} loading={loading === u.id} onSetRole={r => setRole(u, r)} />
+            <UserRow key={u.id} user={u} isSelf={u.id === session?.user?.id} loading={loading === u.id} onSetRole={r => setRole(u, r)} onToggleFinanzas={() => toggleFinanzas(u)} />
           ))}
         </Section>
       )}
@@ -90,7 +105,7 @@ export default function UsuariosAdminPage() {
       {contabilidad.length > 0 && (
         <Section title="Contabilidad">
           {contabilidad.map(u => (
-            <UserRow key={u.id} user={u} isSelf={false} loading={loading === u.id} onSetRole={r => setRole(u, r)} />
+            <UserRow key={u.id} user={u} isSelf={false} loading={loading === u.id} onSetRole={r => setRole(u, r)} onToggleFinanzas={() => toggleFinanzas(u)} />
           ))}
         </Section>
       )}
@@ -98,7 +113,7 @@ export default function UsuariosAdminPage() {
       {operaciones.length > 0 && (
         <Section title="Operaciones">
           {operaciones.map(u => (
-            <UserRow key={u.id} user={u} isSelf={false} loading={loading === u.id} onSetRole={r => setRole(u, r)} />
+            <UserRow key={u.id} user={u} isSelf={false} loading={loading === u.id} onSetRole={r => setRole(u, r)} onToggleFinanzas={() => toggleFinanzas(u)} />
           ))}
         </Section>
       )}
@@ -106,7 +121,7 @@ export default function UsuariosAdminPage() {
       {normales.length > 0 && (
         <Section title="Usuarios Internos">
           {normales.map(u => (
-            <UserRow key={u.id} user={u} isSelf={false} loading={loading === u.id} onSetRole={r => setRole(u, r)} />
+            <UserRow key={u.id} user={u} isSelf={false} loading={loading === u.id} onSetRole={r => setRole(u, r)} onToggleFinanzas={() => toggleFinanzas(u)} />
           ))}
         </Section>
       )}
@@ -135,11 +150,12 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
-function UserRow({ user, isSelf, loading, onSetRole }: {
+function UserRow({ user, isSelf, loading, onSetRole, onToggleFinanzas }: {
   user:     User
   isSelf:   boolean
   loading:  boolean
   onSetRole: (role: string) => void
+  onToggleFinanzas: () => void
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
 
@@ -162,6 +178,25 @@ function UserRow({ user, isSelf, loading, onSetRole }: {
       <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${ROLE_STYLES[user.role] ?? ROLE_STYLES.USER}`}>
         {ROLE_LABELS[user.role] ?? user.role}
       </span>
+
+      {user.role === 'ADMIN' ? (
+        <span className="text-xs px-3 py-1.5 rounded-xl bg-gray-50 text-gray-400 font-medium whitespace-nowrap">
+          📊 Finanzas: siempre
+        </span>
+      ) : (
+        <button
+          onClick={onToggleFinanzas}
+          disabled={loading}
+          title="Acceso al dashboard de Finanzas"
+          className={`text-xs px-3 py-1.5 rounded-xl border-2 font-medium transition-all whitespace-nowrap ${
+            user.puedeVerFinanzas
+              ? 'bg-green-50 border-green-200 text-green-700 hover:bg-green-100'
+              : 'bg-gray-50 border-gray-200 text-gray-400 hover:bg-gray-100'
+          }`}
+        >
+          📊 Finanzas: {user.puedeVerFinanzas ? 'Sí' : 'No'}
+        </button>
+      )}
 
       {user.role === 'USER' && (
         <Link href={`/admin/usuarios/${user.id}/vista`}

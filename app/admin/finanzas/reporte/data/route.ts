@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getActiveTenantId } from '@/lib/tenant'
 import { prisma } from '@/lib/prisma'
+import { puedeVerFinanzas } from '@/lib/permisos'
 import { getFinanzasPanaticketsRango } from '@/lib/panatickets-finanzas'
 
 // Datos del reporte de Finanzas Panatickets por rango, consultados desde
@@ -14,6 +15,9 @@ import { getFinanzasPanaticketsRango } from '@/lib/panatickets-finanzas'
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  if (!puedeVerFinanzas(session.user)) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  }
 
   const tenantId = getActiveTenantId()
   const tenant = tenantId ? await prisma.tenant.findUnique({ where: { id: tenantId } }) : null

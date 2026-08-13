@@ -74,6 +74,14 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL('/usuario/solicitar', req.url))
   }
 
+  // Usuario sin rol admin con acceso concedido solo a Finanzas: no puede
+  // navegar al resto del panel admin (usuarios, eventos, facturas, etc.)
+  const soloFinanzas = token.role !== 'ADMIN' && !esPana && Boolean(token.puedeVerFinanzas)
+  const rutaFinanzasOk = pathname === '/admin' || pathname.startsWith('/admin/finanzas')
+  if (soloFinanzas && pathname.startsWith('/admin') && !rutaFinanzasOk) {
+    return NextResponse.redirect(new URL('/admin', req.url))
+  }
+
   return NextResponse.next()
 }
 

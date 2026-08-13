@@ -8,6 +8,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getActiveTenantId } from '@/lib/tenant'
 import { prisma } from '@/lib/prisma'
+import { puedeVerFinanzas } from '@/lib/permisos'
 
 function paginaError(mensaje: string) {
   return `<!doctype html><html><body style="font-family:sans-serif;padding:32px;color:#111">
@@ -24,6 +25,9 @@ function paginaError(mensaje: string) {
 export async function GET() {
   const session = await getServerSession(authOptions)
   if (!session) return new NextResponse(paginaError('No autorizado.'), { status: 401, headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+  if (!puedeVerFinanzas(session.user)) {
+    return new NextResponse(paginaError('No autorizado.'), { status: 403, headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+  }
 
   const tenantId = getActiveTenantId()
   const tenant = tenantId ? await prisma.tenant.findUnique({ where: { id: tenantId } }) : null
