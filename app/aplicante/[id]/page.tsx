@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState, useCallback } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
-import { formatDateTime } from '@/lib/utils'
+import { formatDateTime, esChofer } from '@/lib/utils'
 
 interface Asignacion {
   id: string
@@ -33,6 +33,9 @@ function AplicanteContent() {
   const [qrData,         setQrData]         = useState<{ qr: string; ttl: number } | null>(null)
   const [countdown,      setCountdown]      = useState(30)
   const [loading,        setLoading]        = useState(true)
+  const [selfTipo,       setSelfTipo]       = useState<'ENTRADA' | 'SALIDA' | null | undefined>(undefined)
+  const [selfLoading,    setSelfLoading]    = useState(false)
+  const [selfError,      setSelfError]      = useState('')
 
   useEffect(() => {
     fetch(`/api/aplicantes/${id}`)
@@ -49,6 +52,11 @@ function AplicanteContent() {
       })
   }, [id, eventoParam])
 
+  const asignacionActiva = aplicante?.asignaciones.find(
+    a => a.eventoId === selectedEvento && a.estado === 'ACTIVA'
+  )
+  const esChoferActivo = asignacionActiva ? esChofer(asignacionActiva.funcion) : false
+
   const fetchQR = useCallback(async () => {
     if (!selectedEvento) return
     const res = await fetch(`/api/qr/token?aid=${id}&eid=${selectedEvento}`)
@@ -60,9 +68,9 @@ function AplicanteContent() {
   }, [id, selectedEvento])
 
   useEffect(() => {
-    if (!selectedEvento) return
+    if (!selectedEvento || esChoferActivo) return
     fetchQR()
-  }, [selectedEvento, fetchQR])
+  }, [selectedEvento, esChoferActivo, fetchQR])
 
   useEffect(() => {
     if (!qrData) return
@@ -74,6 +82,60 @@ function AplicanteContent() {
     }, 1000)
     return () => clearInterval(interval)
   }, [qrData, fetchQR])
+
+  const fetchSelfEstado = useCallback(async () => {
+    if (!selectedEvento || !esChoferActivo) return
+    const res = await fetch(`/api/asistencia/self?eventoId=${selectedEvento}`)
+    if (res.ok) {
+      const data = await res.json()
+      setSelfTipo(data.tipo)
+    }
+  }, [selectedEvento, esChoferActivo])
+
+  useEffect(() => {
+    fetchSelfEstado()
+  }, [fetchSelfEstado])
+
+  async function marcarAsistencia() {
+    if (!selectedEvento) return
+    setSelfLoading(true)
+    setSelfError('')
+
+    const coords = await new Promise<GeolocationPosition | null>(resolve => {
+      if (!navigator.geolocation) return resolve(null)
+      navigator.geolocation.getCurrentPosition(
+        pos => resolve(pos),
+        () => resolve(null),
+        { timeout: 5000 }
+      )
+    })
+
+    const res = await fetch('/api/asistencia/self', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        eventoId: selectedEvento,
+        lat: coords?.coords.latitude,
+        lng: coords?.coords.longitude,
+      }),
+    })
+    const data = await res.json()
+
+    if (!res.ok) {
+      setSelfError(data.error || 'No se pudo registrar')
+    } else {
+      setSelfTipo(data.tipo === 'ENTRADA' ? 'SALIDA' : null)
+      setAplicante(prev => prev && {
+        ...prev,
+        asignaciones: prev.asignaciones.map(a =>
+          a.eventoId === selectedEvento
+            ? { ...a, registros: [...a.registros, { tipo: data.tipo, timestamp: data.timestamp }] }
+            : a
+        ),
+      })
+    }
+    setSelfLoading(false)
+  }
 
   if (loading) {
     return (
@@ -90,10 +152,6 @@ function AplicanteContent() {
       </div>
     )
   }
-
-  const asignacionActiva = aplicante.asignaciones.find(
-    a => a.eventoId === selectedEvento && a.estado === 'ACTIVA'
-  )
 
   const urgentColor = countdown <= 5 ? 'text-red-600' : countdown <= 10 ? 'text-amber-500' : 'text-green-600'
   const barColor    = countdown <= 5 ? 'bg-red-500'  : countdown <= 10 ? 'bg-amber-400'   : 'bg-green-500'
@@ -132,8 +190,47 @@ function AplicanteContent() {
         </div>
       )}
 
-      {/* QR Code */}
-      {asignacionActiva ? (
+      {/* Autorregistro de choferes (sin punto fijo donde los escaneen) */}
+      {asignacionActiva && esChoferActivo ? (
+        <div className="card border-2 p-6 mb-4 text-center">
+          <p className="text-gray-900 font-bold text-sm mb-0.5 uppercase tracking-wider">
+            {asignacionActiva.evento.nombre}
+          </p>
+          <p className="text-gray-500 text-xs mb-6">{asignacionActiva.funcion}</p>
+
+          {selfError && (
+            <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl px-4 py-3 mb-4 text-sm">
+              {selfError}
+            </div>
+          )}
+
+          {selfTipo === undefined ? (
+            <div className="text-gray-400 animate-pulse text-sm py-6">Cargando estado...</div>
+          ) : selfTipo === null ? (
+            <div className="py-6">
+              <p className="text-4xl mb-3">✅</p>
+              <p className="text-gray-900 font-semibold">Turno completo</p>
+              <p className="text-gray-500 text-sm mt-1">Ya registraste tu entrada y salida de hoy.</p>
+            </div>
+          ) : (
+            <button
+              onClick={marcarAsistencia}
+              disabled={selfLoading}
+              className={`w-full py-6 rounded-2xl text-white font-bold text-xl transition-colors ${
+                selfTipo === 'ENTRADA' ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'
+              } disabled:opacity-60`}
+            >
+              {selfLoading ? 'Registrando...' : selfTipo === 'ENTRADA' ? '↓ Marcar Entrada' : '↑ Marcar Salida'}
+            </button>
+          )}
+
+          <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-3">
+            <p className="text-amber-700 text-xs">
+              Autorregistro habilitado para choferes. Se guarda tu ubicación como respaldo.
+            </p>
+          </div>
+        </div>
+      ) : asignacionActiva ? (
         <div className="card qr-pulse border-2 p-6 mb-4 text-center">
           <p className="text-gray-900 font-bold text-sm mb-0.5 uppercase tracking-wider">
             {asignacionActiva.evento.nombre}

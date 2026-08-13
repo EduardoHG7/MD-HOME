@@ -3,7 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { validateQRToken } from '@/lib/qr-token'
-import { inicioJornada } from '@/lib/jornada'
+import { proximoTipoRegistro } from '@/lib/asistencia'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -44,23 +44,8 @@ export async function GET(req: NextRequest) {
   }
 
   // Determine if this is ENTRADA or SALIDA (dentro de la jornada 6am–6am)
-  const registrosHoy = await prisma.registroAsistencia.findMany({
-    where: {
-      asignacionId: asignacion.id,
-      timestamp: { gte: inicioJornada() },
-    },
-    orderBy: { timestamp: 'asc' },
-  })
-
-  const tieneEntrada = registrosHoy.some(r => r.tipo === 'ENTRADA')
-  const tieneSalida  = registrosHoy.some(r => r.tipo === 'SALIDA')
-
-  let tipo: 'ENTRADA' | 'SALIDA'
-  if (!tieneEntrada) {
-    tipo = 'ENTRADA'
-  } else if (!tieneSalida) {
-    tipo = 'SALIDA'
-  } else {
+  const tipo = await proximoTipoRegistro(asignacion.id)
+  if (!tipo) {
     return new NextResponse(
       scanPage('warning', 'Turno completo', `${aplicante.nombreCompleto} ya registrÃ³ entrada y salida hoy.`),
       { headers: { 'Content-Type': 'text/html' } }

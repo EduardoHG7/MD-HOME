@@ -229,6 +229,17 @@ function isNoEsta(v: string | number | null): boolean {
   return s === '' || /^no\s*est[aá]/i.test(s)
 }
 
+// El estatus de evento viene de dos hojas distintas con vocabulario libre
+// ("Pdte", "-", etc.) — se normaliza a solo Activo/Cerrado/Completado, y
+// cualquier otra cosa (incluyendo vacío) cae en "Sin estatus".
+function normalizarEstadoEvento(v: string | number | null): string {
+  const s = String(v ?? '').trim()
+  if (/^activo$/i.test(s)) return 'Activo'
+  if (/^cerrado$/i.test(s)) return 'Cerrado'
+  if (/^completado$/i.test(s)) return 'Completado'
+  return 'Sin estatus'
+}
+
 interface VentaRow {
   id: number | null
   f: string
@@ -344,7 +355,7 @@ async function parseReporteShoware(wb: ExcelJS.Workbook) {
       spac: Number(get(COL.spac)) || 0,
       itbms: Number(get(COL.itbms)) || 0,
       tot, bk, ab,
-      st: String(eventoActivo ?? '') || 'Cerrado',
+      st: normalizarEstadoEvento(eventoActivo),
     })
   })
 
@@ -433,7 +444,7 @@ async function parseAnticipos(wb: ExcelJS.Workbook) {
     const estado = extractValue(row.getCell(3).value)
     const adelanto = toNumber(extractValue(row.getCell(4).value))
     if (!evento || adelanto === null) return
-    anticipos.push({ label: String(evento), value: adelanto, estado: String(estado ?? '') })
+    anticipos.push({ label: String(evento), value: adelanto, estado: normalizarEstadoEvento(estado) })
   })
   const total_anticipo = anticipos.reduce((s, a) => s + a.value, 0)
   return { anticipos, total_anticipo }

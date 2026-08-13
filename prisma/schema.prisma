@@ -510,12 +510,16 @@ model AsignacionAplicante {
 }
 
 // TipoRegistro: ENTRADA | SALIDA
+// Origen: QR (escaneado por un tercero) | SELF (autorregistro, ej. choferes)
 model RegistroAsistencia {
   id           String   @id @default(cuid())
   asignacionId String
   tipo         String
   timestamp    DateTime @default(now())
   tokenUsado   String
+  origen       String   @default("QR")
+  lat          Float?
+  lng          Float?
 
   asignacion AsignacionAplicante @relation(fields: [asignacionId], references: [id])
 
