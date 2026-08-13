@@ -7,6 +7,12 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+// Puestos considerados "chofer": autorregistran su entrada/salida en vez de
+// mostrar un QR, ya que no tienen una base fija donde alguien los escanee.
+export function esChofer(funcion: string): boolean {
+  return /chofer/i.test(funcion)
+}
+
 export function formatDate(date: Date | string): string {
   // Las fechas de eventos se guardan a medianoche UTC; usar el día UTC
   // evita que en zonas UTC-5 (Panamá) se muestre el día anterior.
