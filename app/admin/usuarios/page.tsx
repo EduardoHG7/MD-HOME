@@ -179,24 +179,18 @@ function UserRow({ user, isSelf, loading, onSetRole, onToggleFinanzas }: {
         {ROLE_LABELS[user.role] ?? user.role}
       </span>
 
-      {user.role === 'ADMIN' ? (
-        <span className="text-xs px-3 py-1.5 rounded-xl bg-gray-50 text-gray-400 font-medium whitespace-nowrap">
-          📊 Finanzas: siempre
-        </span>
-      ) : (
-        <button
-          onClick={onToggleFinanzas}
-          disabled={loading}
-          title="Acceso al dashboard de Finanzas"
-          className={`text-xs px-3 py-1.5 rounded-xl border-2 font-medium transition-all whitespace-nowrap ${
-            user.puedeVerFinanzas
-              ? 'bg-green-50 border-green-200 text-green-700 hover:bg-green-100'
-              : 'bg-gray-50 border-gray-200 text-gray-400 hover:bg-gray-100'
-          }`}
-        >
-          📊 Finanzas: {user.puedeVerFinanzas ? 'Sí' : 'No'}
-        </button>
-      )}
+      <button
+        onClick={onToggleFinanzas}
+        disabled={loading}
+        title="Acceso al dashboard de Finanzas"
+        className={`text-xs px-3 py-1.5 rounded-xl border-2 font-medium transition-all whitespace-nowrap ${
+          user.puedeVerFinanzas
+            ? 'bg-green-50 border-green-200 text-green-700 hover:bg-green-100'
+            : 'bg-gray-50 border-gray-200 text-gray-400 hover:bg-gray-100'
+        }`}
+      >
+        📊 Finanzas: {user.puedeVerFinanzas ? 'Sí' : 'No'}
+      </button>
 
       {user.role === 'USER' && (
         <Link href={`/admin/usuarios/${user.id}/vista`}

@@ -8,8 +8,9 @@ export function esOperadorPanatickets(email?: string | null, role?: string | nul
   return typeof email === 'string' && email.toLowerCase().endsWith(DOMINIO_PANATICKETS)
 }
 
-// Acceso al dashboard de Finanzas Panatickets: los admins siempre lo tienen;
-// el resto solo si un admin se lo concedió explícitamente (User.puedeVerFinanzas).
-export function puedeVerFinanzas(user: { role: string; isSuperAdmin: boolean; puedeVerFinanzas: boolean }): boolean {
-  return user.role === 'ADMIN' || user.isSuperAdmin || user.puedeVerFinanzas
+// Acceso al dashboard de Finanzas Panatickets: nadie lo tiene por rol, ni
+// siquiera ADMIN — solo quien un admin haya seleccionado explícitamente
+// (User.puedeVerFinanzas), vía Gestión de Usuarios.
+export function puedeVerFinanzas(user: { puedeVerFinanzas: boolean }): boolean {
+  return user.puedeVerFinanzas
 }

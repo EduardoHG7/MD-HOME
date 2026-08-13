@@ -6,14 +6,16 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getActiveTenantId } from '@/lib/tenant'
 import { prisma } from '@/lib/prisma'
+import { puedeVerFinanzas } from '@/lib/permisos'
 import { syncFinanzasPanatickets } from '@/lib/panatickets-finanzas'
 
 // Botón "Actualizar ahora" del reporte — mismo trabajo que hace el cron
 // (descargar Excel de SharePoint, sincronizar a Postgres), pero disparado a
-// mano por un admin en vez de esperar al horario programado.
+// mano por quien tenga acceso al dashboard en vez de esperar al horario
+// programado.
 export async function POST() {
   const session = await getServerSession(authOptions)
-  if (!session || session.user.role !== 'ADMIN') {
+  if (!session || !puedeVerFinanzas(session.user)) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
 
