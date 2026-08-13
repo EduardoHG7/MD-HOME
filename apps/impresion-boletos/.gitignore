@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# Environment files - nunca subir al repo
+.env
+.env.local
+
+# Base de datos local
+prisma/*.db
+prisma/*.db-journal
+
+# Logs
+npm-debug.log*
+
+# OS / IDE
+.DS_Store
+.vscode/
+.idea/
