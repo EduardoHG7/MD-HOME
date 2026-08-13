@@ -1679,7 +1679,10 @@ syncBtn.addEventListener('click', async ()=>{
   syncBtn.textContent = '⏳ Sincronizando… (1-2 min)';
   try {
     const res = await fetch('/admin/finanzas/reporte/sync', { method:'POST' });
-    const json = await res.json();
+    const raw = await res.text();
+    let json;
+    try { json = JSON.parse(raw); }
+    catch { throw new Error(`El servidor no respondió correctamente (${res.status}). Puede ser un timeout — intenta de nuevo en un momento.`); }
     if(!res.ok) throw new Error(json.error || `Error ${res.status}`);
     await loadRange(rangeSelect.value);
     syncBtn.textContent = '✓ Actualizado';
