@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs'
 import JSZip from 'jszip'
+import { Readable } from 'stream'
 import { Prisma } from '@prisma/client'
 import { downloadPanaticketsFinanzasExcel } from './panatickets-sharepoint'
 import { prisma } from './prisma'
@@ -172,7 +173,24 @@ function dateToIsoSafe(d: Date): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10)
 }
 
-function extractValue(v: ExcelJS.CellValue): string | number | null {
+// Replica utils.isDateFmt / utils.excelToDate de exceljs (no las exporta
+// públicamente): el lector en streaming, a diferencia de la carga completa,
+// NO convierte el resultado de una celda con fórmula a Date aunque la celda
+// tenga formato de fecha — siempre hace parseFloat (ver worksheet-reader.js,
+// rama `if (c.f)`). Como el equipo usa fórmulas tipo "=fecha_anterior+1"
+// para autocompletar fechas consecutivas, sin esto esas filas se perdían
+// silenciosamente en streaming.
+function esFormatoFecha(fmt: string | undefined | null): boolean {
+  if (!fmt) return false
+  const limpio = fmt.replace(/\[[^\]]*]/g, '').replace(/"[^"]*"/g, '')
+  return /[ymdhMsb]+/.test(limpio)
+}
+function serialExcelADate(serial: number): Date {
+  return new Date(Math.round((serial - 25569) * 24 * 3600 * 1000))
+}
+
+function extractValue(cell: ExcelJS.Cell): string | number | null {
+  const v = cell.value
   if (v === null || v === undefined) return null
   if (typeof v === 'object') {
     if ('richText' in v) return (v.richText as { text: string }[]).map(t => t.text).join('')
@@ -185,6 +203,7 @@ function extractValue(v: ExcelJS.CellValue): string | number | null {
       const r = (v as { result?: unknown }).result
       if (r === null || r === undefined) return null
       if (r instanceof Date) return dateToIsoSafe(r)
+      if (typeof r === 'number' && esFormatoFecha(cell.numFmt)) return dateToIsoSafe(serialExcelADate(r))
       return r as string | number
     }
     if ('text' in v) return (v as { text: string }).text
@@ -290,76 +309,71 @@ function pagoBucket(detallePago: string | number | null): string {
   return 'Otros (Tarjeta Crédito genérica)'
 }
 
-async function parseReporteShoware(wb: ExcelJS.Workbook) {
-  const sheet = wb.getWorksheet('Reporte Showare')
-  if (!sheet) throw new Error('No se encontró la hoja "Reporte Showare" en el Excel')
+function procesarFilaShoware(
+  row: ExcelJS.Row,
+  rowNum: number,
+  ventas: VentaRow[],
+  canceladas: CanceladaRow[],
+  pendientes: Map<string, { qty: number; monto: number }>
+) {
+  if (rowNum < 7) return
+  const get = (col: number) => extractValue(row.getCell(col))
 
-  const ventas: VentaRow[] = []
-  const canceladas: CanceladaRow[] = []
-  const pendientes = new Map<string, { qty: number; monto: number }>()
+  const fechaRaw = get(COL.fechaCompra)
+  const f = typeof fechaRaw === 'string' ? fechaRaw.slice(0, 10) : null
+  if (!f) return
 
-  sheet.eachRow({ includeEmpty: false }, (row, rowNum) => {
-    if (rowNum < 7) return
-    const get = (col: number) => extractValue(row.getCell(col).value)
+  const estatus = String(get(COL.estatusCompra) ?? '')
+  const codigoPrecio = get(COL.codigoPrecio)
+  const detallePago = get(COL.detallePago)
+  const orderId = get(COL.orderId)
+  const ev = String(get(COL.evento) ?? '')
+  const tot = Number(get(COL.total)) || 0
+  const p = Number(get(COL.precio)) || 0
+  const cxs = Number(get(COL.cxs)) || 0
 
-    const fechaRaw = get(COL.fechaCompra)
-    const f = typeof fechaRaw === 'string' ? fechaRaw.slice(0, 10) : null
-    if (!f) return
+  const excluida = EXCLUDE_CODIGO_PRECIO.has(String(codigoPrecio ?? '')) || EXCLUDE_DETALLE_PAGO.has(String(detallePago ?? ''))
 
-    const estatus = String(get(COL.estatusCompra) ?? '')
-    const codigoPrecio = get(COL.codigoPrecio)
-    const detallePago = get(COL.detallePago)
-    const orderId = get(COL.orderId)
-    const ev = String(get(COL.evento) ?? '')
-    const tot = Number(get(COL.total)) || 0
-    const p = Number(get(COL.precio)) || 0
-    const cxs = Number(get(COL.cxs)) || 0
-
-    const excluida = EXCLUDE_CODIGO_PRECIO.has(String(codigoPrecio ?? '')) || EXCLUDE_DETALLE_PAGO.has(String(detallePago ?? ''))
-
-    if (estatus === 'Cancelada') {
-      if (excluida) return
-      canceladas.push({
-        id: typeof orderId === 'number' ? orderId : null,
-        f, ev,
-        cp: String(codigoPrecio ?? ''),
-        dp: 0,
-        p, cxs, tot,
-      })
-      return
-    }
-
+  if (estatus === 'Cancelada') {
     if (excluida) return
-    const filtroBancos = String(get(COL.filtroBancos) ?? '')
-    if (filtroBancos !== 'OK') {
-      const bucket = pagoBucket(detallePago)
-      if (!pendientes.has(bucket)) pendientes.set(bucket, { qty: 0, monto: 0 })
-      const a = pendientes.get(bucket)!
-      a.qty += 1
-      a.monto += tot
-      return
-    }
-
-    const { bk, abonoCol } = bankChannel(get, detallePago)
-    const abonoRaw = abonoCol ? get(abonoCol) : null
-    const ab = typeof abonoRaw === 'string' ? abonoRaw.slice(0, 10) : f
-
-    const hora = extractTime(row.getCell(COL.hora).value)
-
-    const eventoActivo = get(COL.eventoActivo)
-
-    ventas.push({
+    canceladas.push({
       id: typeof orderId === 'number' ? orderId : null,
-      f, hora, ev,
-      p, cxs,
-      spac: Number(get(COL.spac)) || 0,
-      itbms: Number(get(COL.itbms)) || 0,
-      tot, bk, ab,
-      st: normalizarEstadoEvento(eventoActivo),
+      f, ev,
+      cp: String(codigoPrecio ?? ''),
+      dp: 0,
+      p, cxs, tot,
     })
-  })
+    return
+  }
 
-  return { ventas, canceladas, pendientes }
+  if (excluida) return
+  const filtroBancos = String(get(COL.filtroBancos) ?? '')
+  if (filtroBancos !== 'OK') {
+    const bucket = pagoBucket(detallePago)
+    if (!pendientes.has(bucket)) pendientes.set(bucket, { qty: 0, monto: 0 })
+    const a = pendientes.get(bucket)!
+    a.qty += 1
+    a.monto += tot
+    return
+  }
+
+  const { bk, abonoCol } = bankChannel(get, detallePago)
+  const abonoRaw = abonoCol ? get(abonoCol) : null
+  const ab = typeof abonoRaw === 'string' ? abonoRaw.slice(0, 10) : f
+
+  const hora = extractTime(row.getCell(COL.hora).value)
+
+  const eventoActivo = get(COL.eventoActivo)
+
+  ventas.push({
+    id: typeof orderId === 'number' ? orderId : null,
+    f, hora, ev,
+    p, cxs,
+    spac: Number(get(COL.spac)) || 0,
+    itbms: Number(get(COL.itbms)) || 0,
+    tot, bk, ab,
+    st: normalizarEstadoEvento(eventoActivo),
+  })
 }
 
 interface SaldoDia {
@@ -372,82 +386,135 @@ interface SaldoDia {
   conceptos: { label: string; value: number }[]
 }
 
-/**
- * Devuelve TODOS los días con saldos bancarios completos (no solo el más
- * reciente) — así el dashboard puede mostrar el saldo "al día X" según el
- * filtro de fecha en vez de estar pegado siempre al último día del Excel,
- * que a veces trae el Saldo Bancario ya cargado pero el Contable todavía no
- * (contabilidad va con retraso) y por eso sale en $0.
- */
-async function parseSaldosBanco(wb: ExcelJS.Workbook): Promise<SaldoDia[]> {
-  const sheet = wb.getWorksheet('Saldos Banco')
-  if (!sheet) throw new Error('No se encontró la hoja "Saldos Banco" en el Excel')
+const BANK_COLS = [4, 5, 6, 7, 8, 9, 10, 11, 12]
+const CONTABLE_COLS = [24, 25, 26, 27, 28, 29, 30, 31, 32]
+const CONCEPT_COLS = [14, 15, 16, 17, 18, 19, 20, 21, 22]
 
-  const bankCols = [4, 5, 6, 7, 8, 9, 10, 11, 12]
-  const bankLabels: Record<number, string> = {}
-  const contableCols = [24, 25, 26, 27, 28, 29, 30, 31, 32]
-  const conceptCols = [14, 15, 16, 17, 18, 19, 20, 21, 22]
-  const conceptLabels: Record<number, string> = {}
-  const headerRow = sheet.getRow(6)
-  headerRow.eachCell({ includeEmpty: false }, (cell, colNum) => {
-    const v = extractValue(cell.value)
-    if (bankCols.includes(colNum)) bankLabels[colNum] = String(v)
-    if (conceptCols.includes(colNum)) conceptLabels[colNum] = String(v)
-  })
-
-  const dias: SaldoDia[] = []
-  for (let r = 7; r <= sheet.rowCount; r++) {
-    const row = sheet.getRow(r)
-    const allBanksFilled = bankCols.every(c => toNumber(extractValue(row.getCell(c).value)) !== null)
-    if (!allBanksFilled) continue
-
-    const fechaRaw = extractValue(row.getCell(2).value)
-    const fechaStr = typeof fechaRaw === 'string' ? fechaRaw : String(fechaRaw ?? '')
-    const fechaIso = parseFechaFlexible(fechaStr)
-    if (!fechaIso) continue // necesitamos poder interpretar la fecha para indexar por día
-    const [, mFecha, dFecha] = fechaIso.split('-')
-
-    const get = (col: number) => toNumber(extractValue(row.getCell(col).value)) ?? 0
-    const bancos = bankCols.map((c, i) => {
-      const value = get(c)
-      const contable = get(contableCols[i])
-      return { label: bankLabels[c], value, contable, diferencia: value - contable }
-    })
-    const subtotal_bancos = get(13)
-    const subtotal_contable = bancos.reduce((s, b) => s + b.contable, 0)
-    const conceptos = conceptCols.map(c => ({ label: conceptLabels[c], value: get(c) }))
-    const capitalTrabajo = get(23)
-
-    dias.push({
-      fecha: fechaIso,
-      fecha_display: `${dFecha}/${mFecha}/${fechaIso.slice(0, 4)}`,
-      bancos,
-      subtotal_bancos,
-      subtotal_contable,
-      subtotal_diferencia: subtotal_bancos - subtotal_contable,
-      conceptos: [...conceptos, { label: 'Capital de Trabajo', value: capitalTrabajo }],
-    })
-  }
-
-  if (!dias.length) throw new Error('No se encontró ningún día con saldos bancarios completos en "Saldos Banco"')
-  return dias
+interface SaldosBancoCtx {
+  bankLabels: Record<number, string>
+  conceptLabels: Record<number, string>
+  dias: SaldoDia[]
 }
 
-async function parseAnticipos(wb: ExcelJS.Workbook) {
-  const sheet = wb.getWorksheet('Estatus evento')
-  if (!sheet) return { anticipos: [] as { label: string; value: number; estado: string }[], total_anticipo: 0 }
+/**
+ * Procesa una fila de "Saldos Banco" (fila 6 = encabezados de banco/concepto,
+ * datos desde fila 7). Acumula en ctx.dias TODOS los días con saldos
+ * bancarios completos (no solo el más reciente) — así el dashboard puede
+ * mostrar el saldo "al día X" según el filtro de fecha en vez de estar
+ * pegado siempre al último día del Excel, que a veces trae el Saldo Bancario
+ * ya cargado pero el Contable todavía no (contabilidad va con retraso) y por
+ * eso sale en $0.
+ */
+function procesarFilaSaldos(row: ExcelJS.Row, rowNum: number, ctx: SaldosBancoCtx) {
+  if (rowNum === 6) {
+    row.eachCell({ includeEmpty: false }, (cell, colNum) => {
+      const v = extractValue(cell)
+      if (BANK_COLS.includes(colNum)) ctx.bankLabels[colNum] = String(v)
+      if (CONCEPT_COLS.includes(colNum)) ctx.conceptLabels[colNum] = String(v)
+    })
+    return
+  }
+  if (rowNum < 7) return
 
-  const anticipos: { label: string; value: number; estado: string }[] = []
-  sheet.eachRow({ includeEmpty: false }, (row, rowNum) => {
-    if (rowNum < 8) return
-    const evento = extractValue(row.getCell(2).value)
-    const estado = extractValue(row.getCell(3).value)
-    const adelanto = toNumber(extractValue(row.getCell(4).value))
-    if (!evento || adelanto === null) return
-    anticipos.push({ label: String(evento), value: adelanto, estado: normalizarEstadoEvento(estado) })
+  const allBanksFilled = BANK_COLS.every(c => toNumber(extractValue(row.getCell(c))) !== null)
+  if (!allBanksFilled) return
+
+  const fechaRaw = extractValue(row.getCell(2))
+  const fechaStr = typeof fechaRaw === 'string' ? fechaRaw : String(fechaRaw ?? '')
+  const fechaIso = parseFechaFlexible(fechaStr)
+  if (!fechaIso) return // necesitamos poder interpretar la fecha para indexar por día
+  const [, mFecha, dFecha] = fechaIso.split('-')
+
+  const get = (col: number) => toNumber(extractValue(row.getCell(col))) ?? 0
+  const bancos = BANK_COLS.map((c, i) => {
+    const value = get(c)
+    const contable = get(CONTABLE_COLS[i])
+    return { label: ctx.bankLabels[c], value, contable, diferencia: value - contable }
   })
+  const subtotal_bancos = get(13)
+  const subtotal_contable = bancos.reduce((s, b) => s + b.contable, 0)
+  const conceptos = CONCEPT_COLS.map(c => ({ label: ctx.conceptLabels[c], value: get(c) }))
+  const capitalTrabajo = get(23)
+
+  ctx.dias.push({
+    fecha: fechaIso,
+    fecha_display: `${dFecha}/${mFecha}/${fechaIso.slice(0, 4)}`,
+    bancos,
+    subtotal_bancos,
+    subtotal_contable,
+    subtotal_diferencia: subtotal_bancos - subtotal_contable,
+    conceptos: [...conceptos, { label: 'Capital de Trabajo', value: capitalTrabajo }],
+  })
+}
+
+function procesarFilaAnticipos(row: ExcelJS.Row, rowNum: number, anticipos: { label: string; value: number; estado: string }[]) {
+  if (rowNum < 8) return
+  const evento = extractValue(row.getCell(2))
+  const estado = extractValue(row.getCell(3))
+  const adelanto = toNumber(extractValue(row.getCell(4)))
+  if (!evento || adelanto === null) return
+  anticipos.push({ label: String(evento), value: adelanto, estado: normalizarEstadoEvento(estado) })
+}
+
+const SHEET_SHOWARE = 'Reporte Showare'
+const SHEET_SALDOS = 'Saldos Banco'
+const SHEET_ANTICIPOS = 'Estatus evento'
+
+/**
+ * Recorre las 3 hojas necesarias en una sola pasada en streaming (fila por
+ * fila, sin cargar el libro entero en memoria) — con archivos de decenas de
+ * miles de filas, ExcelJS.Workbook().xlsx.load() (carga completa) llegó a
+ * tardar más de los 300s que da Vercel. `styles: 'cache'` es obligatorio:
+ * sin él, ExcelJS no puede saber qué celdas numéricas son fechas (lo decide
+ * por el formato de número del estilo) y las fechas dejarían de convertirse
+ * a Date silenciosamente.
+ */
+async function parseWorkbookStreaming(buffer: Buffer) {
+  const ventas: VentaRow[] = []
+  const canceladas: CanceladaRow[] = []
+  const pendientes = new Map<string, { qty: number; monto: number }>()
+  const anticipos: { label: string; value: number; estado: string }[] = []
+  const saldosCtx: SaldosBancoCtx = { bankLabels: {}, conceptLabels: {}, dias: [] }
+
+  let vioShoware = false
+  let vioSaldos = false
+
+  const workbookReader = new ExcelJS.stream.xlsx.WorkbookReader(Readable.from(buffer), {
+    sharedStrings: 'cache',
+    hyperlinks: 'ignore',
+    worksheets: 'emit',
+    styles: 'cache',
+  })
+
+  for await (const worksheetReaderRaw of workbookReader) {
+    // La versión de tipos de exceljs no declara `.name` en WorksheetReader,
+    // aunque sí existe en tiempo de ejecución (viene del workbook.xml).
+    const worksheetReader = worksheetReaderRaw as ExcelJS.stream.xlsx.WorksheetReader & { name: string }
+    if (worksheetReader.name === SHEET_SHOWARE) {
+      vioShoware = true
+      for await (const row of worksheetReader) {
+        procesarFilaShoware(row, row.number, ventas, canceladas, pendientes)
+      }
+    } else if (worksheetReader.name === SHEET_SALDOS) {
+      vioSaldos = true
+      for await (const row of worksheetReader) {
+        procesarFilaSaldos(row, row.number, saldosCtx)
+      }
+    } else if (worksheetReader.name === SHEET_ANTICIPOS) {
+      for await (const row of worksheetReader) {
+        procesarFilaAnticipos(row, row.number, anticipos)
+      }
+    }
+  }
+
+  if (!vioShoware) throw new Error('No se encontró la hoja "Reporte Showare" en el Excel')
+  if (!vioSaldos || !saldosCtx.dias.length) {
+    throw new Error('No se encontró ningún día con saldos bancarios completos en "Saldos Banco"')
+  }
+
   const total_anticipo = anticipos.reduce((s, a) => s + a.value, 0)
-  return { anticipos, total_anticipo }
+
+  return { ventas, canceladas, pendientes, saldosPorDia: saldosCtx.dias, anticipos, total_anticipo }
 }
 
 function fmtDay(iso: string) {
@@ -542,18 +609,12 @@ export async function computeFinanzasPanatickets() {
   const t1 = Date.now()
   const buffer = await sanitizeWorkbookBuffer(rawBuffer)
   const t2 = Date.now()
-  const wb = new ExcelJS.Workbook()
-  await wb.xlsx.load(buffer as unknown as ExcelJS.Buffer)
+
+  const { ventas, canceladas, pendientes, saldosPorDia, anticipos, total_anticipo } = await parseWorkbookStreaming(buffer)
   const t3 = Date.now()
 
-  const { ventas, canceladas, pendientes } = await parseReporteShoware(wb)
-  const t4 = Date.now()
-  const saldosPorDia = await parseSaldosBanco(wb)
-  const { anticipos, total_anticipo } = await parseAnticipos(wb)
-  const t5 = Date.now()
-
   console.log(
-    `[finanzas-panatickets] descarga=${t1 - t0}ms sanear=${t2 - t1}ms (rawBytes=${rawBuffer.length}, saneadoBytes=${buffer.length}) cargaExcel=${t3 - t2}ms parseoShoware=${t4 - t3}ms (ventas=${ventas.length}) saldos/anticipos=${t5 - t4}ms`
+    `[finanzas-panatickets] descarga=${t1 - t0}ms sanear=${t2 - t1}ms (rawBytes=${rawBuffer.length}, saneadoBytes=${buffer.length}) parseoStreaming=${t3 - t2}ms (ventas=${ventas.length}, dias=${saldosPorDia.length}, anticipos=${anticipos.length})`
   )
 
   const GLOBAL_SUMMARY = Array.from(pendientes.entries())
