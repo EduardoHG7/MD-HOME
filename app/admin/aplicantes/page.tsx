@@ -19,6 +19,7 @@ interface Aplicante {
   terminosAceptados: boolean; terminosAceptadosAt: string | null
   createdAt: string; activo: boolean
   noApto: boolean; motivoNoApto: string | null
+  debeCambiarPassword: boolean
   fotoPersonal: string | null; fotoCedula: string | null; fotoConCedula: string | null
   asignaciones: Asignacion[]
 }
@@ -83,6 +84,11 @@ export default function AplicantesAdminPage() {
   const [showQR, setShowQR] = useState(false)
   const [tarifas, setTarifas] = useState<Tarifa[]>([])
   const [savingTarifa, setSavingTarifa] = useState<string | null>(null) // solicitudId
+  const [showResetForm, setShowResetForm] = useState(false)
+  const [nuevaPassword, setNuevaPassword] = useState('')
+  const [savingReset, setSavingReset] = useState(false)
+  const [resetError, setResetError] = useState('')
+  const [resetOk, setResetOk] = useState(false)
 
   useEffect(() => {
     fetch('/api/aplicantes').then(r => r.json()).then(setAplicantes)
@@ -142,6 +148,31 @@ export default function AplicantesAdminPage() {
       setShowBanForm(false); setMotivoBan('')
     }
     setSavingBan(false)
+  }
+
+  async function resetearPassword(aplicante: Aplicante) {
+    if (nuevaPassword.length < 6) {
+      setResetError('La contraseña debe tener al menos 6 caracteres')
+      return
+    }
+    setSavingReset(true)
+    setResetError('')
+    const res = await fetch(`/api/aplicantes/${aplicante.id}/resetear-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: nuevaPassword }),
+    })
+    if (res.ok) {
+      const updated = { ...aplicante, debeCambiarPassword: true }
+      setAplicantes(prev => prev.map(a => a.id === aplicante.id ? updated : a))
+      setSelected(updated)
+      setResetOk(true)
+      setTimeout(() => { setShowResetForm(false); setNuevaPassword(''); setResetOk(false) }, 2500)
+    } else {
+      const data = await res.json().catch(() => ({}))
+      setResetError(data.error || 'No se pudo restablecer la contraseña')
+    }
+    setSavingReset(false)
   }
 
   function copyLink(id: string) {
@@ -339,6 +370,51 @@ export default function AplicantesAdminPage() {
                         )}
                       </div>
                     ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="card p-4 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">🔑 Contraseña</p>
+                  <p className="text-gray-500 text-xs mt-0.5">
+                    {selected.debeCambiarPassword
+                      ? 'Se le dio una contraseña temporal — todavía no ha elegido una nueva.'
+                      : 'Para cuando olvide su contraseña: le das una temporal aquí y al iniciar sesión le pedirá elegir una nueva.'}
+                  </p>
+                </div>
+                {selected.debeCambiarPassword && (
+                  <span className="shrink-0 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium whitespace-nowrap">Pendiente</span>
+                )}
+              </div>
+
+              {!showResetForm ? (
+                <button onClick={() => { setShowResetForm(true); setResetError(''); setNuevaPassword('') }}
+                  className="text-xs px-3 py-1.5 rounded-xl border-2 border-gray-200 text-gray-600 hover:border-gray-400 font-medium transition-all">
+                  Dar contraseña temporal
+                </button>
+              ) : resetOk ? (
+                <p className="text-green-600 text-sm font-medium">✓ Contraseña temporal asignada</p>
+              ) : (
+                <div className="space-y-2">
+                  {resetError && (
+                    <p className="text-red-600 text-xs bg-red-50 border border-red-200 rounded-lg px-3 py-2">{resetError}</p>
+                  )}
+                  <input
+                    type="text"
+                    className="input text-sm"
+                    placeholder="Contraseña temporal (mínimo 6 caracteres)"
+                    value={nuevaPassword}
+                    onChange={e => setNuevaPassword(e.target.value)}
+                  />
+                  <div className="flex gap-2">
+                    <button onClick={() => { setShowResetForm(false); setNuevaPassword(''); setResetError('') }} className="btn-ghost flex-1 text-sm">Cancelar</button>
+                    <button onClick={() => resetearPassword(selected)} disabled={savingReset || nuevaPassword.length < 6}
+                      className="flex-1 px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 disabled:opacity-40 transition-all">
+                      {savingReset ? 'Guardando...' : 'Asignar'}
+                    </button>
                   </div>
                 </div>
               )}

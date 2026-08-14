@@ -477,6 +477,7 @@ model Aplicante {
   qrSecret            String    @default(cuid())
   activo              Boolean   @default(true)
   passwordHash        String?
+  debeCambiarPassword Boolean   @default(false) // true tras un restablecimiento por admin: debe elegir una nueva antes de usar el resto del portal
   noApto              Boolean   @default(false)
   motivoNoApto        String?
   fotoPersonal        String?
