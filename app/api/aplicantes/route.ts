@@ -35,7 +35,8 @@ export async function GET() {
 export async function POST(req: Request) {
   const { nombreCompleto, cedula, telefono, email, cuentaBancaria, banco, tipoCuenta, password, fotoPersonal, fotoCedula, fotoConCedula, tenantId } = await req.json()
 
-  if (!password || password.length < 6) {
+  const passwordTrimmed = typeof password === 'string' ? password.trim() : ''
+  if (passwordTrimmed.length < 6) {
     return NextResponse.json({ error: 'La contrasena debe tener al menos 6 caracteres' }, { status: 400 })
   }
 
@@ -44,7 +45,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: `Ya existe un aplicante con esa ${existing.cedula === cedula ? 'cedula' : 'correo'}` }, { status: 409 })
   }
 
-  const passwordHash = await hash(password, 12)
+  const passwordHash = await hash(passwordTrimmed, 12)
   const aplicante = await prisma.aplicante.create({
     data: {
       nombreCompleto, cedula, telefono, email, cuentaBancaria,

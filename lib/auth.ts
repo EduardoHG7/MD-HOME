@@ -28,7 +28,10 @@ export const authOptions: NextAuthOptions = {
         })
         if (!aplicante || !aplicante.passwordHash) return null
 
-        const valid = await compare(credentials.password, aplicante.passwordHash)
+        // Recortar espacios accidentales (copiar/pegar una contraseña
+        // temporal suele dejar uno al final) — mismo criterio que al
+        // guardarla en registro/reseteo, para que nunca queden desalineados.
+        const valid = await compare(credentials.password.trim(), aplicante.passwordHash)
         if (!valid) return null
 
         return {
