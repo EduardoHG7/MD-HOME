@@ -617,6 +617,21 @@ export async function computeFinanzasPanatickets() {
     `[finanzas-panatickets] descarga=${t1 - t0}ms sanear=${t2 - t1}ms (rawBytes=${rawBuffer.length}, saneadoBytes=${buffer.length}) parseoStreaming=${t3 - t2}ms (ventas=${ventas.length}, dias=${saldosPorDia.length}, anticipos=${anticipos.length})`
   )
 
+  // El estatus por venta venía de la columna "eventoActivo" de Reporte
+  // Showare, pero esa columna usa un vocabulario totalmente distinto al de
+  // la hoja "Estatus evento" (de ahí que, tras normalizar, casi todo cayera
+  // en "Sin estatus" y filtrar por "Activo" dejara las ventas en cero pese a
+  // que "Eventos con anticipos" sí mostraba eventos Activos). Se reemplaza
+  // por el estatus de "Estatus evento", buscando por nombre de evento — la
+  // misma fuente que ya funciona bien para esa tabla — y solo se deja el
+  // valor original como respaldo si el evento no aparece ahí.
+  const nombreNormalizado = (s: string) => s.trim().toUpperCase()
+  const estadoPorEvento = new Map(anticipos.map(a => [nombreNormalizado(a.label), a.estado]))
+  for (const v of ventas) {
+    const estado = estadoPorEvento.get(nombreNormalizado(v.ev))
+    if (estado) v.st = estado
+  }
+
   const GLOBAL_SUMMARY = Array.from(pendientes.entries())
     .map(([label, v]) => ({ label, qty: v.qty, monto: v.monto }))
     .sort((a, b) => b.monto - a.monto)
