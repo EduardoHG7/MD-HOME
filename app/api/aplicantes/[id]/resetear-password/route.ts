@@ -16,11 +16,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   }
 
   const { password } = await req.json()
-  if (!password || password.length < 6) {
+  const passwordTrimmed = typeof password === 'string' ? password.trim() : ''
+  if (passwordTrimmed.length < 6) {
     return NextResponse.json({ error: 'La contraseña debe tener al menos 6 caracteres' }, { status: 400 })
   }
 
-  const passwordHash = await hash(password, 12)
+  const passwordHash = await hash(passwordTrimmed, 12)
   await prisma.aplicante.update({
     where: { id: params.id },
     data: { passwordHash, debeCambiarPassword: true },
