@@ -23,9 +23,15 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.cedula || !credentials?.password) return null
 
-        const aplicante = await prisma.aplicante.findUnique({
-          where: { cedula: credentials.cedula.trim() },
-        })
+        // Comparar contra TRIM(cedula) en la base, no solo recortar lo
+        // tecleado: el registro nunca recortó espacios al guardar, así que
+        // cédulas ya guardadas con un espacio de más (común al escribir
+        // desde el teléfono) nunca calzarían con una búsqueda exacta, sin
+        // importar qué contraseña se use.
+        const cedulaBuscada = credentials.cedula.trim()
+        const [aplicante] = await prisma.$queryRaw<
+          { id: string; nombreCompleto: string; email: string; passwordHash: string | null }[]
+        >`SELECT id, "nombreCompleto", email, "passwordHash" FROM aplicantes WHERE TRIM(cedula) = ${cedulaBuscada} LIMIT 1`
         if (!aplicante || !aplicante.passwordHash) return null
 
         // Recortar espacios accidentales (copiar/pegar una contraseña
