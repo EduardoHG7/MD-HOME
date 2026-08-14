@@ -33,7 +33,17 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const { nombreCompleto, cedula, telefono, email, cuentaBancaria, banco, tipoCuenta, password, fotoPersonal, fotoCedula, fotoConCedula, tenantId } = await req.json()
+  const body = await req.json()
+  const { banco, tipoCuenta, password, fotoPersonal, fotoCedula, fotoConCedula, tenantId } = body
+
+  // Recortar espacios accidentales (muy común al escribir desde el teléfono)
+  // — una cédula con un espacio de más nunca volvería a calzar en el login,
+  // que sí busca por el valor recortado.
+  const nombreCompleto = typeof body.nombreCompleto === 'string' ? body.nombreCompleto.trim() : body.nombreCompleto
+  const cedula         = typeof body.cedula === 'string' ? body.cedula.trim() : body.cedula
+  const telefono       = typeof body.telefono === 'string' ? body.telefono.trim() : body.telefono
+  const email          = typeof body.email === 'string' ? body.email.trim() : body.email
+  const cuentaBancaria = typeof body.cuentaBancaria === 'string' ? body.cuentaBancaria.trim() : body.cuentaBancaria
 
   const passwordTrimmed = typeof password === 'string' ? password.trim() : ''
   if (passwordTrimmed.length < 6) {
