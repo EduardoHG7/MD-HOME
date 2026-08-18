@@ -646,6 +646,8 @@ model PanaticketsSnapshot {
   anticipos          Json
   totalAnticipo      Float
   globalSummary      Json
+  costoPorServicio   Float    @default(0) // Hoja Reporte Showare: SUM(CXS) donde Filtro Showare="incluir" y Evento Activo="Activo"
+  eventosPorLiquidar Float    @default(0) // misma selección: SUM(Total) - SUM(CXS)
   generatedAt        DateTime
 
   @@map("panatickets_snapshot")

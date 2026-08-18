@@ -314,12 +314,18 @@ function pagoBucket(detallePago: string | number | null): string {
   return 'Otros (Tarjeta Crédito genérica)'
 }
 
+interface ContabilidadAccum {
+  totalIncluidoActivo: number
+  cxsIncluidoActivo: number
+}
+
 function procesarFilaShoware(
   row: ExcelJS.Row,
   rowNum: number,
   ventas: VentaRow[],
   canceladas: CanceladaRow[],
-  pendientes: Map<string, { qty: number; monto: number }>
+  pendientes: Map<string, { qty: number; monto: number }>,
+  contabilidad: ContabilidadAccum
 ) {
   if (rowNum < 7) return
   const get = (col: number) => extractValue(row.getCell(col))
@@ -336,6 +342,16 @@ function procesarFilaShoware(
   const tot = Number(get(COL.total)) || 0
   const p = Number(get(COL.precio)) || 0
   const cxs = Number(get(COL.cxs)) || 0
+
+  // Eventos por Liquidar / Costo por servicio: criterio propio e
+  // independiente del resto de esta función (Filtro Bancos, cancelación,
+  // exclusiones) — solo mira Filtro Showare="incluir" y el estatus del
+  // evento (misma columna ya normalizada para "Estado del Evento").
+  const filtroShoware = String(get(COL.filtroShoware) ?? '').trim().toLowerCase()
+  if (filtroShoware === 'incluir' && normalizarEstadoEvento(get(COL.eventoActivo)) === 'Activo') {
+    contabilidad.totalIncluidoActivo += tot
+    contabilidad.cxsIncluidoActivo += cxs
+  }
 
   const excluida = EXCLUDE_CODIGO_PRECIO.has(String(codigoPrecio ?? '')) || EXCLUDE_DETALLE_PAGO.has(String(detallePago ?? ''))
 
@@ -480,6 +496,7 @@ async function parseWorkbookStreaming(buffer: Buffer) {
   const pendientes = new Map<string, { qty: number; monto: number }>()
   const anticipos: { label: string; value: number; estado: string }[] = []
   const saldosCtx: SaldosBancoCtx = { bankLabels: {}, conceptLabels: {}, dias: [] }
+  const contabilidad: ContabilidadAccum = { totalIncluidoActivo: 0, cxsIncluidoActivo: 0 }
 
   let vioShoware = false
   let vioSaldos = false
@@ -498,7 +515,7 @@ async function parseWorkbookStreaming(buffer: Buffer) {
     if (worksheetReader.name === SHEET_SHOWARE) {
       vioShoware = true
       for await (const row of worksheetReader) {
-        procesarFilaShoware(row, row.number, ventas, canceladas, pendientes)
+        procesarFilaShoware(row, row.number, ventas, canceladas, pendientes, contabilidad)
       }
     } else if (worksheetReader.name === SHEET_SALDOS) {
       vioSaldos = true
@@ -518,8 +535,13 @@ async function parseWorkbookStreaming(buffer: Buffer) {
   }
 
   const total_anticipo = anticipos.reduce((s, a) => s + a.value, 0)
+  const costoPorServicio = contabilidad.cxsIncluidoActivo
+  const eventosPorLiquidar = contabilidad.totalIncluidoActivo - contabilidad.cxsIncluidoActivo
 
-  return { ventas, canceladas, pendientes, saldosPorDia: saldosCtx.dias, anticipos, total_anticipo }
+  return {
+    ventas, canceladas, pendientes, saldosPorDia: saldosCtx.dias, anticipos, total_anticipo,
+    costoPorServicio, eventosPorLiquidar,
+  }
 }
 
 function fmtDay(iso: string) {
@@ -615,7 +637,7 @@ export async function computeFinanzasPanatickets() {
   const buffer = await sanitizeWorkbookBuffer(rawBuffer)
   const t2 = Date.now()
 
-  const { ventas, canceladas, pendientes, saldosPorDia, anticipos, total_anticipo } = await parseWorkbookStreaming(buffer)
+  const { ventas, canceladas, pendientes, saldosPorDia, anticipos, total_anticipo, costoPorServicio, eventosPorLiquidar } = await parseWorkbookStreaming(buffer)
   const t3 = Date.now()
 
   console.log(
@@ -655,6 +677,8 @@ export async function computeFinanzasPanatickets() {
     ANTICIPOS: anticipos,
     TOTAL_ANTICIPO: total_anticipo,
     GLOBAL_SUMMARY, EXEC_SUMMARY,
+    COSTO_POR_SERVICIO: costoPorServicio,
+    EVENTOS_POR_LIQUIDAR: eventosPorLiquidar,
     generatedAt: new Date().toISOString(),
   }
 }
@@ -722,19 +746,30 @@ async function replaceSaldosDia(tx: TxClient, dias: SaldoDia[]) {
  * dashboard lo reprocese en cada carga. Todo en una sola transacción para
  * que un fallo a mitad de camino no deje las tablas vacías/a medias.
  */
-async function upsertSnapshot(tx: TxClient, anticipos: { label: string; value: number; estado: string }[], totalAnticipo: number, globalSummary: { label: string; qty: number; monto: number }[], generatedAt: string) {
-  const data = { anticipos, totalAnticipo, globalSummary, generatedAt: new Date(generatedAt) }
+async function upsertSnapshot(
+  tx: TxClient,
+  anticipos: { label: string; value: number; estado: string }[],
+  totalAnticipo: number,
+  globalSummary: { label: string; qty: number; monto: number }[],
+  costoPorServicio: number,
+  eventosPorLiquidar: number,
+  generatedAt: string
+) {
+  const data = { anticipos, totalAnticipo, globalSummary, costoPorServicio, eventosPorLiquidar, generatedAt: new Date(generatedAt) }
   await tx.panaticketsSnapshot.upsert({ where: { id: 1 }, create: { id: 1, ...data }, update: data })
 }
 
 export async function syncFinanzasPanatickets() {
-  const { DATA, CANCELADAS, SALDOS_POR_DIA, ANTICIPOS, TOTAL_ANTICIPO, GLOBAL_SUMMARY, generatedAt } = await computeFinanzasPanatickets()
+  const {
+    DATA, CANCELADAS, SALDOS_POR_DIA, ANTICIPOS, TOTAL_ANTICIPO, GLOBAL_SUMMARY,
+    COSTO_POR_SERVICIO, EVENTOS_POR_LIQUIDAR, generatedAt,
+  } = await computeFinanzasPanatickets()
 
   await prisma.$transaction(async tx => {
     await replaceVentas(tx, DATA)
     await replaceCanceladas(tx, CANCELADAS)
     await replaceSaldosDia(tx, SALDOS_POR_DIA)
-    await upsertSnapshot(tx, ANTICIPOS, TOTAL_ANTICIPO, GLOBAL_SUMMARY, generatedAt)
+    await upsertSnapshot(tx, ANTICIPOS, TOTAL_ANTICIPO, GLOBAL_SUMMARY, COSTO_POR_SERVICIO, EVENTOS_POR_LIQUIDAR, generatedAt)
   }, { timeout: 120_000 })
 
   return { ventasSincronizadas: DATA.length, canceladasSincronizadas: CANCELADAS.length, diasConSaldos: SALDOS_POR_DIA.length, generatedAt }
@@ -767,15 +802,35 @@ export async function getFinanzasPanaticketsRango(desde: string, hasta: string) 
   const anticipos = (snapshot?.anticipos as { label: string; value: number; estado: string }[]) ?? []
   const totalAnticipo = snapshot?.totalAnticipo ?? 0
 
-  const toSaldos = (d: (typeof saldosDia)[number]) => ({
-    fecha_saldos: d.fechaDisplay,
-    bancos: d.bancos as { label: string; value: number; contable: number; diferencia: number }[],
-    subtotal_bancos: d.subtotalBancos,
-    subtotal_contable: d.subtotalContable,
-    subtotal_diferencia: d.subtotalDiferencia,
-    conceptos: d.conceptos as { label: string; value: number }[],
-    anticipos, total_anticipo: totalAnticipo,
-  })
+  // Las 3 líneas de "Capital de trabajo" (Saldo bancario + cobros en
+  // tránsito (+) − eventos por liquidar y otras partidas (−)): se insertan
+  // justo antes de la fila "Capital de Trabajo" que ya trae cada día desde
+  // la hoja Saldos Banco, para que se vean como su desglose.
+  const totalEnTransito = GLOBAL_SUMMARY.reduce((s, g) => s + g.monto, 0)
+  const costoPorServicio = snapshot?.costoPorServicio ?? 0
+  const eventosPorLiquidar = snapshot?.eventosPorLiquidar ?? 0
+  const conceptosCalculados = [
+    { label: 'Cobros en Tránsito', value: totalEnTransito },
+    { label: 'Eventos por Liquidar', value: -eventosPorLiquidar },
+    { label: 'Costo por servicio', value: costoPorServicio },
+  ]
+
+  const toSaldos = (d: (typeof saldosDia)[number]) => {
+    const base = d.conceptos as { label: string; value: number }[]
+    const capitalIdx = base.findIndex(c => c.label.trim().toLowerCase().startsWith('capital de trab'))
+    const conceptos = capitalIdx >= 0
+      ? [...base.slice(0, capitalIdx), ...conceptosCalculados, ...base.slice(capitalIdx)]
+      : [...base, ...conceptosCalculados]
+    return {
+      fecha_saldos: d.fechaDisplay,
+      bancos: d.bancos as { label: string; value: number; contable: number; diferencia: number }[],
+      subtotal_bancos: d.subtotalBancos,
+      subtotal_contable: d.subtotalContable,
+      subtotal_diferencia: d.subtotalDiferencia,
+      conceptos,
+      anticipos, total_anticipo: totalAnticipo,
+    }
+  }
 
   // El más reciente dentro del rango es el default (equivalente al
   // comportamiento de antes); SALDOS_POR_DIA deja que el filtro de día del
