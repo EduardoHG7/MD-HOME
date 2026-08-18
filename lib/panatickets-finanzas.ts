@@ -254,13 +254,15 @@ function isNoEsta(v: string | number | null): boolean {
 // El estatus de evento viene de dos hojas distintas con vocabulario libre
 // — se normaliza a las 3 categorías del AutoFilter nativo de la columna
 // "Evento Activo/Cancelado/Completado" en Reporte Showare (Activo,
-// Cancelado, Completado); cualquier otra cosa (incluyendo vacío) cae en
-// "Sin estatus".
+// Cancelado, Completado). Se compara por prefijo (no exacto) para tolerar
+// variantes de género/texto extra que ya causaron falsos "Sin estatus" antes
+// (ej. "Cancelada" en vez de "Cancelado", o notas pegadas al final);
+// cualquier otra cosa (incluyendo vacío) cae en "Sin estatus".
 function normalizarEstadoEvento(v: string | number | null): string {
   const s = String(v ?? '').trim()
-  if (/^activo$/i.test(s)) return 'Activo'
-  if (/^cancelado$/i.test(s)) return 'Cancelado'
-  if (/^completado$/i.test(s)) return 'Completado'
+  if (/^activ/i.test(s)) return 'Activo'
+  if (/^cancel/i.test(s)) return 'Cancelado'
+  if (/^complet/i.test(s)) return 'Completado'
   return 'Sin estatus'
 }
 
