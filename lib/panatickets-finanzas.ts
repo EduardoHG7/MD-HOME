@@ -154,11 +154,14 @@ const COL = {
   achEfectivo: 37,
   taquilla: 38,
   filtroBancos: 39,
-  bacAbono: 40,
-  metroAbono: 41,
-  yappyAbono: 42,
-  globalAbono: 43,
-  eventoActivo: 45,
+  filtroShoware: 40, // "incluir" — usado en las fórmulas contables de Cobros/Eventos por Liquidar/Costo por servicio
+  bacAbono: 41,
+  metroAbono: 42,
+  yappyAbono: 43,     // Yappy Web
+  globalAbono: 44,
+  // 45 = "Autorizar Global" (no usado)
+  yappy89Abono: 46,   // YAPPY (89) tiene su propia columna de abono, distinta de Yappy Web
+  eventoActivo: 47,   // "Evento Activo/Cancelado/Completado" — antes leíamos por error la 45 ("Autorizar Global")
 } as const
 
 const EXCLUDE_CODIGO_PRECIO = new Set(['Cortesia', 'Cortesias'])
@@ -249,12 +252,14 @@ function isNoEsta(v: string | number | null): boolean {
 }
 
 // El estatus de evento viene de dos hojas distintas con vocabulario libre
-// ("Pdte", "-", etc.) — se normaliza a solo Activo/Cerrado/Completado, y
-// cualquier otra cosa (incluyendo vacío) cae en "Sin estatus".
+// — se normaliza a las 3 categorías del AutoFilter nativo de la columna
+// "Evento Activo/Cancelado/Completado" en Reporte Showare (Activo,
+// Cancelado, Completado); cualquier otra cosa (incluyendo vacío) cae en
+// "Sin estatus".
 function normalizarEstadoEvento(v: string | number | null): string {
   const s = String(v ?? '').trim()
   if (/^activo$/i.test(s)) return 'Activo'
-  if (/^cerrado$/i.test(s)) return 'Cerrado'
+  if (/^cancelado$/i.test(s)) return 'Cancelado'
   if (/^completado$/i.test(s)) return 'Completado'
   return 'Sin estatus'
 }
@@ -289,7 +294,7 @@ function bankChannel(getRaw: (col: number) => string | number | null, detallePag
   if (!isNoEsta(getRaw(COL.bacLiq))) return { bk: 'BAC', abonoCol: COL.bacAbono }
   if (!isNoEsta(getRaw(COL.metroLiq))) return { bk: 'Metrobank', abonoCol: COL.metroAbono }
   if (!isNoEsta(getRaw(COL.yappyWeb))) return { bk: 'Yappy Web', abonoCol: COL.yappyAbono }
-  if (!isNoEsta(getRaw(COL.yappy89))) return { bk: 'YAPPY (89)', abonoCol: COL.yappyAbono }
+  if (!isNoEsta(getRaw(COL.yappy89))) return { bk: 'YAPPY (89)', abonoCol: COL.yappy89Abono }
   if (!isNoEsta(getRaw(COL.global))) return { bk: 'Global', abonoCol: COL.globalAbono }
   if (!isNoEsta(getRaw(COL.achEfectivo))) {
     const dp = String(detallePago ?? '')
