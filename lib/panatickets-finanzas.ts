@@ -15,7 +15,7 @@ import { prisma } from './prisma'
  * .xlsx antes de parsear — de paso el archivo pesa ~5-20MB menos porque los
  * cachés de tablas dinámicas no se necesitan para nada.
  */
-const SHEETS_NECESARIAS = new Set(['Reporte Showare', 'Saldos Banco', 'Estatus evento'])
+const SHEETS_NECESARIAS = new Set(['Reporte Showare', 'Saldos Banco', 'Estatus evento', 'En transito'])
 
 async function sanitizeWorkbookBuffer(buffer: Buffer): Promise<Buffer> {
   const zip = await JSZip.loadAsync(buffer)
@@ -482,6 +482,7 @@ function procesarFilaAnticipos(row: ExcelJS.Row, rowNum: number, anticipos: { la
 const SHEET_SHOWARE = 'Reporte Showare'
 const SHEET_SALDOS = 'Saldos Banco'
 const SHEET_ANTICIPOS = 'Estatus evento'
+const SHEET_TRANSITO = 'En transito'
 
 /**
  * Recorre las 3 hojas necesarias en una sola pasada en streaming (fila por
@@ -499,9 +500,11 @@ async function parseWorkbookStreaming(buffer: Buffer) {
   const anticipos: { label: string; value: number; estado: string }[] = []
   const saldosCtx: SaldosBancoCtx = { bankLabels: {}, conceptLabels: {}, dias: [] }
   const contabilidad: ContabilidadAccum = { totalIncluidoActivo: 0, cxsIncluidoActivo: 0 }
+  let cobrosTransito: number | null = null
 
   let vioShoware = false
   let vioSaldos = false
+  let vioTransito = false
 
   const workbookReader = new ExcelJS.stream.xlsx.WorkbookReader(Readable.from(buffer), {
     sharedStrings: 'cache',
@@ -528,12 +531,23 @@ async function parseWorkbookStreaming(buffer: Buffer) {
       for await (const row of worksheetReader) {
         procesarFilaAnticipos(row, row.number, anticipos)
       }
+    } else if (worksheetReader.name === SHEET_TRANSITO) {
+      vioTransito = true
+      for await (const row of worksheetReader) {
+        // "Cobros por Tjta Cdto / Web en Tránsito" sale de una única celda
+        // fija (F5), no de una tabla — el resto de la hoja es de trabajo del
+        // equipo de contabilidad y no nos interesa.
+        if (row.number === 5) cobrosTransito = toNumber(extractValue(row.getCell(6)))
+      }
     }
   }
 
   if (!vioShoware) throw new Error('No se encontró la hoja "Reporte Showare" en el Excel')
   if (!vioSaldos || !saldosCtx.dias.length) {
     throw new Error('No se encontró ningún día con saldos bancarios completos en "Saldos Banco"')
+  }
+  if (!vioTransito || cobrosTransito === null) {
+    throw new Error('No se encontró la celda F5 de la hoja "En transito" en el Excel')
   }
 
   const total_anticipo = anticipos.reduce((s, a) => s + a.value, 0)
@@ -542,7 +556,7 @@ async function parseWorkbookStreaming(buffer: Buffer) {
 
   return {
     ventas, canceladas, pendientes, saldosPorDia: saldosCtx.dias, anticipos, total_anticipo,
-    costoPorServicio, eventosPorLiquidar,
+    costoPorServicio, eventosPorLiquidar, cobrosTransito,
   }
 }
 
@@ -639,7 +653,7 @@ export async function computeFinanzasPanatickets() {
   const buffer = await sanitizeWorkbookBuffer(rawBuffer)
   const t2 = Date.now()
 
-  const { ventas, canceladas, pendientes, saldosPorDia, anticipos, total_anticipo, costoPorServicio, eventosPorLiquidar } = await parseWorkbookStreaming(buffer)
+  const { ventas, canceladas, pendientes, saldosPorDia, anticipos, total_anticipo, costoPorServicio, eventosPorLiquidar, cobrosTransito } = await parseWorkbookStreaming(buffer)
   const t3 = Date.now()
 
   console.log(
@@ -681,6 +695,7 @@ export async function computeFinanzasPanatickets() {
     GLOBAL_SUMMARY, EXEC_SUMMARY,
     COSTO_POR_SERVICIO: costoPorServicio,
     EVENTOS_POR_LIQUIDAR: eventosPorLiquidar,
+    COBROS_TRANSITO: cobrosTransito,
     generatedAt: new Date().toISOString(),
   }
 }
@@ -755,23 +770,24 @@ async function upsertSnapshot(
   globalSummary: { label: string; qty: number; monto: number }[],
   costoPorServicio: number,
   eventosPorLiquidar: number,
+  cobrosTransito: number,
   generatedAt: string
 ) {
-  const data = { anticipos, totalAnticipo, globalSummary, costoPorServicio, eventosPorLiquidar, generatedAt: new Date(generatedAt) }
+  const data = { anticipos, totalAnticipo, globalSummary, costoPorServicio, eventosPorLiquidar, cobrosTransito, generatedAt: new Date(generatedAt) }
   await tx.panaticketsSnapshot.upsert({ where: { id: 1 }, create: { id: 1, ...data }, update: data })
 }
 
 export async function syncFinanzasPanatickets() {
   const {
     DATA, CANCELADAS, SALDOS_POR_DIA, ANTICIPOS, TOTAL_ANTICIPO, GLOBAL_SUMMARY,
-    COSTO_POR_SERVICIO, EVENTOS_POR_LIQUIDAR, generatedAt,
+    COSTO_POR_SERVICIO, EVENTOS_POR_LIQUIDAR, COBROS_TRANSITO, generatedAt,
   } = await computeFinanzasPanatickets()
 
   await prisma.$transaction(async tx => {
     await replaceVentas(tx, DATA)
     await replaceCanceladas(tx, CANCELADAS)
     await replaceSaldosDia(tx, SALDOS_POR_DIA)
-    await upsertSnapshot(tx, ANTICIPOS, TOTAL_ANTICIPO, GLOBAL_SUMMARY, COSTO_POR_SERVICIO, EVENTOS_POR_LIQUIDAR, generatedAt)
+    await upsertSnapshot(tx, ANTICIPOS, TOTAL_ANTICIPO, GLOBAL_SUMMARY, COSTO_POR_SERVICIO, EVENTOS_POR_LIQUIDAR, COBROS_TRANSITO, generatedAt)
   }, { timeout: 120_000 })
 
   return { ventasSincronizadas: DATA.length, canceladasSincronizadas: CANCELADAS.length, diasConSaldos: SALDOS_POR_DIA.length, generatedAt }
@@ -808,11 +824,11 @@ export async function getFinanzasPanaticketsRango(desde: string, hasta: string) 
   // tránsito (+) − eventos por liquidar y otras partidas (−)): se insertan
   // justo antes de la fila "Capital de Trabajo" que ya trae cada día desde
   // la hoja Saldos Banco, para que se vean como su desglose.
-  const totalEnTransito = GLOBAL_SUMMARY.reduce((s, g) => s + g.monto, 0)
+  const cobrosTransito = snapshot?.cobrosTransito ?? 0
   const costoPorServicio = snapshot?.costoPorServicio ?? 0
   const eventosPorLiquidar = snapshot?.eventosPorLiquidar ?? 0
   const conceptosCalculados = [
-    { label: 'Cobros en Tránsito', value: totalEnTransito },
+    { label: 'Cobros en Tránsito', value: cobrosTransito },
     { label: 'Eventos por Liquidar', value: -eventosPorLiquidar },
     { label: 'Costo por servicio', value: costoPorServicio },
   ]
