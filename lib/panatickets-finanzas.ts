@@ -245,10 +245,18 @@ function toNumber(v: string | number | null): number | null {
   return Number.isNaN(n) ? null : n
 }
 
+// Estas 7 columnas de "número de liquidación" usan sus propias fórmulas
+// BUSCARV con la convención "si el resultado es 0, no hay valor" (ej.
+// =SI.ERROR(SI(BUSCARV(...)=0;"";BUSCARV(...));"")). Sin tratar 0 igual que
+// "No Esta"/vacío, una fila liquidada por OTRO banco (con 0 de relleno en
+// esta columna) se clasificaba erróneamente en el primer banco de la lista
+// que devolviera "no es no-esta" — así, filas de Global con 0 en "BAC Nro
+// Liquidacion" terminaban marcadas como BAC y leyendo su columna de abono
+// (casi siempre vacía para ellas) en vez de la de Global.
 function isNoEsta(v: string | number | null): boolean {
   if (v === null) return true
   const s = String(v).trim()
-  return s === '' || /^no\s*est[aá]/i.test(s)
+  return s === '' || s === '0' || /^no\s*est[aá]/i.test(s)
 }
 
 // El estatus de evento viene de dos hojas distintas con vocabulario libre
