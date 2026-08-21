@@ -729,7 +729,9 @@ const MESES_CORTO = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct'
 function fmtDay(iso){
   if(!iso) return '—';
   const [y,m,d] = iso.split('-');
-  return d + ' ' + MESES_CORTO[parseInt(m,10)-1];
+  const mi = parseInt(m,10)-1;
+  if(!y || !d || !MESES_CORTO[mi]) return '—';
+  return d + ' ' + MESES_CORTO[mi];
 }
 function fmtMes(ym){
   const [y,m] = ym.split('-');
