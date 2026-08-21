@@ -192,6 +192,23 @@ function serialExcelADate(serial: number): Date {
   return new Date(Math.round((serial - 25569) * 24 * 3600 * 1000))
 }
 
+// Las fórmulas de "Fecha de Abono" del Excel buscan por una columna de
+// autorización bancaria que puede venir en blanco — cuando eso pasa,
+// BUSCARV("", rango, ...) a veces "encuentra" por accidente otra fila en
+// blanco de la hoja de origen y devuelve lo que sea que haya en esa celda
+// (no es un error de fórmula, así que SI.ERROR no lo filtra). El resultado
+// puede ser cualquier texto que no sea una fecha real. Se valida el formato
+// antes de usarlo — si no calza, se prefiere la fecha de compra (f) en vez
+// de guardar basura.
+function esFechaIsoValida(s: string): boolean {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s)
+  if (!m) return false
+  const [, , mm, dd] = m
+  const mes = Number(mm)
+  const dia = Number(dd)
+  return mes >= 1 && mes <= 12 && dia >= 1 && dia <= 31
+}
+
 function extractValue(cell: ExcelJS.Cell): string | number | null {
   const v = cell.value
   if (v === null || v === undefined) return null
@@ -390,7 +407,8 @@ function procesarFilaShoware(
 
   const { bk, abonoCol } = bankChannel(get, detallePago)
   const abonoRaw = abonoCol ? get(abonoCol) : null
-  const ab = typeof abonoRaw === 'string' ? abonoRaw.slice(0, 10) : f
+  const abonoSlice = typeof abonoRaw === 'string' ? abonoRaw.slice(0, 10) : null
+  const ab = abonoSlice && esFechaIsoValida(abonoSlice) ? abonoSlice : f
 
   const hora = extractTime(row.getCell(COL.hora).value)
 
