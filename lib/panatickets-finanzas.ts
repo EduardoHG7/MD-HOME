@@ -505,6 +505,49 @@ function procesarFilaAnticipos(row: ExcelJS.Row, rowNum: number, anticipos: { la
   anticipos.push({ label: String(evento), value: adelanto, estado: normalizarEstadoEvento(estado) })
 }
 
+interface TransitoCtx {
+  colFecha: number | null
+  colEnTransito: number | null
+  total: number | null
+}
+
+/**
+ * "En Tránsito" no es una sola celda: la hoja trae un resumen del día de
+ * corte (un solo día, no sirve) y, más abajo, la tabla "DETALLE POR DÍA"
+ * con una fila por fecha de compra y su columna "En Tránsito" propia (neta,
+ * puede ser positiva o negativa según el día). El monto real es la fila
+ * TOTAL al final de esa tabla, que suma la columna "En Tránsito" de todos
+ * los días. Se ubican las columnas por texto de encabezado ("Fecha" / "En
+ * Tránsito") en vez de por letra fija — el resumen del día de corte usa
+ * columnas distintas y no queremos confundirlo con la tabla real.
+ */
+function procesarFilaTransito(row: ExcelJS.Row, ctx: TransitoCtx) {
+  if (ctx.total !== null) return
+  if (ctx.colFecha === null || ctx.colEnTransito === null) {
+    // El resumen del día de corte, más arriba en la hoja, también tiene una
+    // celda que arranca con "En Tránsito" (la etiqueta del concepto) — para
+    // no confundirla con el encabezado real, "Fecha" y "En Tránsito" deben
+    // aparecer juntos en la MISMA fila (el encabezado de la tabla), no
+    // acumularse de filas distintas.
+    let colFecha: number | null = null
+    let colEnTransito: number | null = null
+    row.eachCell({ includeEmpty: false }, (cell, colNum) => {
+      const v = String(extractValue(cell) ?? '').trim().toLowerCase()
+      if (v === 'fecha') colFecha = colNum
+      if (v.startsWith('en tr')) colEnTransito = colNum
+    })
+    if (colFecha !== null && colEnTransito !== null) {
+      ctx.colFecha = colFecha
+      ctx.colEnTransito = colEnTransito
+    }
+    return
+  }
+  const fechaCell = String(extractValue(row.getCell(ctx.colFecha)) ?? '').trim().toLowerCase()
+  if (fechaCell === 'total') {
+    ctx.total = toNumber(extractValue(row.getCell(ctx.colEnTransito)))
+  }
+}
+
 const SHEET_SHOWARE = 'Reporte Showare'
 const SHEET_SALDOS = 'Saldos Banco'
 const SHEET_ANTICIPOS = 'Estatus evento'
@@ -526,7 +569,7 @@ async function parseWorkbookStreaming(buffer: Buffer) {
   const anticipos: { label: string; value: number; estado: string }[] = []
   const saldosCtx: SaldosBancoCtx = { bankLabels: {}, conceptLabels: {}, dias: [] }
   const contabilidad: ContabilidadAccum = { totalIncluidoActivo: 0, cxsIncluidoActivo: 0 }
-  let cobrosTransito: number | null = null
+  const transitoCtx: TransitoCtx = { colFecha: null, colEnTransito: null, total: null }
 
   let vioShoware = false
   let vioSaldos = false
@@ -560,10 +603,7 @@ async function parseWorkbookStreaming(buffer: Buffer) {
     } else if (worksheetReader.name === SHEET_TRANSITO) {
       vioTransito = true
       for await (const row of worksheetReader) {
-        // "Cobros por Tjta Cdto / Web en Tránsito" sale de una única celda
-        // fija (F5), no de una tabla — el resto de la hoja es de trabajo del
-        // equipo de contabilidad y no nos interesa.
-        if (row.number === 5) cobrosTransito = toNumber(extractValue(row.getCell(6)))
+        procesarFilaTransito(row, transitoCtx)
       }
     }
   }
@@ -572,9 +612,10 @@ async function parseWorkbookStreaming(buffer: Buffer) {
   if (!vioSaldos || !saldosCtx.dias.length) {
     throw new Error('No se encontró ningún día con saldos bancarios completos en "Saldos Banco"')
   }
-  if (!vioTransito || cobrosTransito === null) {
-    throw new Error('No se encontró la celda F5 de la hoja "En transito" en el Excel')
+  if (!vioTransito || transitoCtx.total === null) {
+    throw new Error('No se encontró la fila TOTAL de la tabla "DETALLE POR DÍA" en la hoja "En transito"')
   }
+  const cobrosTransito = transitoCtx.total
 
   const total_anticipo = anticipos.reduce((s, a) => s + a.value, 0)
   const costoPorServicio = contabilidad.cxsIncluidoActivo
