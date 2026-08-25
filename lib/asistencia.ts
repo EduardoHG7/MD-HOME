@@ -1,8 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { inicioJornada } from '@/lib/jornada'
 
-export { esChofer } from '@/lib/utils'
-
 // Determina si el próximo registro de la jornada actual (6am–6am) es
 // ENTRADA o SALIDA, o null si ya completó el turno de hoy.
 export async function proximoTipoRegistro(asignacionId: string): Promise<'ENTRADA' | 'SALIDA' | null> {

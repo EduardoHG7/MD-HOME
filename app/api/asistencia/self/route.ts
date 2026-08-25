@@ -4,9 +4,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { esChofer, proximoTipoRegistro } from '@/lib/asistencia'
+import { proximoTipoRegistro } from '@/lib/asistencia'
 
-async function loadAsignacionChofer(eventoId: string) {
+async function loadAsignacionActiva(eventoId: string) {
   const session = await getServerSession(authOptions)
   if (!session || session.user.role !== 'APLICANTE') {
     return { error: NextResponse.json({ error: 'No autorizado' }, { status: 401 }) } as const
@@ -19,9 +19,6 @@ async function loadAsignacionChofer(eventoId: string) {
   if (!asignacion || asignacion.estado !== 'ACTIVA') {
     return { error: NextResponse.json({ error: 'Sin asignación activa' }, { status: 404 }) } as const
   }
-  if (!esChofer(asignacion.funcion)) {
-    return { error: NextResponse.json({ error: 'Este autorregistro es solo para choferes' }, { status: 403 }) } as const
-  }
 
   return { asignacion } as const
 }
@@ -31,20 +28,20 @@ export async function GET(req: NextRequest) {
   const eventoId = new URL(req.url).searchParams.get('eventoId')
   if (!eventoId) return NextResponse.json({ error: 'Falta eventoId' }, { status: 400 })
 
-  const result = await loadAsignacionChofer(eventoId)
+  const result = await loadAsignacionActiva(eventoId)
   if ('error' in result) return result.error
 
   const tipo = await proximoTipoRegistro(result.asignacion.id)
   return NextResponse.json({ tipo })
 }
 
-// Autorregistro de entrada/salida del propio chofer.
+// Autorregistro de entrada/salida del propio aplicante.
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
   const { eventoId, lat, lng } = body as { eventoId?: string; lat?: number; lng?: number }
   if (!eventoId) return NextResponse.json({ error: 'Falta eventoId' }, { status: 400 })
 
-  const result = await loadAsignacionChofer(eventoId)
+  const result = await loadAsignacionActiva(eventoId)
   if ('error' in result) return result.error
 
   const tipo = await proximoTipoRegistro(result.asignacion.id)
