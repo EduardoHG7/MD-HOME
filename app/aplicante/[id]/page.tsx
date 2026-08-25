@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState, useCallback } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
-import { formatDateTime, esChofer } from '@/lib/utils'
+import { formatDateTime } from '@/lib/utils'
 
 interface Asignacion {
   id: string
@@ -30,8 +30,6 @@ function AplicanteContent() {
 
   const [aplicante,      setAplicante]      = useState<Aplicante | null>(null)
   const [selectedEvento, setSelectedEvento] = useState<string | null>(null)
-  const [qrData,         setQrData]         = useState<{ qr: string; ttl: number } | null>(null)
-  const [countdown,      setCountdown]      = useState(30)
   const [loading,        setLoading]        = useState(true)
   const [selfTipo,       setSelfTipo]       = useState<'ENTRADA' | 'SALIDA' | null | undefined>(undefined)
   const [selfLoading,    setSelfLoading]    = useState(false)
@@ -55,42 +53,15 @@ function AplicanteContent() {
   const asignacionActiva = aplicante?.asignaciones.find(
     a => a.eventoId === selectedEvento && a.estado === 'ACTIVA'
   )
-  const esChoferActivo = asignacionActiva ? esChofer(asignacionActiva.funcion) : false
-
-  const fetchQR = useCallback(async () => {
-    if (!selectedEvento) return
-    const res = await fetch(`/api/qr/token?aid=${id}&eid=${selectedEvento}`)
-    if (res.ok) {
-      const data = await res.json()
-      setQrData(data)
-      setCountdown(data.ttl)
-    }
-  }, [id, selectedEvento])
-
-  useEffect(() => {
-    if (!selectedEvento || esChoferActivo) return
-    fetchQR()
-  }, [selectedEvento, esChoferActivo, fetchQR])
-
-  useEffect(() => {
-    if (!qrData) return
-    const interval = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) { fetchQR(); return 30 }
-        return prev - 1
-      })
-    }, 1000)
-    return () => clearInterval(interval)
-  }, [qrData, fetchQR])
 
   const fetchSelfEstado = useCallback(async () => {
-    if (!selectedEvento || !esChoferActivo) return
+    if (!selectedEvento) return
     const res = await fetch(`/api/asistencia/self?eventoId=${selectedEvento}`)
     if (res.ok) {
       const data = await res.json()
       setSelfTipo(data.tipo)
     }
-  }, [selectedEvento, esChoferActivo])
+  }, [selectedEvento])
 
   useEffect(() => {
     fetchSelfEstado()
@@ -153,9 +124,6 @@ function AplicanteContent() {
     )
   }
 
-  const urgentColor = countdown <= 5 ? 'text-red-600' : countdown <= 10 ? 'text-amber-500' : 'text-green-600'
-  const barColor    = countdown <= 5 ? 'bg-red-500'  : countdown <= 10 ? 'bg-amber-400'   : 'bg-green-500'
-
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-8 max-w-lg mx-auto">
       {/* Header */}
@@ -190,8 +158,8 @@ function AplicanteContent() {
         </div>
       )}
 
-      {/* Autorregistro de choferes (sin punto fijo donde los escaneen) */}
-      {asignacionActiva && esChoferActivo ? (
+      {/* Autorregistro de entrada/salida */}
+      {asignacionActiva ? (
         <div className="card border-2 p-6 mb-4 text-center">
           <p className="text-gray-900 font-bold text-sm mb-0.5 uppercase tracking-wider">
             {asignacionActiva.evento.nombre}
@@ -226,41 +194,7 @@ function AplicanteContent() {
 
           <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-3">
             <p className="text-amber-700 text-xs">
-              Autorregistro habilitado para choferes. Se guarda tu ubicación como respaldo.
-            </p>
-          </div>
-        </div>
-      ) : asignacionActiva ? (
-        <div className="card qr-pulse border-2 p-6 mb-4 text-center">
-          <p className="text-gray-900 font-bold text-sm mb-0.5 uppercase tracking-wider">
-            {asignacionActiva.evento.nombre}
-          </p>
-          <p className="text-gray-500 text-xs mb-4">{asignacionActiva.funcion}</p>
-
-          {qrData ? (
-            <div className="inline-block p-3 bg-white border-2 border-gray-100 rounded-2xl shadow-inner mb-4">
-              <img src={qrData.qr} alt="Código QR de asistencia" width={260} height={260} />
-            </div>
-          ) : (
-            <div className="w-[260px] h-[260px] bg-gray-100 rounded-2xl mx-auto mb-4 flex items-center justify-center">
-              <div className="text-gray-400 animate-pulse text-sm">Generando QR...</div>
-            </div>
-          )}
-
-          <div className={`text-4xl font-bold mb-1 ${urgentColor}`}>{countdown}s</div>
-          <p className="text-gray-400 text-xs">El código se renueva automáticamente</p>
-
-          <div className="mt-3 h-2 bg-gray-100 rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all duration-1000 ${barColor}`}
-              style={{ width: `${(countdown / 30) * 100}%` }}
-            />
-          </div>
-
-          <div className="mt-4 bg-red-50 border border-red-200 rounded-xl p-3">
-            <p className="text-red-600 text-xs font-bold">⚠ CÓDIGO PERSONAL E INTRANSFERIBLE</p>
-            <p className="text-red-400 text-xs mt-0.5">
-              No compartas capturas de pantalla. El sistema detecta intentos de fraude.
+              Se guarda tu ubicación como respaldo.
             </p>
           </div>
         </div>
@@ -269,7 +203,7 @@ function AplicanteContent() {
           <p className="text-4xl mb-3">📅</p>
           <p className="text-gray-900 font-semibold">Sin asignación activa</p>
           <p className="text-gray-500 text-sm mt-1">
-            Cuando seas asignado a un evento, tu código QR aparecerá aquí.
+            Cuando seas asignado a un evento, podrás marcar tu entrada y salida aquí.
           </p>
         </div>
       )}
