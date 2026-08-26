@@ -507,44 +507,54 @@ function procesarFilaAnticipos(row: ExcelJS.Row, rowNum: number, anticipos: { la
 
 interface TransitoCtx {
   colFecha: number | null
-  colEnTransito: number | null
-  total: number | null
+  colTdc: number | null
+  colAch: number | null
+  totalTdc: number | null
+  totalAch: number | null
+}
+
+function esColumnaTransitoTdc(v: string): boolean {
+  return /tr[aá]nsito/.test(v) && /(tdc|web)/.test(v)
+}
+function esColumnaTransitoAch(v: string): boolean {
+  return /tr[aá]nsito/.test(v) && /(ach|efec|taq)/.test(v)
 }
 
 /**
  * "En Tránsito" no es una sola celda: la hoja trae un resumen del día de
  * corte (un solo día, no sirve) y, más abajo, la tabla "DETALLE POR DÍA"
- * con una fila por fecha de compra y su columna "En Tránsito" propia (neta,
- * puede ser positiva o negativa según el día). El monto real es la fila
- * TOTAL al final de esa tabla, que suma la columna "En Tránsito" de todos
- * los días. Se ubican las columnas por texto de encabezado ("Fecha" / "En
- * Tránsito") en vez de por letra fija — el resumen del día de corte usa
- * columnas distintas y no queremos confundirlo con la tabla real.
+ * con una fila por fecha de compra y sus columnas de tránsito propias
+ * (netas, pueden ser positivas o negativas según el día), separadas en
+ * "Tránsito TDC/Otros" (tarjeta de crédito/web) y "Tránsito ACH/Efec/Taq".
+ * El monto real es la fila TOTAL al final de esa tabla, que suma cada
+ * columna de todos los días. Se ubican las columnas por texto de
+ * encabezado ("Fecha" + ambas de tránsito juntas en la misma fila) en vez
+ * de por letra fija — el resumen del día de corte usa columnas y
+ * etiquetas parecidas y no queremos confundirlo con la tabla real.
  */
 function procesarFilaTransito(row: ExcelJS.Row, ctx: TransitoCtx) {
-  if (ctx.total !== null) return
-  if (ctx.colFecha === null || ctx.colEnTransito === null) {
-    // El resumen del día de corte, más arriba en la hoja, también tiene una
-    // celda que arranca con "En Tránsito" (la etiqueta del concepto) — para
-    // no confundirla con el encabezado real, "Fecha" y "En Tránsito" deben
-    // aparecer juntos en la MISMA fila (el encabezado de la tabla), no
-    // acumularse de filas distintas.
+  if (ctx.totalTdc !== null && ctx.totalAch !== null) return
+  if (ctx.colFecha === null || ctx.colTdc === null || ctx.colAch === null) {
     let colFecha: number | null = null
-    let colEnTransito: number | null = null
+    let colTdc: number | null = null
+    let colAch: number | null = null
     row.eachCell({ includeEmpty: false }, (cell, colNum) => {
       const v = String(extractValue(cell) ?? '').trim().toLowerCase()
       if (v === 'fecha') colFecha = colNum
-      if (v.startsWith('en tr')) colEnTransito = colNum
+      if (esColumnaTransitoTdc(v)) colTdc = colNum
+      if (esColumnaTransitoAch(v)) colAch = colNum
     })
-    if (colFecha !== null && colEnTransito !== null) {
+    if (colFecha !== null && colTdc !== null && colAch !== null) {
       ctx.colFecha = colFecha
-      ctx.colEnTransito = colEnTransito
+      ctx.colTdc = colTdc
+      ctx.colAch = colAch
     }
     return
   }
   const fechaCell = String(extractValue(row.getCell(ctx.colFecha)) ?? '').trim().toLowerCase()
   if (fechaCell === 'total') {
-    ctx.total = toNumber(extractValue(row.getCell(ctx.colEnTransito)))
+    ctx.totalTdc = toNumber(extractValue(row.getCell(ctx.colTdc)))
+    ctx.totalAch = toNumber(extractValue(row.getCell(ctx.colAch)))
   }
 }
 
@@ -569,7 +579,7 @@ async function parseWorkbookStreaming(buffer: Buffer) {
   const anticipos: { label: string; value: number; estado: string }[] = []
   const saldosCtx: SaldosBancoCtx = { bankLabels: {}, conceptLabels: {}, dias: [] }
   const contabilidad: ContabilidadAccum = { totalIncluidoActivo: 0, cxsIncluidoActivo: 0 }
-  const transitoCtx: TransitoCtx = { colFecha: null, colEnTransito: null, total: null }
+  const transitoCtx: TransitoCtx = { colFecha: null, colTdc: null, colAch: null, totalTdc: null, totalAch: null }
 
   let vioShoware = false
   let vioSaldos = false
@@ -612,10 +622,11 @@ async function parseWorkbookStreaming(buffer: Buffer) {
   if (!vioSaldos || !saldosCtx.dias.length) {
     throw new Error('No se encontró ningún día con saldos bancarios completos en "Saldos Banco"')
   }
-  if (!vioTransito || transitoCtx.total === null) {
+  if (!vioTransito || transitoCtx.totalTdc === null || transitoCtx.totalAch === null) {
     throw new Error('No se encontró la fila TOTAL de la tabla "DETALLE POR DÍA" en la hoja "En transito"')
   }
-  const cobrosTransito = transitoCtx.total
+  const transitoTdc = transitoCtx.totalTdc
+  const transitoAch = transitoCtx.totalAch
 
   const total_anticipo = anticipos.reduce((s, a) => s + a.value, 0)
   const costoPorServicio = contabilidad.cxsIncluidoActivo
@@ -623,7 +634,7 @@ async function parseWorkbookStreaming(buffer: Buffer) {
 
   return {
     ventas, canceladas, pendientes, saldosPorDia: saldosCtx.dias, anticipos, total_anticipo,
-    costoPorServicio, eventosPorLiquidar, cobrosTransito,
+    costoPorServicio, eventosPorLiquidar, transitoTdc, transitoAch,
   }
 }
 
@@ -720,7 +731,7 @@ export async function computeFinanzasPanatickets() {
   const buffer = await sanitizeWorkbookBuffer(rawBuffer)
   const t2 = Date.now()
 
-  const { ventas, canceladas, pendientes, saldosPorDia, anticipos, total_anticipo, costoPorServicio, eventosPorLiquidar, cobrosTransito } = await parseWorkbookStreaming(buffer)
+  const { ventas, canceladas, pendientes, saldosPorDia, anticipos, total_anticipo, costoPorServicio, eventosPorLiquidar, transitoTdc, transitoAch } = await parseWorkbookStreaming(buffer)
   const t3 = Date.now()
 
   console.log(
@@ -762,7 +773,8 @@ export async function computeFinanzasPanatickets() {
     GLOBAL_SUMMARY, EXEC_SUMMARY,
     COSTO_POR_SERVICIO: costoPorServicio,
     EVENTOS_POR_LIQUIDAR: eventosPorLiquidar,
-    COBROS_TRANSITO: cobrosTransito,
+    TRANSITO_TDC: transitoTdc,
+    TRANSITO_ACH: transitoAch,
     generatedAt: new Date().toISOString(),
   }
 }
@@ -837,24 +849,25 @@ async function upsertSnapshot(
   globalSummary: { label: string; qty: number; monto: number }[],
   costoPorServicio: number,
   eventosPorLiquidar: number,
-  cobrosTransito: number,
+  transitoTdc: number,
+  transitoAch: number,
   generatedAt: string
 ) {
-  const data = { anticipos, totalAnticipo, globalSummary, costoPorServicio, eventosPorLiquidar, cobrosTransito, generatedAt: new Date(generatedAt) }
+  const data = { anticipos, totalAnticipo, globalSummary, costoPorServicio, eventosPorLiquidar, transitoTdc, transitoAch, generatedAt: new Date(generatedAt) }
   await tx.panaticketsSnapshot.upsert({ where: { id: 1 }, create: { id: 1, ...data }, update: data })
 }
 
 export async function syncFinanzasPanatickets() {
   const {
     DATA, CANCELADAS, SALDOS_POR_DIA, ANTICIPOS, TOTAL_ANTICIPO, GLOBAL_SUMMARY,
-    COSTO_POR_SERVICIO, EVENTOS_POR_LIQUIDAR, COBROS_TRANSITO, generatedAt,
+    COSTO_POR_SERVICIO, EVENTOS_POR_LIQUIDAR, TRANSITO_TDC, TRANSITO_ACH, generatedAt,
   } = await computeFinanzasPanatickets()
 
   await prisma.$transaction(async tx => {
     await replaceVentas(tx, DATA)
     await replaceCanceladas(tx, CANCELADAS)
     await replaceSaldosDia(tx, SALDOS_POR_DIA)
-    await upsertSnapshot(tx, ANTICIPOS, TOTAL_ANTICIPO, GLOBAL_SUMMARY, COSTO_POR_SERVICIO, EVENTOS_POR_LIQUIDAR, COBROS_TRANSITO, generatedAt)
+    await upsertSnapshot(tx, ANTICIPOS, TOTAL_ANTICIPO, GLOBAL_SUMMARY, COSTO_POR_SERVICIO, EVENTOS_POR_LIQUIDAR, TRANSITO_TDC, TRANSITO_ACH, generatedAt)
   }, { timeout: 120_000 })
 
   return { ventasSincronizadas: DATA.length, canceladasSincronizadas: CANCELADAS.length, diasConSaldos: SALDOS_POR_DIA.length, generatedAt }
@@ -887,21 +900,40 @@ export async function getFinanzasPanaticketsRango(desde: string, hasta: string) 
   const anticipos = (snapshot?.anticipos as { label: string; value: number; estado: string }[]) ?? []
   const totalAnticipo = snapshot?.totalAnticipo ?? 0
 
-  // Las 3 líneas de "Capital de trabajo" (Saldo bancario + cobros en
-  // tránsito (+) − eventos por liquidar y otras partidas (−)): se insertan
-  // justo antes de la fila "Capital de Trabajo" que ya trae cada día desde
-  // la hoja Saldos Banco, para que se vean como su desglose.
-  const cobrosTransito = snapshot?.cobrosTransito ?? 0
+  // "Eventos por Liquidar" y "Costo por servicio" (Reporte Showare) se
+  // insertan justo antes de "Capital de Trabajo": la fila nativa que trae
+  // cada día desde Saldos Banco es una versión parcial/incompleta del mismo
+  // concepto, así que se quita esa fila nativa (ver toSaldos) y se deja solo
+  // la calculada, más completa.
+  const transitoTdc = snapshot?.transitoTdc ?? 0
+  const transitoAch = snapshot?.transitoAch ?? 0
   const costoPorServicio = snapshot?.costoPorServicio ?? 0
   const eventosPorLiquidar = snapshot?.eventosPorLiquidar ?? 0
   const conceptosCalculados = [
-    { label: 'Cobros en Tránsito', value: cobrosTransito },
     { label: 'Eventos por Liquidar', value: -eventosPorLiquidar },
     { label: 'Costo por servicio', value: costoPorServicio },
   ]
 
   const toSaldos = (d: (typeof saldosDia)[number]) => {
-    const base = d.conceptos as { label: string; value: number }[]
+    // Las 2 filas nativas de tránsito ("Cobros por Tjta Cdto / Web..." y
+    // "Cobros Efectivo y Tjta Cdto Tiendas...") se quedan en su posición
+    // pero con su valor reemplazado por el total calculado de la hoja "En
+    // transito" (traían valores parciales/vacíos); la segunda además se
+    // renombra a "Tránsito ACH - Efectivo - Taquilla (+)" a pedido del
+    // usuario. Las nativas de "Eventos por Liquidar"/"Costo por servicio"
+    // se descartan del todo — se reemplazan por la versión calculada de
+    // conceptosCalculados, más abajo.
+    const base = (d.conceptos as { label: string; value: number }[])
+      .map(c => {
+        const l = c.label.trim().toLowerCase()
+        if (l.startsWith('cobros por tjta cdto')) return { label: c.label, value: transitoTdc }
+        if (l.startsWith('cobros efectivo')) return { label: 'Tránsito ACH - Efectivo - Taquilla (+)', value: transitoAch }
+        return c
+      })
+      .filter(c => {
+        const l = c.label.trim().toLowerCase()
+        return !l.startsWith('eventos por liquidar') && !l.startsWith('costo por servicio')
+      })
     const capitalIdx = base.findIndex(c => c.label.trim().toLowerCase().startsWith('capital de trab'))
     const conceptos = capitalIdx >= 0
       ? [...base.slice(0, capitalIdx), ...conceptosCalculados, ...base.slice(capitalIdx)]
