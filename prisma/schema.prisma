@@ -648,7 +648,8 @@ model PanaticketsSnapshot {
   globalSummary      Json
   costoPorServicio   Float    @default(0) // Hoja Reporte Showare: SUM(CXS) donde Filtro Showare="incluir" y Evento Activo="Activo"
   eventosPorLiquidar Float    @default(0) // misma selección: SUM(Total) - SUM(CXS)
-  cobrosTransito     Float    @default(0) // Hoja "En transito", fila TOTAL de la tabla "DETALLE POR DÍA", columna "En Tránsito"
+  transitoTdc        Float    @default(0) // Hoja "En transito", fila TOTAL de la tabla "DETALLE POR DÍA", columna "Tránsito TDC/Otros"
+  transitoAch        Float    @default(0) // Hoja "En transito", fila TOTAL de la tabla "DETALLE POR DÍA", columna "Tránsito ACH/Efec/Taq"
   generatedAt        DateTime
 
   @@map("panatickets_snapshot")
