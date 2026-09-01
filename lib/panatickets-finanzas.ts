@@ -114,12 +114,21 @@ async function sanitizeWorkbookBuffer(buffer: Buffer): Promise<Buffer> {
   // para filtros de columna agrupados por fecha, y revienta el parseo
   // completo si alguien deja uno activo al guardar. No necesitamos el
   // estado del filtro (leemos las celdas crudas), así que se descarta.
+  //
+  // "Reporte Showare" solo crece (nunca se depura) y es, con mucho, la hoja
+  // más grande del libro — cargarla entera como string de JS para el
+  // reemplazo puede acercarse al límite de longitud de string del motor
+  // (~1GB de caracteres). Se registra el tamaño de cada hoja antes del
+  // reemplazo para poder diagnosticar un "Invalid string length" sin tener
+  // que adivinar cuál creció demasiado.
   const autoFilterRe = /<autoFilter\b[^>]*\/>|<autoFilter\b[^>]*>[\s\S]*?<\/autoFilter>/g
   const filesConAutoFilter = Object.keys(zip.files).filter(
     n => /^xl\/tables\/table\d+\.xml$/.test(n) || /^xl\/worksheets\/sheet\d+\.xml$/.test(n)
   )
   for (const name of filesConAutoFilter) {
-    const content = (await zip.file(name)!.async('string')).replace(autoFilterRe, '')
+    const raw = await zip.file(name)!.async('string')
+    console.log(`[finanzas-panatickets] sanear ${name}: ${raw.length} caracteres`)
+    const content = raw.replace(autoFilterRe, '')
     zip.file(name, content)
   }
 

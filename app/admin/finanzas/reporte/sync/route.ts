@@ -29,6 +29,10 @@ export async function POST() {
     const resultado = await syncFinanzasPanatickets()
     return NextResponse.json({ ok: true, ...resultado })
   } catch (e) {
+    // Sin este log, un fallo acá no deja NINGÚN rastro en Vercel — la ruta
+    // ya atrapa el error y responde 500 con el mensaje, pero eso solo llega
+    // al navegador; los logs de la función quedan vacíos.
+    console.error('[finanzas-panatickets] Error en sync:', e)
     const msg = e instanceof Error ? e.message : String(e)
     return NextResponse.json({ error: msg }, { status: 500 })
   }

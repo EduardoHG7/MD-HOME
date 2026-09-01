@@ -15,6 +15,12 @@ export async function GET(req: Request) {
   }
 
   const start = Date.now()
-  const resultado = await syncFinanzasPanatickets()
-  return NextResponse.json({ ok: true, ms: Date.now() - start, ...resultado })
+  try {
+    const resultado = await syncFinanzasPanatickets()
+    return NextResponse.json({ ok: true, ms: Date.now() - start, ...resultado })
+  } catch (e) {
+    console.error('[finanzas-panatickets] Error en cron:', e)
+    const msg = e instanceof Error ? e.message : String(e)
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
 }
