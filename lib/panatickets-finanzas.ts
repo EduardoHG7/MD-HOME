@@ -17,6 +17,49 @@ import { prisma } from './prisma'
  */
 const SHEETS_NECESARIAS = new Set(['Reporte Showare', 'Saldos Banco', 'Estatus evento', 'En transito'])
 
+/**
+ * Quita los nodos <autoFilter> de un XML de hoja/tabla operando SIEMPRE
+ * sobre Buffer, nunca convirtiendo el archivo entero a string de JS.
+ * "Reporte Showare" solo crece (nunca se depura) y ya es tan grande que
+ * `.async('string')` + `.replace()` (la versión anterior) hacía que jszip
+ * intentara construir una string de cientos de millones de caracteres para
+ * convertir el buffer decodificado — `Array.prototype.join` de la propia
+ * jszip reventaba con "RangeError: Invalid string length" bastante antes
+ * de llegar al límite real de memoria disponible. Un Buffer no tiene ese
+ * techo (~1GB de caracteres para un string), así que se buscan/cortan los
+ * tags directamente en bytes (todos los delimitadores son ASCII de 1 byte,
+ * así que es seguro hacerlo sin decodificar el UTF-8 del resto del XML).
+ */
+function quitarAutoFilterBuffer(buf: Buffer): Buffer {
+  const openTag = Buffer.from('<autoFilter')
+  const closeTag = Buffer.from('</autoFilter>')
+  const partes: Buffer[] = []
+  let cursor = 0
+  for (;;) {
+    const start = buf.indexOf(openTag, cursor)
+    if (start === -1) {
+      partes.push(buf.subarray(cursor))
+      break
+    }
+    partes.push(buf.subarray(cursor, start))
+    const gt = buf.indexOf(0x3e /* '>' */, start) // fin de la etiqueta de apertura
+    if (gt === -1) {
+      // XML truncado/malformado a partir de acá — no debería pasar nunca,
+      // pero mejor conservar el resto tal cual que perder datos.
+      partes.push(buf.subarray(start))
+      break
+    }
+    const esAutocerrada = buf[gt - 1] === 0x2f /* '/' justo antes de '>' */
+    if (esAutocerrada) {
+      cursor = gt + 1
+    } else {
+      const closeIdx = buf.indexOf(closeTag, gt)
+      cursor = closeIdx === -1 ? buf.length : closeIdx + closeTag.length
+    }
+  }
+  return Buffer.concat(partes)
+}
+
 async function sanitizeWorkbookBuffer(buffer: Buffer): Promise<Buffer> {
   const zip = await JSZip.loadAsync(buffer)
   const relsPath = 'xl/_rels/workbook.xml.rels'
@@ -116,20 +159,17 @@ async function sanitizeWorkbookBuffer(buffer: Buffer): Promise<Buffer> {
   // estado del filtro (leemos las celdas crudas), así que se descarta.
   //
   // "Reporte Showare" solo crece (nunca se depura) y es, con mucho, la hoja
-  // más grande del libro — cargarla entera como string de JS para el
-  // reemplazo puede acercarse al límite de longitud de string del motor
-  // (~1GB de caracteres). Se registra el tamaño de cada hoja antes del
-  // reemplazo para poder diagnosticar un "Invalid string length" sin tener
-  // que adivinar cuál creció demasiado.
-  const autoFilterRe = /<autoFilter\b[^>]*\/>|<autoFilter\b[^>]*>[\s\S]*?<\/autoFilter>/g
+  // más grande del libro. Se opera en Buffer (ver quitarAutoFilterBuffer)
+  // en vez de cargarla como string de JS — confirmado en producción que ya
+  // es lo bastante grande como para que jszip reviente con "Invalid string
+  // length" al construir esa string internamente.
   const filesConAutoFilter = Object.keys(zip.files).filter(
     n => /^xl\/tables\/table\d+\.xml$/.test(n) || /^xl\/worksheets\/sheet\d+\.xml$/.test(n)
   )
   for (const name of filesConAutoFilter) {
-    const raw = await zip.file(name)!.async('string')
-    console.log(`[finanzas-panatickets] sanear ${name}: ${raw.length} caracteres`)
-    const content = raw.replace(autoFilterRe, '')
-    zip.file(name, content)
+    const raw = await zip.file(name)!.async('nodebuffer')
+    console.log(`[finanzas-panatickets] sanear ${name}: ${raw.length} bytes`)
+    zip.file(name, quitarAutoFilterBuffer(raw))
   }
 
   // Nivel de compresión bajo: exceljs vuelve a descomprimir este buffer
