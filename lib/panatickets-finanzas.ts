@@ -435,9 +435,12 @@ interface SaldoDia {
   conceptos: { label: string; value: number }[]
 }
 
-const BANK_COLS = [4, 5, 6, 7, 8, 9, 10, 11, 12]
-const CONTABLE_COLS = [24, 25, 26, 27, 28, 29, 30, 31, 32]
-const CONCEPT_COLS = [14, 15, 16, 17, 18, 19, 20, 21, 22]
+// D..M = 10 bancos (se agregó "AV Securities" en M, columna 13, corriendo
+// Subtotal Bancos/conceptos/Capital de Trabajo un lugar a la derecha cada
+// uno, y sumando una décima columna al bloque contable al final, Y..AH).
+const BANK_COLS = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+const CONTABLE_COLS = [25, 26, 27, 28, 29, 30, 31, 32, 33, 34]
+const CONCEPT_COLS = [15, 16, 17, 18, 19, 20, 21, 22, 23]
 
 interface SaldosBancoCtx {
   bankLabels: Record<number, string>
@@ -480,10 +483,10 @@ function procesarFilaSaldos(row: ExcelJS.Row, rowNum: number, ctx: SaldosBancoCt
     const contable = get(CONTABLE_COLS[i])
     return { label: ctx.bankLabels[c], value, contable, diferencia: value - contable }
   })
-  const subtotal_bancos = get(13)
+  const subtotal_bancos = get(14)
   const subtotal_contable = bancos.reduce((s, b) => s + b.contable, 0)
   const conceptos = CONCEPT_COLS.map(c => ({ label: ctx.conceptLabels[c], value: get(c) }))
-  const capitalTrabajo = get(23)
+  const capitalTrabajo = get(24)
 
   ctx.dias.push({
     fecha: fechaIso,
