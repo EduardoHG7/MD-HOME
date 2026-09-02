@@ -20,44 +20,58 @@ const SHEETS_NECESARIAS = new Set(['Reporte Showare', 'Saldos Banco', 'Estatus e
 /**
  * Quita los nodos <autoFilter> de un XML de hoja/tabla operando SIEMPRE
  * sobre Buffer, nunca convirtiendo el archivo entero a string de JS.
- * "Reporte Showare" solo crece (nunca se depura) y ya es tan grande que
- * `.async('string')` + `.replace()` (la versión anterior) hacía que jszip
- * intentara construir una string de cientos de millones de caracteres para
- * convertir el buffer decodificado — `Array.prototype.join` de la propia
- * jszip reventaba con "RangeError: Invalid string length" bastante antes
- * de llegar al límite real de memoria disponible. Un Buffer no tiene ese
- * techo (~1GB de caracteres para un string), así que se buscan/cortan los
- * tags directamente en bytes (todos los delimitadores son ASCII de 1 byte,
- * así que es seguro hacerlo sin decodificar el UTF-8 del resto del XML).
+ * "Reporte Showare" solo crece (nunca se depura) y su XML descomprimido ya
+ * pesa cientos de MB (confirmado en producción: 661MB). `.async('string')`
+ * + `.replace()` (la primera versión) hacía que jszip intentara construir
+ * una string de cientos de millones de caracteres para convertir el buffer
+ * decodificado — `Array.prototype.join` de la propia jszip reventaba con
+ * "RangeError: Invalid string length" bastante antes de llegar al límite
+ * real de memoria disponible.
+ *
+ * Una primera versión en Buffer arregló eso, pero seguía construyendo un
+ * SEGUNDO buffer del mismo tamaño (`Buffer.concat`) — con la hoja pesando
+ * 661MB, tener las dos copias vivas a la vez (~1.3GB solo para esto, sin
+ * contar lo que jszip ya tiene reservado para descomprimir/recomprimir)
+ * hacía que la función completa se quedara sin memoria. Como quitar el
+ * AutoFilter solo ACORTA el contenido (nunca lo alarga), se puede hacer
+ * 100% en el lugar: se corren los bytes que sí quedan hacia atrás dentro
+ * del MISMO buffer (`copyWithin`, soporta rangos superpuestos) y al final
+ * se devuelve una vista (`subarray`) más corta del mismo buffer original —
+ * cero copias nuevas del tamaño de la hoja completa.
  */
 function quitarAutoFilterBuffer(buf: Buffer): Buffer {
   const openTag = Buffer.from('<autoFilter')
   const closeTag = Buffer.from('</autoFilter>')
-  const partes: Buffer[] = []
-  let cursor = 0
+  let writeOffset = 0
+  let readOffset = 0
   for (;;) {
-    const start = buf.indexOf(openTag, cursor)
+    const start = buf.indexOf(openTag, readOffset)
     if (start === -1) {
-      partes.push(buf.subarray(cursor))
+      buf.copyWithin(writeOffset, readOffset, buf.length)
+      writeOffset += buf.length - readOffset
       break
     }
-    partes.push(buf.subarray(cursor, start))
+    if (start > readOffset) {
+      buf.copyWithin(writeOffset, readOffset, start)
+      writeOffset += start - readOffset
+    }
     const gt = buf.indexOf(0x3e /* '>' */, start) // fin de la etiqueta de apertura
     if (gt === -1) {
       // XML truncado/malformado a partir de acá — no debería pasar nunca,
       // pero mejor conservar el resto tal cual que perder datos.
-      partes.push(buf.subarray(start))
+      buf.copyWithin(writeOffset, start, buf.length)
+      writeOffset += buf.length - start
       break
     }
     const esAutocerrada = buf[gt - 1] === 0x2f /* '/' justo antes de '>' */
     if (esAutocerrada) {
-      cursor = gt + 1
+      readOffset = gt + 1
     } else {
       const closeIdx = buf.indexOf(closeTag, gt)
-      cursor = closeIdx === -1 ? buf.length : closeIdx + closeTag.length
+      readOffset = closeIdx === -1 ? buf.length : closeIdx + closeTag.length
     }
   }
-  return Buffer.concat(partes)
+  return buf.subarray(0, writeOffset)
 }
 
 function logMemoria(etiqueta: string) {
