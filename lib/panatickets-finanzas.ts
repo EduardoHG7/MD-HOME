@@ -198,6 +198,34 @@ async function sanitizeWorkbookBuffer(buffer: Buffer): Promise<Buffer> {
     logMemoria(`tras sanear ${name}`)
   }
 
+  // El WorkbookReader de exceljs procesa las entradas del .xlsx en el orden
+  // en que aparecen dentro del zip. Si una hoja aparece ANTES que
+  // xl/sharedStrings.xml, exceljs no puede parsearla al vuelo (no tiene
+  // todavía la tabla de textos compartidos) y usa un modo de respaldo:
+  // escribe la hoja entera a un archivo temporal en /tmp (fs.createWriteStream,
+  // ver workbook-reader.js) para procesarla después. Con "Reporte Showare"
+  // pesando 661MB eso agota el espacio disponible en /tmp y revienta con
+  // "ENOSPC: no space left on device" — confirmado en producción, la
+  // sincronización llegó hasta el inicio del parseo antes de morir así.
+  // Reordenando las entradas del zip (sharedStrings.xml y el resto de
+  // metadata chica primero, hojas después) exceljs puede parsear todo en
+  // streaming real y nunca necesita ese modo de respaldo. `zip.files` es un
+  // objeto plano — JSZip enumera sus propiedades con `for...in` al generar,
+  // así que reordenar sus claves (sin tocar ningún contenido) alcanza.
+  const PRIORIDAD_ZIP = ['[Content_Types].xml', '_rels/.rels', wbPath, relsPath, 'xl/sharedStrings.xml', 'xl/styles.xml']
+  const ordenados: typeof zip.files = {}
+  for (const key of PRIORIDAD_ZIP) {
+    if (zip.files[key]) {
+      ordenados[key] = zip.files[key]
+      delete zip.files[key]
+    }
+  }
+  for (const key of Object.keys(zip.files)) {
+    ordenados[key] = zip.files[key]
+    delete zip.files[key]
+  }
+  Object.assign(zip.files, ordenados)
+
   // Nivel de compresión bajo: exceljs vuelve a descomprimir este buffer
   // de inmediato, así que comprimir fuerte (nivel por defecto) solo hace
   // más lento todo el proceso sin ningún beneficio (nunca se guarda ni se
