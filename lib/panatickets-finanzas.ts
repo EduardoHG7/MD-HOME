@@ -60,7 +60,14 @@ function quitarAutoFilterBuffer(buf: Buffer): Buffer {
   return Buffer.concat(partes)
 }
 
+function logMemoria(etiqueta: string) {
+  const m = process.memoryUsage()
+  const mb = (n: number) => Math.round(n / 1024 / 1024)
+  console.log(`[finanzas-panatickets] memoria @ ${etiqueta}: rss=${mb(m.rss)}MB heapUsed=${mb(m.heapUsed)}MB external=${mb(m.external)}MB arrayBuffers=${mb(m.arrayBuffers)}MB`)
+}
+
 async function sanitizeWorkbookBuffer(buffer: Buffer): Promise<Buffer> {
+  logMemoria('inicio sanitize')
   const zip = await JSZip.loadAsync(buffer)
   const relsPath = 'xl/_rels/workbook.xml.rels'
   const wbPath = 'xl/workbook.xml'
@@ -105,6 +112,9 @@ async function sanitizeWorkbookBuffer(buffer: Buffer): Promise<Buffer> {
     ct = ct.replace(new RegExp(`<Override PartName="${esc}"[^>]*/>`, 'g'), '')
   }
   zip.file(ctPath, ct)
+
+  console.log(`[finanzas-panatickets] hojas encontradas en workbook.xml: ${sheetEls.length}, a quitar: ${hojasAQuitar.length} (${hojasAQuitar.join(', ') || 'ninguna'})`)
+  logMemoria('tras quitar hojas no usadas')
 
   // calcChain.xml referencia celdas por hoja — puede quedar con referencias
   // colgantes a hojas que ya no existen, más fácil quitarlo entero (solo es
@@ -166,10 +176,12 @@ async function sanitizeWorkbookBuffer(buffer: Buffer): Promise<Buffer> {
   const filesConAutoFilter = Object.keys(zip.files).filter(
     n => /^xl\/tables\/table\d+\.xml$/.test(n) || /^xl\/worksheets\/sheet\d+\.xml$/.test(n)
   )
+  console.log(`[finanzas-panatickets] archivos a sanear de autoFilter: ${filesConAutoFilter.length} (${filesConAutoFilter.join(', ')})`)
   for (const name of filesConAutoFilter) {
     const raw = await zip.file(name)!.async('nodebuffer')
     console.log(`[finanzas-panatickets] sanear ${name}: ${raw.length} bytes`)
     zip.file(name, quitarAutoFilterBuffer(raw))
+    logMemoria(`tras sanear ${name}`)
   }
 
   // Nivel de compresión bajo: exceljs vuelve a descomprimir este buffer
@@ -177,7 +189,11 @@ async function sanitizeWorkbookBuffer(buffer: Buffer): Promise<Buffer> {
   // más lento todo el proceso sin ningún beneficio (nunca se guarda ni se
   // transmite). STORE (sin comprimir) se probó y sale peor: el buffer sin
   // comprimir queda ~10x más grande y exceljs tarda más en leerlo.
-  return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE', compressionOptions: { level: 1 } })
+  logMemoria('antes de generateAsync')
+  const resultado = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE', compressionOptions: { level: 1 } })
+  console.log(`[finanzas-panatickets] buffer saneado final: ${resultado.length} bytes`)
+  logMemoria('después de generateAsync')
+  return resultado
 }
 
 // ---------- Columnas de "Reporte Showare" (fila 6 = encabezados, datos desde fila 7) ----------
@@ -625,6 +641,7 @@ const SHEET_TRANSITO = 'En transito'
  * a Date silenciosamente.
  */
 async function parseWorkbookStreaming(buffer: Buffer) {
+  logMemoria('inicio parseWorkbookStreaming')
   const ventas: VentaRow[] = []
   const canceladas: CanceladaRow[] = []
   const pendientes = new Map<string, { qty: number; monto: number }>()
@@ -650,9 +667,12 @@ async function parseWorkbookStreaming(buffer: Buffer) {
     const worksheetReader = worksheetReaderRaw as ExcelJS.stream.xlsx.WorksheetReader & { name: string }
     if (worksheetReader.name === SHEET_SHOWARE) {
       vioShoware = true
+      logMemoria(`inicio hoja ${SHEET_SHOWARE}`)
       for await (const row of worksheetReader) {
         procesarFilaShoware(row, row.number, ventas, canceladas, pendientes, contabilidad)
+        if (row.number % 20000 === 0) logMemoria(`${SHEET_SHOWARE} fila ${row.number}`)
       }
+      logMemoria(`fin hoja ${SHEET_SHOWARE} (${ventas.length} ventas, ${canceladas.length} canceladas)`)
     } else if (worksheetReader.name === SHEET_SALDOS) {
       vioSaldos = true
       for await (const row of worksheetReader) {
@@ -684,6 +704,7 @@ async function parseWorkbookStreaming(buffer: Buffer) {
   const costoPorServicio = contabilidad.cxsIncluidoActivo
   const eventosPorLiquidar = contabilidad.totalIncluidoActivo - contabilidad.cxsIncluidoActivo
 
+  logMemoria('fin parseWorkbookStreaming')
   return {
     ventas, canceladas, pendientes, saldosPorDia: saldosCtx.dias, anticipos, total_anticipo,
     costoPorServicio, eventosPorLiquidar, transitoTdc, transitoAch,
@@ -780,6 +801,8 @@ export async function computeFinanzasPanatickets() {
   const t0 = Date.now()
   const rawBuffer = await downloadPanaticketsFinanzasExcel()
   const t1 = Date.now()
+  console.log(`[finanzas-panatickets] descargado: ${rawBuffer.length} bytes`)
+  logMemoria('tras descarga')
   const buffer = await sanitizeWorkbookBuffer(rawBuffer)
   const t2 = Date.now()
 
