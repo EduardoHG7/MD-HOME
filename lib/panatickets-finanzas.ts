@@ -575,8 +575,15 @@ function procesarFilaSaldos(row: ExcelJS.Row, rowNum: number, ctx: SaldosBancoCt
   }
   if (rowNum < 7) return
 
-  const allBanksFilled = BANK_COLS.every(c => toNumber(extractValue(row.getCell(c))) !== null)
-  if (!allBanksFilled) return
+  // Un banco recién agregado (ej. "AV Securities") puede no tener montos
+  // cargados todavía para ningún día histórico — exigir que TODOS los
+  // bancos estén llenos dejaría el reporte completo vacío mientras eso
+  // pase (ver get() más abajo: ya trata "-"/vacío como $0 para el valor).
+  // Se tolera que como mucho 1 banco esté sin llenar, sin dejar de filtrar
+  // filas realmente vacías (plantilla de días futuros, donde faltan casi
+  // todos los bancos, no solo uno).
+  const bancosLlenos = BANK_COLS.filter(c => toNumber(extractValue(row.getCell(c))) !== null).length
+  if (bancosLlenos < BANK_COLS.length - 1) return
 
   const fechaRaw = extractValue(row.getCell(2))
   const fechaStr = typeof fechaRaw === 'string' ? fechaRaw : String(fechaRaw ?? '')
