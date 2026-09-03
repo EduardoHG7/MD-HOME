@@ -61,7 +61,7 @@ export default function SeleccionarEmpresaPage() {
     // Full page reload to clear all cached data from previous tenant
     const role = tenant.role
     const esPana = tenant.slug === 'panatickets' &&
-      esOperadorPanatickets(session?.user?.email, session?.user?.role)
+      esOperadorPanatickets(session?.user?.availableTenants, session?.user?.role)
     const dest = (role === 'ADMIN' || session?.user.isSuperAdmin || esPana)
       ? '/admin'
       : role === 'CONTABILIDAD'

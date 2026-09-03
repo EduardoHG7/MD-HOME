@@ -11,7 +11,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (!session) redirect('/login')
 
   // Operador Panatickets (usuario @panatickets.com): visual de admin acotada a Eventos
-  const soloEventos = esOperadorPanatickets(session.user.email, session.user.role)
+  const soloEventos = esOperadorPanatickets(session.user.availableTenants, session.user.role)
   // Usuario sin rol admin al que se le concedió ver Finanzas: entra acotado a esa sección
   // (el acotamiento real de qué rutas puede visitar vive en middleware.ts)
   if (session.user.role !== 'ADMIN' && !soloEventos && !puedeVerFinanzas(session.user)) {

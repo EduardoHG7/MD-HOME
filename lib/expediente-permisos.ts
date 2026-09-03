@@ -3,9 +3,9 @@ import { esOperadorPanatickets } from '@/lib/permisos'
 
 // ¿Puede este usuario gestionar el expediente (documentos, logística) de este evento?
 // Admin, el responsable de documentación, o —en eventos Panatickets— el operador
-// @panatickets.com o cualquier miembro de la empresa Panatickets.
+// de Panatickets o cualquier miembro de la empresa Panatickets.
 export async function puedeGestionarExpediente(
-  eventoId: string, userId: string, role: string, email?: string | null,
+  eventoId: string, userId: string, role: string, availableTenants?: { slug: string }[] | null,
 ): Promise<boolean> {
   if (role === 'ADMIN') return true
   const evento = await prisma.evento.findUnique({
@@ -20,7 +20,7 @@ export async function puedeGestionarExpediente(
 
   const pana = evento.tenants.find(t => t.tenant.slug === 'panatickets')
   if (!pana) return false
-  if (esOperadorPanatickets(email, role)) return true
+  if (esOperadorPanatickets(availableTenants, role)) return true
   const pertenece = await prisma.userTenant.findUnique({
     where: { userId_tenantId: { userId, tenantId: pana.tenant.id } },
   })

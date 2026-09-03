@@ -261,7 +261,7 @@ export default function EventosPage() {
   const router = useRouter()
   const { data: session } = useSession()
   const { activeTenant } = useTenant()
-  const esPana = esOperadorPanatickets(session?.user?.email, session?.user?.role)
+  const esPana = esOperadorPanatickets(session?.user?.availableTenants, session?.user?.role)
   const tenantsDisponibles: TenantOption[] = (session?.user?.availableTenants ?? []).map(t => ({ id: t.id, nombre: t.nombre }))
   const [eventos,  setEventos]  = useState<Evento[]>([])
   const [venues,   setVenues]   = useState<Venue[]>([])

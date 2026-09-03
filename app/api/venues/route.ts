@@ -31,7 +31,7 @@ export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
   // Admin o el operador Panatickets (que necesita agregar sus venues)
   const permitido = session && (session.user.role === 'ADMIN' ||
-    esOperadorPanatickets(session.user.email, session.user.role))
+    esOperadorPanatickets(session.user.availableTenants, session.user.role))
   if (!permitido) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }

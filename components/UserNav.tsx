@@ -32,7 +32,7 @@ const NAV_OPERADOR = [
 export function UserNav({ session }: { session: Session }) {
   const pathname = usePathname()
   const { activeTenant } = useTenant()
-  const baseNavItems = esOperadorPanatickets(session.user?.email, session.user?.role)
+  const baseNavItems = esOperadorPanatickets(session.user?.availableTenants, session.user?.role)
     ? NAV_OPERADOR : NAV_ITEMS
   const navItems = activeTenant?.slug === 'printmediapty'
     ? [...baseNavItems, ...NAV_PRINTMEDIA]

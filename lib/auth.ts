@@ -3,7 +3,7 @@ import AzureADProvider from 'next-auth/providers/azure-ad'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import { compare } from 'bcryptjs'
 import { prisma } from './prisma'
-import { esOperadorPanatickets } from './permisos'
+import { emailDominioPanatickets } from './permisos'
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -102,11 +102,13 @@ export const authOptions: NextAuthOptions = {
               .filter(ut => ut.tenant.activo)
               .map(ut => ({ id: ut.tenant.id, slug: ut.tenant.slug, nombre: ut.tenant.nombre, logo: ut.tenant.logo, role: ut.role }))
 
-            // Operador Panatickets (@panatickets.com sin ser admin): garantizar la
-            // empresa Panatickets en su contexto aunque no esté asignado como miembro,
-            // para que la UI y el filtro de datos queden acotados a Panatickets.
-            if (esOperadorPanatickets(token.email as string, dbUser.role) &&
-                !activeTenants.some(t => t.slug === 'panatickets')) {
+            // Personal eventual de Panatickets identificado por dominio de correo,
+            // SIN asignación explícita a ninguna empresa: se le da acceso por
+            // defecto a Panatickets. Si ya tiene una empresa asignada (p. ej.
+            // Print Media, que comparte el mismo dominio de correo corporativo),
+            // se respeta esa asignación y no se le mezcla Panatickets.
+            if (dbUser.role !== 'ADMIN' && activeTenants.length === 0 &&
+                emailDominioPanatickets(token.email as string)) {
               const pana = await prisma.tenant.findFirst({ where: { slug: 'panatickets', activo: true } })
               if (pana) activeTenants.unshift({ id: pana.id, slug: pana.slug, nombre: pana.nombre, logo: pana.logo, role: 'USER' })
             }
