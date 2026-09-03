@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useTenant } from '@/hooks/useTenant'
+import { EnlaceRegistroPublico } from '@/components/EnlaceRegistroPublico'
 
 interface Cliente {
   id: string
@@ -202,6 +203,8 @@ export default function UsuarioClientesPage() {
           {showForm ? 'Cancelar' : '+ Nuevo Cliente'}
         </button>
       </div>
+
+      <EnlaceRegistroPublico ruta="/registro/clientes" etiqueta="tus clientes" />
 
       {showForm && <CreateForm onCreated={handleCreated} />}
 
