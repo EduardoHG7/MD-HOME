@@ -11,6 +11,8 @@ const PUBLIC_PATHS = [
   '/api/asistencia',
   '/api/upload/foto', // registro público de aplicantes: sube fotos antes de tener sesión
   '/api/empresas-publicas', // registro público: lista de empresas para elegir, sin datos sensibles
+  '/registro', // registro público de clientes/proveedores (Print Media PTY): solo deja datos, no crea usuario
+  '/api/registro', // POST público que recibe esos formularios de clientes/proveedores
   '/api/cron', // llamado por Vercel Cron (server-to-server) — se autoriza con CRON_SECRET, no con sesión
   '/_next',
   '/favicon',

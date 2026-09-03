@@ -23,6 +23,8 @@ model Tenant {
   tarifas        Tarifa[]
   patrocinadores Patrocinador[]
   eventosAsignados EventoTenant[]
+  clientes       Cliente[]
+  proveedores    Proveedor[]
 
   @@map("tenants")
 }
@@ -376,6 +378,55 @@ model Patrocinador {
   patrocinios Patrocinio[]
 
   @@map("patrocinadores")
+}
+
+// Registro de clientes y proveedores de Print Media PTY (tenant "printmediapty")
+// — no aplica a las demás empresas.
+model Cliente {
+  id                        String   @id @default(cuid())
+  tenantId                  String?
+  nombreEmpresa             String
+  rucDv                     String
+  nombreRepresentanteLegal  String
+  nombreContacto            String
+  telefono                  String
+  correo                    String
+  direccion                 String
+  avisoOperacionesPath      String?
+  avisoOperacionesNombre    String?
+  cedulaRepPath             String?
+  cedulaRepNombre           String?
+  activo                    Boolean  @default(true)
+  createdAt                 DateTime @default(now())
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+
+  @@map("clientes")
+}
+
+model Proveedor {
+  id                        String   @id @default(cuid())
+  tenantId                  String?
+  nombreEmpresa             String
+  rucDv                     String
+  nombreRepresentanteLegal  String
+  nombreContacto            String
+  telefono                  String
+  correo                    String
+  direccion                 String
+  avisoOperacionesPath      String?
+  avisoOperacionesNombre    String?
+  cedulaRepPath             String?
+  cedulaRepNombre           String?
+  nombreBanco               String
+  tipoCuenta                String
+  numeroCuenta              String
+  activo                    Boolean  @default(true)
+  createdAt                 DateTime @default(now())
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+
+  @@map("proveedores")
 }
 
 model Patrocinio {

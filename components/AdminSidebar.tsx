@@ -10,6 +10,10 @@ import { useTenant } from '@/hooks/useTenant'
 import { puedeVerFinanzas } from '@/lib/permisos'
 
 const FINANZAS_ITEM = { href: '/admin/finanzas', label: 'Finanzas', icon: '📊' }
+const PRINTMEDIA_NAV_ITEMS = [
+  { href: '/admin/clientes',    label: 'Clientes',    icon: '🧑‍💼' },
+  { href: '/admin/proveedores', label: 'Proveedores', icon: '🚚' },
+]
 
 const ADMIN_NAV = [
   { href: '/admin',                label: 'Dashboard',       icon: '◉' },
@@ -50,9 +54,14 @@ export function AdminSidebar({ session, role, soloEventos }: { session: Session;
   const { activeTenant } = useTenant()
 
   // Agrega Finanzas al final si el usuario tiene acceso concedido
-  const navConAcceso = puedeVerFinanzas(session.user)
+  const navConFinanzas = puedeVerFinanzas(session.user)
     ? [...baseNav, FINANZAS_ITEM]
     : baseNav
+
+  // Clientes/Proveedores: exclusivo de Print Media PTY
+  const navConAcceso = !soloEventos && !soloFinanzas && activeTenant?.slug === 'printmediapty'
+    ? [...navConFinanzas, ...PRINTMEDIA_NAV_ITEMS]
+    : navConFinanzas
 
   // Append Empresas link for super-admins (nunca para operadores acotados)
   const NAV_ITEMS = session.user.isSuperAdmin && !soloEventos
