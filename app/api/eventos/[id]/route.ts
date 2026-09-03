@@ -28,7 +28,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const esAdmin = session.user.role === 'ADMIN'
-  const esOperador = esOperadorPanatickets(session.user.email, session.user.role)
+  const esOperador = esOperadorPanatickets(session.user.availableTenants, session.user.role)
   if (!esAdmin && !esOperador) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }

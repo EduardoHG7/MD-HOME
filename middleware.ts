@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
+import { esOperadorPanatickets } from './lib/permisos'
 
 const PUBLIC_PATHS = [
   '/login',
@@ -56,16 +57,16 @@ export async function middleware(req: NextRequest) {
   }
 
   // App routes: if no active tenant and user has tenants, redirect to selector
-  const availableTenants = (token.availableTenants as { id: string }[] | undefined) ?? []
+  const availableTenants = (token.availableTenants as { id: string; slug: string }[] | undefined) ?? []
   if (!activeTenantId && availableTenants.length > 0) {
     return NextResponse.redirect(new URL('/seleccionar-empresa', req.url))
   }
 
-  // Operador Panatickets (usuario @panatickets.com): dentro de /admin solo puede
-  // ver el Dashboard (raíz), Eventos y Venues; cualquier otra ruta admin lo
-  // manda al dashboard.
-  const email = ((token.email as string | undefined) ?? '').toLowerCase()
-  const esPana = token.role !== 'ADMIN' && email.endsWith('@panatickets.com')
+  // Operador Panatickets: personal eventual sin asignación explícita a
+  // ninguna empresa, acotado por defecto a Panatickets. Dentro de /admin
+  // solo puede ver el Dashboard (raíz), Eventos y Venues; cualquier otra
+  // ruta admin lo manda al dashboard.
+  const esPana = esOperadorPanatickets(availableTenants, token.role as string)
   const rutaOperadorOk = pathname === '/admin' ||
     pathname.startsWith('/admin/eventos') || pathname.startsWith('/admin/venues')
   if (esPana && pathname.startsWith('/admin') && !rutaOperadorOk) {

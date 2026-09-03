@@ -12,7 +12,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (status === 'authenticated') {
-      const dest = session?.user?.role === 'ADMIN' || esOperadorPanatickets(session?.user?.email, session?.user?.role)
+      const dest = session?.user?.role === 'ADMIN' || esOperadorPanatickets(session?.user?.availableTenants, session?.user?.role)
         ? '/admin'
         : '/usuario/solicitar'
       router.push(dest)

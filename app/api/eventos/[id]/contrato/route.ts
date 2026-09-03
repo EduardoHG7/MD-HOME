@@ -121,7 +121,7 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
   if (contrato.estado === 'FIRMADO' && !esAdmin) {
     return NextResponse.json({ error: 'Solo el administrador puede eliminar un contrato ya firmado' }, { status: 403 })
   }
-  if (!esAdmin && !(await puedeGestionarExpediente(params.id, session.user.id, session.user.role, session.user.email))) {
+  if (!esAdmin && !(await puedeGestionarExpediente(params.id, session.user.id, session.user.role, session.user.availableTenants))) {
     return NextResponse.json({ error: 'Sin permiso' }, { status: 403 })
   }
 

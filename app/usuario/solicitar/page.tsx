@@ -81,7 +81,7 @@ function agruparPorDia(registros: Registro[]) {
 
 export default function SolicitarPage() {
   const { data: session } = useSession()
-  const esPana = esOperadorPanatickets(session?.user?.email, session?.user?.role)
+  const esPana = esOperadorPanatickets(session?.user?.availableTenants, session?.user?.role)
   const [mainTab, setMainTab] = useState<'personal' | 'caja_menuda'>('personal')
 
   const [eventos,     setEventos]     = useState<Evento[]>([])

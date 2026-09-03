@@ -11,7 +11,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  if (!(await puedeGestionarExpediente(params.id, session.user.id, session.user.role, session.user.email))) {
+  if (!(await puedeGestionarExpediente(params.id, session.user.id, session.user.role, session.user.availableTenants))) {
     return NextResponse.json({ error: 'Sin permiso' }, { status: 403 })
   }
 

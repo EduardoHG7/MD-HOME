@@ -29,7 +29,7 @@ const ESTADO_LABELS: Record<string, string> = {
 
 export default function VenuesPage() {
   const { data: session } = useSession()
-  const esPana = esOperadorPanatickets(session?.user?.email, session?.user?.role)
+  const esPana = esOperadorPanatickets(session?.user?.availableTenants, session?.user?.role)
   const [venues,   setVenues]   = useState<Venue[]>([])
   const [showForm, setShowForm] = useState(false)
   const [editing,  setEditing]  = useState<Venue | null>(null)
