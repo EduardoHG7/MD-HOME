@@ -53,9 +53,8 @@ async function subirArchivo(archivo: ArchivoPayload, carpeta: string): Promise<{
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
-  if (!session || session.user.role !== 'ADMIN') {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  }
+  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
   const tenantId = await tenantAutorizado()
   if (!tenantId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 

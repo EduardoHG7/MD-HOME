@@ -16,6 +16,12 @@ const NAV_ITEMS = [
   { href: '/usuario/documentos',   label: '📁 Documentos' },
 ]
 
+// Clientes/Proveedores: exclusivo de Print Media PTY
+const NAV_PRINTMEDIA = [
+  { href: '/usuario/clientes',    label: '🧑‍💼 Clientes' },
+  { href: '/usuario/proveedores', label: '🚚 Proveedores' },
+]
+
 // El operador Panatickets solo maneja eventuales (solicitudes), no cotizaciones
 const NAV_OPERADOR = [
   { href: '/admin/eventos',        label: '🎪 Eventos' },
@@ -26,8 +32,11 @@ const NAV_OPERADOR = [
 export function UserNav({ session }: { session: Session }) {
   const pathname = usePathname()
   const { activeTenant } = useTenant()
-  const navItems = esOperadorPanatickets(session.user?.email, session.user?.role)
+  const baseNavItems = esOperadorPanatickets(session.user?.email, session.user?.role)
     ? NAV_OPERADOR : NAV_ITEMS
+  const navItems = activeTenant?.slug === 'printmediapty'
+    ? [...baseNavItems, ...NAV_PRINTMEDIA]
+    : baseNavItems
 
   const logoSrc = activeTenant?.logo ?? '/logo.png'
   const logoAlt = activeTenant?.nombre ?? 'Logo'
