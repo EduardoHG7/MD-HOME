@@ -256,6 +256,59 @@ function EventoForm({ values, venues, usuarios, tenantsDisponibles, onChange, ca
   )
 }
 
+interface CotizacionPMResumen {
+  id: string; nombreTrabajo: string; clienteNombre: string; estado: string; montoVenta: number
+}
+
+const CPM_ESTADO_COLORS: Record<string, string> = {
+  PENDIENTE: 'bg-yellow-100 text-yellow-700', APROBADA: 'bg-green-100 text-green-700', RECHAZADA: 'bg-red-100 text-red-600',
+}
+
+function CotizacionesPMEventoModal({ evento, onClose }: { evento: Evento; onClose: () => void }) {
+  const [cotizaciones, setCotizaciones] = useState<CotizacionPMResumen[]>([])
+  const [cargando, setCargando] = useState(true)
+
+  useEffect(() => {
+    fetch(`/api/pm/cotizaciones?eventoId=${evento.id}`)
+      .then(r => r.json())
+      .then(d => setCotizaciones(Array.isArray(d) ? d : []))
+      .finally(() => setCargando(false))
+  }, [evento.id])
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 overflow-y-auto">
+      <div className="card p-6 w-full max-w-lg shadow-2xl my-4">
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-lg font-bold text-gray-900">🖨️ Cotizaciones Print Media</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl">✕</button>
+        </div>
+        <p className="text-gray-500 text-sm mb-4">{evento.nombre}</p>
+        {cargando ? (
+          <p className="text-gray-400 text-sm text-center py-4">Cargando...</p>
+        ) : cotizaciones.length === 0 ? (
+          <p className="text-gray-400 text-sm text-center py-4">Este evento aún no tiene cotizaciones de Print Media.</p>
+        ) : (
+          <div className="space-y-2">
+            {cotizaciones.map(c => (
+              <div key={c.id} className="flex items-center justify-between p-3 rounded-xl border border-gray-200">
+                <div>
+                  <p className="font-medium text-gray-900 text-sm">{c.nombreTrabajo}</p>
+                  <p className="text-gray-400 text-xs">{c.clienteNombre}</p>
+                </div>
+                <div className="text-right">
+                  <p className="font-semibold text-gray-900 text-sm">${c.montoVenta.toFixed(2)}</p>
+                  <span className={`badge text-xs ${CPM_ESTADO_COLORS[c.estado]}`}>{c.estado}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <a href="/admin/cotizaciones-pm" className="btn-ghost w-full mt-4 text-center block">Ir al cotizador →</a>
+      </div>
+    </div>
+  )
+}
+
 // ── Página principal ──
 export default function EventosPage() {
   const router = useRouter()
@@ -269,6 +322,7 @@ export default function EventosPage() {
   const [showForm, setShowForm] = useState(false)
   const [editing,  setEditing]  = useState<Evento | null>(null)
   const [verDocs,  setVerDocs]  = useState<Evento | null>(null)
+  const [verCotizacionesPM, setVerCotizacionesPM] = useState<Evento | null>(null)
   const [deleting, setDeleting] = useState<Evento | null>(null)
   const [loading,  setLoading]  = useState(false)
   const [form,     setForm]     = useState<FormState>(emptyForm)
@@ -450,6 +504,11 @@ export default function EventosPage() {
                     title="Documentos legales">📁 Documentos</button>
                 </>
               )}
+              {activeTenant?.slug === 'printmediapty' && (
+                <button onClick={() => setVerCotizacionesPM(ev)}
+                  className="p-2 rounded-xl border border-pink-200 hover:border-pink-400 hover:bg-pink-50 transition-all text-pink-600 text-xs font-medium px-3"
+                  title="Cotizaciones de Print Media para este evento">🖨️ Cotizaciones PM</button>
+              )}
               {/* Consolidado de eventuales asignados (todas las empresas, incluido el operador Panatickets) */}
               <button onClick={() => router.push(`/admin/eventos/${ev.id}/asignados`)}
                 className="p-2 rounded-xl border border-violet-200 hover:border-violet-400 hover:bg-violet-50 transition-all text-violet-600 text-xs font-medium px-3"
@@ -504,6 +563,10 @@ export default function EventosPage() {
             <DocumentosEvento eventoId={verDocs.id} puedeSubir={true} />
           </div>
         </div>
+      )}
+
+      {verCotizacionesPM && (
+        <CotizacionesPMEventoModal evento={verCotizacionesPM} onClose={() => setVerCotizacionesPM(null)} />
       )}
 
       {/* Modal edición */}
