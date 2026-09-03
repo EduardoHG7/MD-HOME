@@ -25,6 +25,9 @@ model Tenant {
   eventosAsignados EventoTenant[]
   clientes       Cliente[]
   proveedores    Proveedor[]
+  materialesPM   MaterialPM[]
+  productosPM    ProductoParametricoPM[]
+  cotizacionesPM CotizacionPM[]
 
   @@map("tenants")
 }
@@ -69,6 +72,9 @@ model User {
   documentosSubidos        EventoDocumento[]
   contratosSubidos         EventoContrato[] @relation("ContratoSubidor")
   contratosFirmados        EventoContrato[] @relation("ContratoFirmante")
+  cotizacionesPMCreadas       CotizacionPM[] @relation("CotizacionPMCreador")
+  cotizacionesPMAprobadas     CotizacionPM[] @relation("CotizacionPMAprobador")
+  cotizacionesPMCostoRealAprobado CotizacionPM[] @relation("CotizacionPMCostoRealAprobador")
 
   @@map("users")
 }
@@ -197,6 +203,7 @@ model Evento {
   docsResponsable User?      @relation("EventoDocsResponsable", fields: [docsResponsableId], references: [id])
   documentos   EventoDocumento[]
   contrato     EventoContrato?
+  cotizacionesPM CotizacionPM[]
   formularioComprobantes FormularioComprobantes?
   tenants      EventoTenant[]
 
@@ -400,6 +407,7 @@ model Cliente {
   createdAt                 DateTime @default(now())
 
   tenant Tenant? @relation(fields: [tenantId], references: [id])
+  cotizacionesPM CotizacionPM[]
 
   @@map("clientes")
 }
@@ -704,5 +712,152 @@ model PanaticketsSnapshot {
   generatedAt        DateTime
 
   @@map("panatickets_snapshot")
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Cotizador de Print Media PTY (tenant "printmediapty") — cotizaciones de
+// venta a clientes de trabajos de impresión (banners, vinil, mesh, letreros),
+// independiente del modelo Cotizacion/Presupuesto usado por Panatickets /
+// Magic Dreams (que es para aprobar gastos dentro del presupuesto de un
+// evento tipo concierto, un dominio distinto).
+
+model MaterialPM {
+  id            String   @id @default(cuid())
+  tenantId      String?
+  nombre        String
+  unidad        String   // m², m, unidad, etc.
+  costoUnitario Float    @default(0)
+  activo        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  tenant  Tenant?            @relation(fields: [tenantId], references: [id])
+  recetas ProductoMaterialPM[]
+
+  @@map("materiales_pm")
+}
+
+// Fórmula de consumo del producto: AREA (ancho×alto) o AREA_PERIMETRO
+// (ancho×alto + perímetro, ej. banners con cuerda/ojales en el borde).
+model ProductoParametricoPM {
+  id        String   @id @default(cuid())
+  tenantId  String?
+  nombre    String
+  formula   String   @default("AREA")
+  manoObra  Float    @default(0) // costo de mano de obra por m² de producto
+  margenA   Float    @default(0) // % margen objetivo — nivel A (Premium)
+  margenB   Float    @default(0) // % margen objetivo — nivel B (Regular)
+  margenC   Float    @default(0) // % margen objetivo — nivel C (Al detal)
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  tenant    Tenant?              @relation(fields: [tenantId], references: [id])
+  materiales ProductoMaterialPM[]
+  items      ItemCotizacionPM[]
+
+  @@map("productos_pm")
+}
+
+// Receta: cuánto consume un producto de un material, por m² de área y/o por
+// metro de perímetro.
+model ProductoMaterialPM {
+  id                        String @id @default(cuid())
+  productoId                String
+  materialId                String
+  cantidadPorM2             Float  @default(0)
+  cantidadPorMetroPerimetro Float  @default(0)
+
+  producto ProductoParametricoPM @relation(fields: [productoId], references: [id], onDelete: Cascade)
+  material MaterialPM            @relation(fields: [materialId], references: [id])
+
+  @@unique([productoId, materialId])
+  @@map("producto_materiales_pm")
+}
+
+// Estado: PENDIENTE | APROBADA | RECHAZADA
+// costoRealEstado (solo si estado=APROBADA): null (aún no se sube) | PENDIENTE | APROBADO | RECHAZADO
+model CotizacionPM {
+  id              String    @id @default(cuid())
+  tenantId        String?
+  nombreTrabajo   String    // ej. "Presupuesto de banner" — así se identifica dentro del evento
+  clienteId       String?
+  clienteNombre   String
+  clienteContacto String?
+  clienteTelefono String?
+  clienteCorreo   String?
+  nivelPrecio     String    @default("B") // A | B | C
+  eventoId        String?
+  vigenciaDias    Int       @default(15)
+  carpetaDriveUrl String?
+  notas           String?
+  transporte           Float @default(0)
+  costosIndirectosPct  Float @default(8)
+  fechaEntrega    DateTime?
+  estado          String    @default("PENDIENTE")
+  notaAdmin       String?
+  aprobadaPorId   String?
+  aprobadaEn      DateTime?
+
+  // Totales calculados (snapshot al guardar, para historial y resumen en el evento)
+  montoVenta      Float @default(0)
+  costoTotal      Float @default(0)
+  utilidadBruta   Float @default(0)
+
+  // Costo real (post-aprobación)
+  costoRealTotal         Float?
+  costoRealEstado        String?
+  costoRealNotaAdmin     String?
+  costoRealAprobadoPorId String?
+  costoRealAprobadoEn    DateTime?
+  costoRealSubidoEn      DateTime?
+
+  creadoPorId String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant               Tenant?    @relation(fields: [tenantId], references: [id])
+  cliente              Cliente?   @relation(fields: [clienteId], references: [id])
+  evento               Evento?    @relation(fields: [eventoId], references: [id])
+  creadoPor            User       @relation("CotizacionPMCreador", fields: [creadoPorId], references: [id])
+  aprobadaPor          User?      @relation("CotizacionPMAprobador", fields: [aprobadaPorId], references: [id])
+  costoRealAprobadoPor User?      @relation("CotizacionPMCostoRealAprobador", fields: [costoRealAprobadoPorId], references: [id])
+  items                ItemCotizacionPM[]
+  facturasCostoReal    FacturaCotizacionPM[]
+
+  @@map("cotizaciones_pm")
+}
+
+model ItemCotizacionPM {
+  id                 String  @id @default(cuid())
+  cotizacionId       String
+  productoId         String?
+  descripcion        String
+  ancho              Float?
+  alto               Float?
+  cantidad           Int     @default(1)
+  incluyeInstalacion Boolean @default(false)
+  incluyeDiseno      Boolean @default(false)
+  costoUnitario      Float   @default(0)
+  precioUnitario     Float   @default(0)
+  incluido           Boolean @default(true)
+  orden              Int     @default(0)
+
+  cotizacion CotizacionPM            @relation(fields: [cotizacionId], references: [id], onDelete: Cascade)
+  producto   ProductoParametricoPM?  @relation(fields: [productoId], references: [id])
+
+  @@map("items_cotizacion_pm")
+}
+
+model FacturaCotizacionPM {
+  id            String  @id @default(cuid())
+  cotizacionId  String
+  descripcion   String?
+  proveedor     String?
+  monto         Float   @default(0)
+  archivoNombre String?
+  archivoPath   String?
+
+  cotizacion CotizacionPM @relation(fields: [cotizacionId], references: [id], onDelete: Cascade)
+
+  @@map("facturas_cotizacion_pm")
 }
 

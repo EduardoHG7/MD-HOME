@@ -372,3 +372,157 @@ export function templateRespuestaCotizacion({
     </div>
   </div>`
 }
+
+/* ─── Cotizador Print Media PTY ─── */
+
+const PM_HEADER = `
+    <div style="background:#111;padding:24px 32px;border-radius:12px 12px 0 0">
+      <h2 style="color:#fff;margin:0;font-size:18px">Print Media PTY</h2>
+    </div>`
+
+export function templateNuevaCotizacionPM({
+  usuarioNombre, usuarioEmail, nombreTrabajo, clienteNombre, montoVenta, cotizacionId,
+}: {
+  usuarioNombre: string
+  usuarioEmail:  string
+  nombreTrabajo: string
+  clienteNombre: string
+  montoVenta:    number
+  cotizacionId:  string
+}) {
+  return `
+  <div style="font-family:sans-serif;max-width:560px;margin:0 auto;color:#111">
+    ${PM_HEADER}
+    <div style="border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;padding:32px">
+      <h3 style="margin:0 0 16px;font-size:16px">🖨️ Nueva cotización para aprobación</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:14px">
+        <tr><td style="padding:8px 0;color:#6b7280;width:160px">Solicitante</td><td style="padding:8px 0;font-weight:600">${usuarioNombre}</td></tr>
+        <tr><td style="padding:8px 0;color:#6b7280">Correo</td><td style="padding:8px 0">${usuarioEmail}</td></tr>
+        <tr><td style="padding:8px 0;color:#6b7280">Trabajo</td><td style="padding:8px 0;font-weight:600">${nombreTrabajo}</td></tr>
+        <tr><td style="padding:8px 0;color:#6b7280">Cliente</td><td style="padding:8px 0">${clienteNombre}</td></tr>
+        <tr><td style="padding:8px 0;color:#6b7280">Total a cobrar</td><td style="padding:8px 0;font-weight:600;color:#d97706;font-size:16px">$${montoVenta.toFixed(2)}</td></tr>
+      </table>
+      <div style="margin-top:24px">
+        <a href="${process.env.NEXTAUTH_URL}/admin/cotizaciones-pm?id=${cotizacionId}" style="background:#111;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">
+          Revisar cotización →
+        </a>
+      </div>
+    </div>
+  </div>`
+}
+
+export function templateRespuestaCotizacionPM({
+  usuarioNombre, nombreTrabajo, clienteNombre, estado, montoVenta, notaAdmin, adminNombre,
+}: {
+  usuarioNombre: string
+  nombreTrabajo: string
+  clienteNombre: string
+  estado:        'APROBADA' | 'RECHAZADA'
+  montoVenta:    number
+  notaAdmin:     string | null
+  adminNombre:   string
+}) {
+  const aprobada    = estado === 'APROBADA'
+  const colorBorde  = aprobada ? '#22c55e' : '#ef4444'
+  const emoji       = aprobada ? '✅' : '❌'
+  const textoEstado = aprobada ? 'aprobada' : 'rechazada'
+
+  return `
+  <div style="font-family:sans-serif;max-width:560px;margin:0 auto;color:#111">
+    ${PM_HEADER}
+    <div style="border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;padding:32px">
+      <div style="border-left:4px solid ${colorBorde};padding-left:16px;margin-bottom:24px">
+        <h3 style="margin:0 0 4px;font-size:16px">${emoji} Tu cotización fue ${textoEstado}</h3>
+        <p style="margin:0;color:#6b7280;font-size:14px">Hola ${usuarioNombre}, aquí el detalle:</p>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:14px">
+        <tr><td style="padding:8px 0;color:#6b7280;width:160px">Trabajo</td><td style="padding:8px 0;font-weight:600">${nombreTrabajo}</td></tr>
+        <tr><td style="padding:8px 0;color:#6b7280">Cliente</td><td style="padding:8px 0">${clienteNombre}</td></tr>
+        <tr><td style="padding:8px 0;color:#6b7280">Total a cobrar</td><td style="padding:8px 0;font-weight:600;color:#d97706">$${montoVenta.toFixed(2)}</td></tr>
+        ${notaAdmin ? `<tr><td style="padding:8px 0;color:#6b7280;vertical-align:top">Nota del admin</td><td style="padding:8px 0;font-style:italic">"${notaAdmin}"</td></tr>` : ''}
+        <tr><td style="padding:8px 0;color:#6b7280">Revisado por</td><td style="padding:8px 0">${adminNombre}</td></tr>
+      </table>
+      ${aprobada ? `
+      <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:12px;padding:16px;margin-top:16px">
+        <p style="margin:0 0 8px;font-weight:600;color:#15803d;font-size:14px">📎 Próximo paso</p>
+        <p style="margin:0;color:#166534;font-size:13px">Ya puedes trabajar el pedido. Cuando termines, sube el costo real para cerrar la cotización.</p>
+      </div>` : ''}
+      <div style="margin-top:24px">
+        <a href="${process.env.NEXTAUTH_URL}/usuario/cotizaciones-pm" style="background:#111;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">
+          Ver mis cotizaciones →
+        </a>
+      </div>
+    </div>
+  </div>`
+}
+
+export function templateNuevoCostoRealPM({
+  usuarioNombre, usuarioEmail, nombreTrabajo, clienteNombre, costoRealTotal, cotizacionId,
+}: {
+  usuarioNombre:  string
+  usuarioEmail:   string
+  nombreTrabajo:  string
+  clienteNombre:  string
+  costoRealTotal: number
+  cotizacionId:   string
+}) {
+  return `
+  <div style="font-family:sans-serif;max-width:560px;margin:0 auto;color:#111">
+    ${PM_HEADER}
+    <div style="border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;padding:32px">
+      <h3 style="margin:0 0 16px;font-size:16px">🧾 Costo real para aprobación</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:14px">
+        <tr><td style="padding:8px 0;color:#6b7280;width:160px">Solicitante</td><td style="padding:8px 0;font-weight:600">${usuarioNombre}</td></tr>
+        <tr><td style="padding:8px 0;color:#6b7280">Correo</td><td style="padding:8px 0">${usuarioEmail}</td></tr>
+        <tr><td style="padding:8px 0;color:#6b7280">Trabajo</td><td style="padding:8px 0;font-weight:600">${nombreTrabajo}</td></tr>
+        <tr><td style="padding:8px 0;color:#6b7280">Cliente</td><td style="padding:8px 0">${clienteNombre}</td></tr>
+        <tr><td style="padding:8px 0;color:#6b7280">Costo real</td><td style="padding:8px 0;font-weight:600;color:#d97706;font-size:16px">$${costoRealTotal.toFixed(2)}</td></tr>
+      </table>
+      <div style="margin-top:24px">
+        <a href="${process.env.NEXTAUTH_URL}/admin/cotizaciones-pm?id=${cotizacionId}" style="background:#111;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">
+          Revisar costo real →
+        </a>
+      </div>
+    </div>
+  </div>`
+}
+
+export function templateRespuestaCostoRealPM({
+  usuarioNombre, nombreTrabajo, clienteNombre, estado, costoRealTotal, notaAdmin, adminNombre,
+}: {
+  usuarioNombre:  string
+  nombreTrabajo:  string
+  clienteNombre:  string
+  estado:         'APROBADO' | 'RECHAZADO'
+  costoRealTotal: number
+  notaAdmin:      string | null
+  adminNombre:    string
+}) {
+  const aprobado    = estado === 'APROBADO'
+  const colorBorde  = aprobado ? '#22c55e' : '#ef4444'
+  const emoji       = aprobado ? '✅' : '❌'
+  const textoEstado = aprobado ? 'aprobado' : 'rechazado'
+
+  return `
+  <div style="font-family:sans-serif;max-width:560px;margin:0 auto;color:#111">
+    ${PM_HEADER}
+    <div style="border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;padding:32px">
+      <div style="border-left:4px solid ${colorBorde};padding-left:16px;margin-bottom:24px">
+        <h3 style="margin:0 0 4px;font-size:16px">${emoji} El costo real fue ${textoEstado}</h3>
+        <p style="margin:0;color:#6b7280;font-size:14px">Hola ${usuarioNombre}, aquí el detalle:</p>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:14px">
+        <tr><td style="padding:8px 0;color:#6b7280;width:160px">Trabajo</td><td style="padding:8px 0;font-weight:600">${nombreTrabajo}</td></tr>
+        <tr><td style="padding:8px 0;color:#6b7280">Cliente</td><td style="padding:8px 0">${clienteNombre}</td></tr>
+        <tr><td style="padding:8px 0;color:#6b7280">Costo real</td><td style="padding:8px 0;font-weight:600;color:#d97706">$${costoRealTotal.toFixed(2)}</td></tr>
+        ${notaAdmin ? `<tr><td style="padding:8px 0;color:#6b7280;vertical-align:top">Nota del admin</td><td style="padding:8px 0;font-style:italic">"${notaAdmin}"</td></tr>` : ''}
+        <tr><td style="padding:8px 0;color:#6b7280">Revisado por</td><td style="padding:8px 0">${adminNombre}</td></tr>
+      </table>
+      <div style="margin-top:24px">
+        <a href="${process.env.NEXTAUTH_URL}/usuario/cotizaciones-pm" style="background:#111;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">
+          Ver mis cotizaciones →
+        </a>
+      </div>
+    </div>
+  </div>`
+}

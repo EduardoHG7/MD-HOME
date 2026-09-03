@@ -24,8 +24,17 @@ export default async function AdminDashboard() {
       },
     }),
     session ? prisma.user.findUnique({ where: { id: session.user.id }, select: { telefono: true } }) : null,
-    tenantId ? prisma.tenant.findUnique({ where: { id: tenantId }, select: { nombre: true } }) : null,
+    tenantId ? prisma.tenant.findUnique({ where: { id: tenantId }, select: { nombre: true, slug: true } }) : null,
   ])
+
+  const entregasPM = activeTenant?.slug === 'printmediapty'
+    ? await prisma.cotizacionPM.findMany({
+        where: { tenantId, estado: 'APROBADA', fechaEntrega: { not: null } },
+        orderBy: { fechaEntrega: 'asc' },
+        select: { id: true, nombreTrabajo: true, clienteNombre: true, fechaEntrega: true },
+        take: 8,
+      })
+    : []
 
   const eventosActivos      = eventosData.filter(e => e.estado === 'ACTIVO').length
   const eventosPorConfirmar = eventosData.filter(e => e.estado === 'POR_CONFIRMAR').length
@@ -81,6 +90,26 @@ export default async function AdminDashboard() {
 
       {/* WhatsApp phone */}
       <PhoneEditor telefono={usuario?.telefono ?? null} />
+
+      {/* Próximas entregas del cotizador (Print Media) */}
+      {activeTenant?.slug === 'printmediapty' && (
+        <div className="card p-5">
+          <h2 className="font-semibold text-gray-900 mb-1">📦 Próximas entregas — Cotizador</h2>
+          <p className="text-gray-400 text-sm mb-3">Fechas de entrega de trabajos aprobados y pendientes de completar.</p>
+          {entregasPM.length === 0 ? (
+            <p className="text-gray-400 text-sm">No hay entregas programadas.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {entregasPM.map(e => (
+                <div key={e.id} className="flex items-center justify-between text-sm py-1.5 border-b border-gray-50 last:border-0">
+                  <span className="text-gray-700">{e.nombreTrabajo} <span className="text-gray-400">· {e.clienteNombre}</span></span>
+                  <span className="text-gray-500 font-medium">{e.fechaEntrega!.toLocaleDateString('es-PA', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Calendario */}
       <CalendarioEventos eventos={eventosCalendario} />

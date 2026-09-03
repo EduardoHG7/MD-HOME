@@ -16,10 +16,13 @@ const NAV_ITEMS = [
   { href: '/usuario/documentos',   label: '📁 Documentos' },
 ]
 
-// Clientes/Proveedores: exclusivo de Print Media PTY
+// Clientes/Proveedores/Cotizador: exclusivo de Print Media PTY. Su propio
+// cotizador reemplaza el ítem genérico "Cotizaciones" (que es para aprobar
+// gastos del presupuesto de un evento tipo concierto — no aplica aquí).
 const NAV_PRINTMEDIA = [
-  { href: '/usuario/clientes',    label: '🧑‍💼 Clientes' },
-  { href: '/usuario/proveedores', label: '🚚 Proveedores' },
+  { href: '/usuario/clientes',       label: '🧑‍💼 Clientes' },
+  { href: '/usuario/proveedores',    label: '🚚 Proveedores' },
+  { href: '/usuario/cotizaciones-pm', label: '🖨️ Cotizador' },
 ]
 
 // El operador Panatickets solo maneja eventuales (solicitudes), no cotizaciones
@@ -32,10 +35,11 @@ const NAV_OPERADOR = [
 export function UserNav({ session }: { session: Session }) {
   const pathname = usePathname()
   const { activeTenant } = useTenant()
+  const esPrintMedia = activeTenant?.slug === 'printmediapty'
   const baseNavItems = esOperadorPanatickets(session.user?.availableTenants, session.user?.role)
     ? NAV_OPERADOR : NAV_ITEMS
-  const navItems = activeTenant?.slug === 'printmediapty'
-    ? [...baseNavItems, ...NAV_PRINTMEDIA]
+  const navItems = esPrintMedia
+    ? [...baseNavItems.filter(item => item.href !== '/usuario/cotizaciones'), ...NAV_PRINTMEDIA]
     : baseNavItems
 
   const logoSrc = activeTenant?.logo ?? '/logo.png'

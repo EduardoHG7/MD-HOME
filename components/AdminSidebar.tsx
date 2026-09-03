@@ -11,8 +11,9 @@ import { puedeVerFinanzas } from '@/lib/permisos'
 
 const FINANZAS_ITEM = { href: '/admin/finanzas', label: 'Finanzas', icon: '📊' }
 const PRINTMEDIA_NAV_ITEMS = [
-  { href: '/admin/clientes',    label: 'Clientes',    icon: '🧑‍💼' },
-  { href: '/admin/proveedores', label: 'Proveedores', icon: '🚚' },
+  { href: '/admin/clientes',        label: 'Clientes',    icon: '🧑‍💼' },
+  { href: '/admin/proveedores',     label: 'Proveedores', icon: '🚚' },
+  { href: '/admin/cotizaciones-pm', label: 'Cotizador',   icon: '🖨️' },
 ]
 
 const ADMIN_NAV = [
