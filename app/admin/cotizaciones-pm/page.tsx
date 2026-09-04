@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useSession } from 'next-auth/react'
 import { useTenant } from '@/hooks/useTenant'
 import { CotizadorForm } from '@/components/pm/CotizadorForm'
 import { HistorialCotizacionesPM } from '@/components/pm/HistorialCotizacionesPM'
@@ -10,9 +11,11 @@ import { ProductosPM } from '@/components/pm/ProductosPM'
 type Tab = 'cotizacion' | 'materiales' | 'productos' | 'historial'
 
 export default function CotizacionesPMAdminPage() {
+  const { data: session } = useSession()
   const { activeTenant } = useTenant()
   const [tab, setTab] = useState<Tab>('cotizacion')
   const [refresh, setRefresh] = useState(0)
+  const esAdminReal = session?.user?.role === 'ADMIN'
 
   if (activeTenant && activeTenant.slug !== 'printmediapty') {
     return (
@@ -24,10 +27,14 @@ export default function CotizacionesPMAdminPage() {
     )
   }
 
+  // Materiales/Productos (precios y márgenes) son editables solo por ADMIN
+  // — un aprobador designado ve Cotización/Historial igual, sin el catálogo.
   const TABS: { id: Tab; label: string }[] = [
     { id: 'cotizacion', label: 'Cotización' },
-    { id: 'materiales', label: 'Materiales' },
-    { id: 'productos',  label: 'Productos' },
+    ...(esAdminReal ? [
+      { id: 'materiales' as Tab, label: 'Materiales' },
+      { id: 'productos'  as Tab, label: 'Productos' },
+    ] : []),
     { id: 'historial',  label: 'Historial' },
   ]
 
@@ -48,8 +55,8 @@ export default function CotizacionesPMAdminPage() {
       </div>
 
       {tab === 'cotizacion' && <CotizadorForm onCreated={() => { setTab('historial'); setRefresh(r => r + 1) }} />}
-      {tab === 'materiales' && <MaterialesPM />}
-      {tab === 'productos'  && <ProductosPM />}
+      {tab === 'materiales' && esAdminReal && <MaterialesPM />}
+      {tab === 'productos'  && esAdminReal && <ProductosPM />}
       {tab === 'historial'  && <HistorialCotizacionesPM key={refresh} esAdmin />}
     </div>
   )

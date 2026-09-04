@@ -7,14 +7,26 @@ import { prisma } from '@/lib/prisma'
 import { sendMail, templateRespuestaSolicitud, templateNuevaSolicitud } from '@/lib/mail'
 import { sendWhatsApp } from '@/lib/whatsapp'
 import { getActiveTenantId } from '@/lib/tenant'
+import { puedeAprobar, receptoresSolicitud, receptoresRespuesta } from '@/lib/aprobaciones'
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
-  if (!session || session.user.role !== 'ADMIN') {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  }
+  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const { estado, costoTotal, notaAdmin, tipoTarifa } = await req.json()
+
+  if (estado === 'APROBADA' || estado === 'RECHAZADA') {
+    const existente = await prisma.solicitud.findUnique({
+      where: { id: params.id },
+      select: { evento: { select: { tenants: { select: { tenantId: true } } } } },
+    })
+    const tenantIds = existente?.evento.tenants.map(t => t.tenantId) ?? []
+    if (!(await puedeAprobar(tenantIds, session.user))) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    }
+  } else if (session.user.role !== 'ADMIN') {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  }
 
   let tarifaId: string | undefined
   if (tipoTarifa) {
@@ -36,42 +48,47 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       } : {}),
     },
     include: {
-      evento: true,
+      evento: { include: { tenants: true } },
       tarifa: true,
-      solicitante: { select: { name: true, email: true, telefono: true } },
+      solicitante: { select: { id: true, name: true, email: true, telefono: true } },
       aprobadoPor:  { select: { name: true, email: true } },
     },
   })
 
-  if ((estado === 'APROBADA' || estado === 'RECHAZADA') && session.user.email && solicitud.solicitante.email) {
+  if ((estado === 'APROBADA' || estado === 'RECHAZADA') && session.user.email) {
     const emoji = estado === 'APROBADA' ? '✅' : '❌'
     const texto = estado === 'APROBADA' ? 'aprobada' : 'rechazada'
+    const eventoTenantIds = solicitud.evento.tenants.map(t => t.tenantId)
+    const destinatarios = await receptoresRespuesta(eventoTenantIds, async () => [solicitud.solicitante])
+    const destinatarioEmails = destinatarios.map(d => d.email).filter(Boolean)
 
-    try {
-      await sendMail({
-        fromEmail: session.user.email,
-        toEmails:  [solicitud.solicitante.email],
-        subject:   `Tu solicitud fue ${estado === 'APROBADA' ? 'aprobada ✅' : 'rechazada ❌'} — ${solicitud.evento.nombre}`,
-        html: templateRespuestaSolicitud({
-          solicitanteNombre: solicitud.solicitante.name ?? solicitud.solicitante.email,
-          eventoNombre:      solicitud.evento.nombre,
-          estado:            estado as 'APROBADA' | 'RECHAZADA',
-          funcion:           solicitud.funcion,
-          numPersonas:       solicitud.numPersonas,
-          costoTotal:        costoTotal ?? null,
-          notaAdmin:         notaAdmin ?? null,
-          adminNombre:       session.user.name ?? session.user.email ?? '',
-        }),
-      })
-    } catch (err) {
-      console.error('[solicitudes/id] Error enviando email:', err)
+    if (destinatarioEmails.length) {
+      try {
+        await sendMail({
+          fromEmail: session.user.email,
+          toEmails:  destinatarioEmails,
+          subject:   `Tu solicitud fue ${estado === 'APROBADA' ? 'aprobada ✅' : 'rechazada ❌'} — ${solicitud.evento.nombre}`,
+          html: templateRespuestaSolicitud({
+            solicitanteNombre: solicitud.solicitante.name ?? solicitud.solicitante.email,
+            eventoNombre:      solicitud.evento.nombre,
+            estado:            estado as 'APROBADA' | 'RECHAZADA',
+            funcion:           solicitud.funcion,
+            numPersonas:       solicitud.numPersonas,
+            costoTotal:        costoTotal ?? null,
+            notaAdmin:         notaAdmin ?? null,
+            adminNombre:       session.user.name ?? session.user.email ?? '',
+          }),
+        })
+      } catch (err) {
+        console.error('[solicitudes/id] Error enviando email:', err)
+      }
     }
 
-    if (solicitud.solicitante.telefono) {
+    for (const destinatario of destinatarios.filter(d => d.telefono)) {
       try {
         const lines = [
           `${emoji} *Magic Dreams Productions*`,
-          `Tu solicitud de personal fue *${texto}*.`,
+          `La solicitud de personal fue *${texto}*.`,
           ``,
           `*Evento:* ${solicitud.evento.nombre}`,
           `*Función:* ${solicitud.funcion}`,
@@ -80,7 +97,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
           ...(notaAdmin ? [`*Nota del admin:* ${notaAdmin}`] : []),
           `*Revisado por:* ${session.user.name ?? session.user.email}`,
         ]
-        await sendWhatsApp(solicitud.solicitante.telefono, lines.join('\n'))
+        await sendWhatsApp(destinatario.telefono!, lines.join('\n'))
       } catch (err) {
         console.error('[solicitudes/id] Error enviando WhatsApp:', err)
       }
@@ -152,10 +169,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   try {
     const eventoTenantIds = solicitud.evento.tenants.map(t => t.tenantId)
-    const adminFilter = eventoTenantIds.length
-      ? { role: 'ADMIN', tenants: { some: { tenantId: { in: eventoTenantIds } } } }
-      : { role: 'ADMIN' }
-    const admins      = await prisma.user.findMany({ where: adminFilter, select: { email: true, telefono: true } })
+    const admins = await receptoresSolicitud(eventoTenantIds, async () => {
+      const adminFilter = eventoTenantIds.length
+        ? { role: 'ADMIN', tenants: { some: { tenantId: { in: eventoTenantIds } } } }
+        : { role: 'ADMIN' }
+      return prisma.user.findMany({ where: adminFilter, select: { id: true, name: true, email: true, telefono: true } })
+    })
     const adminEmails = admins.map(a => a.email)
     const fromEmail   = session.user.email
     if (adminEmails.length && fromEmail) {

@@ -28,6 +28,7 @@ model Tenant {
   materialesPM   MaterialPM[]
   productosPM    ProductoParametricoPM[]
   cotizacionesPM CotizacionPM[]
+  aprobacionConfig AprobacionConfig?
 
   @@map("tenants")
 }
@@ -75,6 +76,7 @@ model User {
   cotizacionesPMCreadas       CotizacionPM[] @relation("CotizacionPMCreador")
   cotizacionesPMAprobadas     CotizacionPM[] @relation("CotizacionPMAprobador")
   cotizacionesPMCostoRealAprobado CotizacionPM[] @relation("CotizacionPMCostoRealAprobador")
+  aprobacionRoles AprobacionConfigUsuario[]
 
   @@map("users")
 }
@@ -859,5 +861,38 @@ model FacturaCotizacionPM {
   cotizacion CotizacionPM @relation(fields: [cotizacionId], references: [id], onDelete: Cascade)
 
   @@map("facturas_cotizacion_pm")
+}
+
+// Configuración por empresa (solo la edita el super-admin) de quién recibe
+// el aviso de una nueva solicitud/cotización, quién puede aprobarla y quién
+// recibe el aviso de la respuesta — para todos los flujos de aprobación del
+// sistema (Solicitudes, Caja Menuda, Cotizaciones, Cotizador Print Media).
+// Sin configuración para una empresa, cada flujo cae a su comportamiento
+// previo (los ADMIN de esa empresa aprueban / reciben, el solicitante
+// recibe la respuesta).
+model AprobacionConfig {
+  id        String   @id @default(cuid())
+  tenantId  String   @unique
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  tenant   Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  usuarios AprobacionConfigUsuario[]
+
+  @@map("aprobacion_configs")
+}
+
+// rol: RECEPTOR_SOLICITUD | APROBADOR | RECEPTOR_RESPUESTA
+model AprobacionConfigUsuario {
+  id       String @id @default(cuid())
+  configId String
+  userId   String
+  rol      String
+
+  config AprobacionConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  user   User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([configId, userId, rol])
+  @@map("aprobacion_config_usuarios")
 }
 

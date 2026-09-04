@@ -34,12 +34,13 @@ const CONTABILIDAD_NAV = [
   { href: '/contabilidad/solicitudes',  label: 'Solicitudes',  icon: '📋' },
 ]
 
-export function AdminSidebar({ session, role, soloEventos }: { session: Session; role?: string; soloEventos?: boolean }) {
+export function AdminSidebar({ session, role, soloEventos, soloAprobador }: { session: Session; role?: string; soloEventos?: boolean; soloAprobador?: boolean }) {
   const efectiveRole = role ?? 'ADMIN'
   // Usuario sin rol admin al que solo se le concedió ver Finanzas (ni ADMIN ni operador de Eventos)
   const soloFinanzas = !soloEventos && session.user.role !== 'ADMIN' && puedeVerFinanzas(session.user)
-  const rootHref     = soloEventos || soloFinanzas ? '/admin' : efectiveRole === 'CONTABILIDAD' ? '/contabilidad' : '/admin'
-  const panelLabel   = soloEventos ? 'Panatickets' : soloFinanzas ? 'Finanzas' : efectiveRole === 'CONTABILIDAD' ? 'Panel Contabilidad' : 'Panel Administrativo'
+  const rootHref     = soloEventos || soloFinanzas || soloAprobador ? '/admin' : efectiveRole === 'CONTABILIDAD' ? '/contabilidad' : '/admin'
+  const panelLabel   = soloEventos ? 'Panatickets' : soloFinanzas ? 'Finanzas' : soloAprobador ? 'Aprobaciones' : efectiveRole === 'CONTABILIDAD' ? 'Panel Contabilidad' : 'Panel Administrativo'
+  const { activeTenant } = useTenant()
   const baseNav      = soloEventos
     ? [
         { href: '/admin',             label: 'Dashboard',   icon: '◉' },
@@ -49,10 +50,15 @@ export function AdminSidebar({ session, role, soloEventos }: { session: Session;
       ]
     : soloFinanzas
     ? [{ href: '/admin', label: 'Dashboard', icon: '◉' }]
+    : soloAprobador
+    ? [
+        { href: '/admin',             label: 'Dashboard',   icon: '◉' },
+        { href: '/admin/solicitudes', label: 'Solicitudes', icon: '📋' },
+        ...(activeTenant?.slug === 'printmediapty' ? [{ href: '/admin/cotizaciones-pm', label: 'Cotizador', icon: '🖨️' }] : []),
+      ]
     : efectiveRole === 'CONTABILIDAD' ? CONTABILIDAD_NAV : ADMIN_NAV
   const pathname     = usePathname()
   const [open, setOpen] = useState(false)
-  const { activeTenant } = useTenant()
 
   // Agrega Finanzas al final si el usuario tiene acceso concedido
   const navConFinanzas = puedeVerFinanzas(session.user)
@@ -61,7 +67,7 @@ export function AdminSidebar({ session, role, soloEventos }: { session: Session;
 
   // Clientes/Proveedores/Cotizador: exclusivo de Print Media PTY — y
   // "Patrocinadores" no aplica a su negocio, se quita del menú.
-  const esPrintMedia = !soloEventos && !soloFinanzas && activeTenant?.slug === 'printmediapty'
+  const esPrintMedia = !soloEventos && !soloFinanzas && !soloAprobador && activeTenant?.slug === 'printmediapty'
   const navConAcceso = esPrintMedia
     ? [...navConFinanzas.filter(item => item.href !== '/admin/patrocinadores'), ...PRINTMEDIA_NAV_ITEMS]
     : navConFinanzas

@@ -8,6 +8,7 @@ import { prisma } from '@/lib/prisma'
 import { getActiveTenantId } from '@/lib/tenant'
 import { uploadToSharePoint } from '@/lib/sharepoint'
 import { sendMail, templateNuevoCostoRealPM } from '@/lib/mail'
+import { receptoresSolicitud } from '@/lib/aprobaciones'
 
 const TENANT_SLUG = 'printmediapty'
 const DOMINIO_ADMIN_PM = '@printmediapty.com'
@@ -86,10 +87,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   })
 
   try {
-    const admins = await prisma.user.findMany({
+    const admins = await receptoresSolicitud([tenantId], () => prisma.user.findMany({
       where: { role: 'ADMIN', tenants: { some: { tenantId } }, email: { endsWith: DOMINIO_ADMIN_PM } },
-      select: { email: true },
-    })
+      select: { id: true, name: true, email: true, telefono: true },
+    }))
     const adminEmails = admins.map(a => a.email)
     const fromEmail = session.user.email
     if (adminEmails.length && fromEmail) {

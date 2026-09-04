@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma'
 import { sendMail, templateNuevaSolicitud } from '@/lib/mail'
 import { sendWhatsApp } from '@/lib/whatsapp'
 import { getActiveTenantId } from '@/lib/tenant'
+import { receptoresSolicitud, tenantsDondeApruebo } from '@/lib/aprobaciones'
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -15,7 +16,8 @@ export async function GET() {
   const tenantId = getActiveTenantId()
 
   const tenantFilter = tenantId ? { evento: { tenants: { some: { tenantId } } } } : {}
-  const userFilter   = session.user.role === 'ADMIN' || session.user.role === 'CONTABILIDAD'
+  const esAprobadorAqui = tenantId ? (await tenantsDondeApruebo(session.user.id)).includes(tenantId) : false
+  const userFilter   = session.user.role === 'ADMIN' || session.user.role === 'CONTABILIDAD' || esAprobadorAqui
     ? {}
     : { solicitanteId: session.user.id }
 
@@ -66,14 +68,17 @@ export async function POST(req: Request) {
   const url = process.env.NEXTAUTH_URL ?? ''
 
   try {
-    // Solo notificar a admins de la(s) empresa(s) del evento — si el evento no
-    // tiene empresa asignada, se avisa a todos (comportamiento previo) para
-    // no dejar solicitudes sin notificar.
+    // Notificar a los receptores configurados para la(s) empresa(s) del
+    // evento; sin configuración, cae a los ADMIN de esas empresas (o de
+    // todas si el evento no tiene empresa asignada, para no dejar la
+    // solicitud sin notificar).
     const eventoTenantIds = solicitud.evento.tenants.map(t => t.tenantId)
-    const adminFilter = eventoTenantIds.length
-      ? { role: 'ADMIN', tenants: { some: { tenantId: { in: eventoTenantIds } } } }
-      : { role: 'ADMIN' }
-    const admins      = await prisma.user.findMany({ where: adminFilter, select: { email: true, telefono: true } })
+    const admins = await receptoresSolicitud(eventoTenantIds, async () => {
+      const adminFilter = eventoTenantIds.length
+        ? { role: 'ADMIN', tenants: { some: { tenantId: { in: eventoTenantIds } } } }
+        : { role: 'ADMIN' }
+      return prisma.user.findMany({ where: adminFilter, select: { id: true, name: true, email: true, telefono: true } })
+    })
     const adminEmails = admins.map(a => a.email)
     const fromEmail   = session.user.email
     if (adminEmails.length && fromEmail) {
