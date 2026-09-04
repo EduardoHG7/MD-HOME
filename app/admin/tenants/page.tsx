@@ -138,12 +138,20 @@ export default function TenantsAdminPage() {
     if (!session?.user?.isSuperAdmin) return
     Promise.all([
       fetch('/api/tenants').then(r => r.json()),
-      fetch('/api/usuarios').then(r => r.json()),
       fetch('/api/usuarios/sin-empresa').then(r => r.json()),
-    ]).then(([t, u, se]) => {
-      if (Array.isArray(t))  setTenants(t)
-      if (Array.isArray(u))  setAllUsers(u)
-      if (Array.isArray(se)) setSinEmpresa(se)
+    ]).then(([t, se]) => {
+      const tenantsList  = Array.isArray(t)  ? t  as Tenant[]   : []
+      const sinEmpresaList = Array.isArray(se) ? se as UserItem[] : []
+      setTenants(tenantsList)
+      setSinEmpresa(sinEmpresaList)
+      // Lista global de usuarios (de todas las empresas, no solo la activa
+      // en la sesión): se arma con lo que ya trae /api/tenants (que no
+      // filtra por empresa, a diferencia de /api/usuarios) más los usuarios
+      // sin empresa asignada.
+      const porId = new Map<string, UserItem>()
+      for (const tenant of tenantsList) for (const ut of tenant.usuarios) porId.set(ut.user.id, ut.user)
+      for (const u of sinEmpresaList) porId.set(u.id, u)
+      setAllUsers(Array.from(porId.values()))
       setLoading(false)
     })
   }, [session])
