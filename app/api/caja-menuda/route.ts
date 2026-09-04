@@ -6,6 +6,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { sendWhatsApp } from '@/lib/whatsapp'
 import { getActiveTenantId } from '@/lib/tenant'
+import { receptoresSolicitud, tenantsDondeApruebo } from '@/lib/aprobaciones'
 
 const include = {
   evento:      { select: { nombre: true } },
@@ -21,7 +22,8 @@ export async function GET() {
 
   const tenantId = getActiveTenantId()
   const tenantFilter = tenantId ? { evento: { tenants: { some: { tenantId } } } } : {}
-  const userFilter   = session.user.role === 'ADMIN' || session.user.role === 'CONTABILIDAD'
+  const esAprobadorAqui = tenantId ? (await tenantsDondeApruebo(session.user.id)).includes(tenantId) : false
+  const userFilter   = session.user.role === 'ADMIN' || session.user.role === 'CONTABILIDAD' || esAprobadorAqui
     ? {}
     : { solicitanteId: session.user.id }
 
@@ -53,7 +55,14 @@ export async function POST(req: Request) {
   })
 
   try {
-    const admins = await prisma.user.findMany({ where: { role: 'ADMIN' }, select: { telefono: true } })
+    const evento = await prisma.evento.findUnique({ where: { id: eventoId }, select: { tenants: { select: { tenantId: true } } } })
+    const eventoTenantIds = evento?.tenants.map(t => t.tenantId) ?? []
+    const admins = await receptoresSolicitud(eventoTenantIds, () => {
+      const adminFilter = eventoTenantIds.length
+        ? { role: 'ADMIN', tenants: { some: { tenantId: { in: eventoTenantIds } } } }
+        : { role: 'ADMIN' }
+      return prisma.user.findMany({ where: adminFilter, select: { id: true, name: true, email: true, telefono: true } })
+    })
     for (const a of admins) {
       if (a.telefono) await sendWhatsApp(a.telefono, `Nueva Caja Menuda\nEvento: ${caja.evento.nombre}\nMonto: $${montoSolicitado}`).catch(() => {})
     }

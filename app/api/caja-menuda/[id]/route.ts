@@ -5,10 +5,11 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { sendWhatsApp } from '@/lib/whatsapp'
+import { puedeAprobar, receptoresRespuesta } from '@/lib/aprobaciones'
 
 const include = {
-  evento:      { select: { nombre: true } },
-  solicitante: { select: { name: true, email: true, telefono: true } },
+  evento:      { select: { nombre: true, tenants: { select: { tenantId: true } } } },
+  solicitante: { select: { id: true, name: true, email: true, telefono: true } },
   aprobadoPor: { select: { name: true, email: true } },
   pagadoPor:   { select: { name: true, email: true } },
   facturas:    true,
@@ -38,10 +39,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const isAdmin = session.user.role === 'ADMIN'
   const isContabilidad = session.user.role === 'CONTABILIDAD'
   const isOwner = caja.solicitanteId === session.user.id
+  const tenantIds = caja.evento.tenants.map(t => t.tenantId)
 
-  // Solo admin puede aprobar/rechazar
-  if ((estado === 'APROBADA' || estado === 'RECHAZADA') && !isAdmin) {
-    return NextResponse.json({ error: 'Solo admins pueden aprobar o rechazar' }, { status: 403 })
+  // Solo admin (o un aprobador configurado para la empresa del evento) puede aprobar/rechazar
+  if ((estado === 'APROBADA' || estado === 'RECHAZADA') && !(await puedeAprobar(tenantIds, session.user))) {
+    return NextResponse.json({ error: 'No autorizado para aprobar o rechazar' }, { status: 403 })
   }
   // Admin o contabilidad pueden marcar pagada
   if (estado === 'PAGADA' && !isAdmin && !isContabilidad) {
@@ -72,11 +74,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   const updated = await prisma.cajaMenuda.update({ where: { id: params.id }, data, include })
 
-  // Notificar al usuario cuando se aprueba o rechaza
+  // Notificar cuando se aprueba o rechaza
   if (estado === 'APROBADA' || estado === 'RECHAZADA') {
     const emoji = estado === 'APROBADA' ? '✅' : '❌'
     const texto = estado === 'APROBADA' ? 'aprobada' : 'rechazada'
-    if (updated.solicitante.telefono) {
+    const destinatarios = await receptoresRespuesta(tenantIds, async () => [updated.solicitante])
+    for (const destinatario of destinatarios.filter(d => d.telefono)) {
       const lines = [
         `${emoji} *Magic Dreams — Caja Menuda ${texto}*`,
         ``,
@@ -88,7 +91,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         ...(notaAdmin ? [`*Nota:* ${notaAdmin}`] : []),
         ...(estado === 'APROBADA' ? [`\nYa puedes subir tus respaldos (facturas) en el sistema.`] : []),
       ]
-      await sendWhatsApp(updated.solicitante.telefono, lines.join('\n')).catch(() => {})
+      await sendWhatsApp(destinatario.telefono!, lines.join('\n')).catch(() => {})
     }
   }
 

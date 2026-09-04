@@ -14,6 +14,93 @@ interface Tenant {
 
 const ROLE_LABELS: Record<string, string> = { ADMIN: 'Admin', USER: 'Usuario', CONTABILIDAD: 'Contabilidad' }
 
+interface AprobacionConfig { receptoresSolicitud: string[]; aprobadores: string[]; receptoresRespuesta: string[] }
+const APROBACION_VACIA: AprobacionConfig = { receptoresSolicitud: [], aprobadores: [], receptoresRespuesta: [] }
+
+function AprobacionesModal({ tenant, onClose }: { tenant: Tenant; onClose: () => void }) {
+  const [config, setConfig]   = useState<AprobacionConfig>(APROBACION_VACIA)
+  const [cargando, setCargando] = useState(true)
+  const [guardando, setGuardando] = useState(false)
+  const [guardado, setGuardado] = useState(false)
+
+  useEffect(() => {
+    fetch(`/api/admin/aprobaciones?tenantId=${tenant.id}`)
+      .then(r => r.json())
+      .then(d => setConfig({
+        receptoresSolicitud: d.receptoresSolicitud ?? [],
+        aprobadores:         d.aprobadores ?? [],
+        receptoresRespuesta: d.receptoresRespuesta ?? [],
+      }))
+      .finally(() => setCargando(false))
+  }, [tenant.id])
+
+  function toggle(campo: keyof AprobacionConfig, userId: string) {
+    setConfig(prev => ({
+      ...prev,
+      [campo]: prev[campo].includes(userId) ? prev[campo].filter(id => id !== userId) : [...prev[campo], userId],
+    }))
+    setGuardado(false)
+  }
+
+  async function guardar() {
+    setGuardando(true)
+    await fetch('/api/admin/aprobaciones', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tenantId: tenant.id, ...config }),
+    })
+    setGuardando(false)
+    setGuardado(true)
+  }
+
+  const usuarios = tenant.usuarios.map(ut => ut.user)
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 overflow-y-auto">
+      <div className="card p-6 w-full max-w-2xl shadow-2xl my-8">
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-lg font-bold text-gray-900">⚙️ Aprobaciones — {tenant.nombre}</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl">✕</button>
+        </div>
+        <p className="text-gray-500 text-sm mb-4">
+          Aplica a Solicitudes de personal, Caja Menuda, Cotizaciones y el Cotizador Print Media. Sin marcar nada aquí, se mantiene el comportamiento por defecto (los ADMIN de la empresa aprueban/reciben, y quien creó la solicitud recibe la respuesta).
+        </p>
+        {cargando ? (
+          <p className="text-gray-400 text-sm text-center py-6">Cargando...</p>
+        ) : usuarios.length === 0 ? (
+          <p className="text-gray-400 text-sm text-center py-6">Esta empresa no tiene usuarios asignados todavía.</p>
+        ) : (
+          <div className="grid grid-cols-3 gap-4">
+            {([
+              ['receptoresSolicitud', '📥 Recibe la solicitud', 'A quién se le avisa cuando hay algo nuevo pendiente de aprobar.'],
+              ['aprobadores',         '✅ Puede aprobar',        'Quién puede aprobar/rechazar, aunque no sea ADMIN.'],
+              ['receptoresRespuesta', '📤 Recibe la respuesta',  'A quién se le avisa cuando ya se aprobó o rechazó.'],
+            ] as const).map(([campo, titulo, desc]) => (
+              <div key={campo}>
+                <p className="text-xs font-semibold text-gray-700 mb-0.5">{titulo}</p>
+                <p className="text-xs text-gray-400 mb-2">{desc}</p>
+                <div className="space-y-1 max-h-64 overflow-y-auto">
+                  {usuarios.map(u => (
+                    <label key={u.id} className="flex items-center gap-2 text-xs py-1 px-1.5 rounded-lg hover:bg-gray-50 cursor-pointer">
+                      <input type="checkbox" checked={config[campo].includes(u.id)} onChange={() => toggle(campo, u.id)} />
+                      <span className="truncate text-gray-700">{u.name ?? u.email}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="flex items-center gap-3 mt-5">
+          <button onClick={guardar} disabled={guardando || cargando} className="btn-primary">
+            {guardando ? 'Guardando...' : 'Guardar configuración'}
+          </button>
+          {guardado && <span className="text-green-600 text-sm">✓ Guardado</span>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function TenantsAdminPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -39,6 +126,7 @@ export default function TenantsAdminPage() {
   const [bulkRole, setBulkRole]           = useState('USER')
   const [bulkSelected, setBulkSelected]   = useState<Set<string>>(new Set())
   const [bulkSaving, setBulkSaving]       = useState(false)
+  const [configTenant, setConfigTenant]   = useState<Tenant | null>(null)
 
   useEffect(() => {
     if (status === 'authenticated' && !session?.user?.isSuperAdmin) {
@@ -260,10 +348,14 @@ export default function TenantsAdminPage() {
                 <span className="text-2xl">🏢</span>
               )}
             </div>
-            <div>
+            <div className="flex-1">
               <h2 className="font-bold text-gray-900">{tenant.nombre}</h2>
               <p className="text-xs text-gray-400">{tenant.slug}</p>
             </div>
+            <button onClick={() => setConfigTenant(tenant)}
+              className="text-xs px-3 py-1.5 rounded-xl border-2 border-gray-200 text-gray-600 hover:border-gray-400 font-medium transition-all shrink-0">
+              ⚙️ Aprobaciones
+            </button>
           </div>
 
           <div className="divide-y divide-gray-100">
@@ -327,6 +419,8 @@ export default function TenantsAdminPage() {
           )}
         </div>
       ))}
+
+      {configTenant && <AprobacionesModal tenant={configTenant} onClose={() => setConfigTenant(null)} />}
     </div>
   )
 }

@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma'
 import { sendMail, templateNuevaCotizacion } from '@/lib/mail'
 import { sendWhatsApp } from '@/lib/whatsapp'
 import { getActiveTenantId } from '@/lib/tenant'
+import { receptoresSolicitud, tenantsDondeApruebo } from '@/lib/aprobaciones'
 
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions)
@@ -20,7 +21,8 @@ export async function GET(req: Request) {
     ? { linea: { categoria: { presupuesto: { evento: { tenants: { some: { tenantId } } } } } } }
     : {}
 
-  const userFilter = session.user.role === 'ADMIN'
+  const esAprobadorAqui = tenantId ? (await tenantsDondeApruebo(session.user.id)).includes(tenantId) : false
+  const userFilter = session.user.role === 'ADMIN' || esAprobadorAqui
     ? (lineaId ? { lineaId } : {})
     : { creadoPorId: session.user.id, ...(lineaId ? { lineaId } : {}) }
 
@@ -85,14 +87,17 @@ export async function POST(req: Request) {
     },
   })
 
-  // Notificar solo a admins de la(s) empresa(s) del evento (si no tiene
-  // empresa asignada, se avisa a todos para no dejar la cotización sin notificar)
+  // Notificar a los receptores configurados de la(s) empresa(s) del evento;
+  // sin configuración, cae a los ADMIN de esas empresas (o de todas si el
+  // evento no tiene empresa asignada, para no dejar la cotización sin notificar)
   try {
     const eventoTenantIds = cot.linea.categoria.presupuesto.evento.tenants.map(t => t.tenantId)
-    const adminFilter = eventoTenantIds.length
-      ? { role: 'ADMIN', tenants: { some: { tenantId: { in: eventoTenantIds } } } }
-      : { role: 'ADMIN' }
-    const admins      = await prisma.user.findMany({ where: adminFilter, select: { email: true, telefono: true } })
+    const admins = await receptoresSolicitud(eventoTenantIds, async () => {
+      const adminFilter = eventoTenantIds.length
+        ? { role: 'ADMIN', tenants: { some: { tenantId: { in: eventoTenantIds } } } }
+        : { role: 'ADMIN' }
+      return prisma.user.findMany({ where: adminFilter, select: { id: true, name: true, email: true, telefono: true } })
+    })
     const adminEmails = admins.map(a => a.email)
     const fromEmail   = session.user.email
     if (adminEmails.length && fromEmail) {

@@ -6,6 +6,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getActiveTenantId } from '@/lib/tenant'
 import { sendMail, templateRespuestaCostoRealPM } from '@/lib/mail'
+import { puedeAprobar, receptoresRespuesta } from '@/lib/aprobaciones'
 
 const TENANT_SLUG = 'printmediapty'
 
@@ -17,10 +18,12 @@ async function tenantAutorizado() {
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
-  if (!session || session.user.role !== 'ADMIN') {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const tenantId = await tenantAutorizado()
+  if (!tenantId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  if (!(await puedeAprobar([tenantId], session.user))) {
+    return NextResponse.json({ error: 'No autorizado para aprobar/rechazar' }, { status: 403 })
   }
-  if (!(await tenantAutorizado())) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const { estado, notaAdmin } = await req.json()
   if (!['APROBADO', 'RECHAZADO'].includes(estado)) {
@@ -41,15 +44,17 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       costoRealAprobadoPorId: session.user.id,
       costoRealAprobadoEn: new Date(),
     },
-    include: { creadoPor: { select: { name: true, email: true } } },
+    include: { creadoPor: { select: { id: true, name: true, email: true, telefono: true } } },
   })
 
   try {
     const fromEmail = session.user.email
-    if (cot.creadoPor.email && fromEmail) {
+    const destinatarios = await receptoresRespuesta([tenantId], async () => [cot.creadoPor])
+    const destinatarioEmails = destinatarios.map(d => d.email).filter(Boolean)
+    if (destinatarioEmails.length && fromEmail) {
       await sendMail({
         fromEmail,
-        toEmails: [cot.creadoPor.email],
+        toEmails: destinatarioEmails,
         subject: `Costo real ${estado === 'APROBADO' ? 'aprobado' : 'rechazado'} — ${cot.nombreTrabajo}`,
         html: templateRespuestaCostoRealPM({
           usuarioNombre:  cot.creadoPor.name ?? cot.creadoPor.email,

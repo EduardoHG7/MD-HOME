@@ -8,6 +8,7 @@ import { prisma } from '@/lib/prisma'
 import { getActiveTenantId } from '@/lib/tenant'
 import { sendMail, templateNuevaCotizacionPM } from '@/lib/mail'
 import { calcularItem, calcularResumen, type ProductoCalc, type MaterialCalc, type NivelPrecio } from '@/lib/cotizadorPM'
+import { receptoresSolicitud, puedeAprobar } from '@/lib/aprobaciones'
 
 const TENANT_SLUG = 'printmediapty'
 const DOMINIO_ADMIN_PM = '@printmediapty.com'
@@ -27,8 +28,9 @@ export async function GET(req: Request) {
 
   const eventoId = new URL(req.url).searchParams.get('eventoId')
 
+  const esAprobadorAqui = await puedeAprobar([tenantId], session.user)
   const where = {
-    ...(session.user.role === 'ADMIN' ? { tenantId } : { tenantId, creadoPorId: session.user.id }),
+    ...(esAprobadorAqui ? { tenantId } : { tenantId, creadoPorId: session.user.id }),
     ...(eventoId ? { eventoId } : {}),
   }
 
@@ -149,10 +151,10 @@ export async function POST(req: Request) {
   })
 
   try {
-    const admins = await prisma.user.findMany({
+    const admins = await receptoresSolicitud([tenantId], () => prisma.user.findMany({
       where: { role: 'ADMIN', tenants: { some: { tenantId } }, email: { endsWith: DOMINIO_ADMIN_PM } },
-      select: { email: true },
-    })
+      select: { id: true, name: true, email: true, telefono: true },
+    }))
     const adminEmails = admins.map(a => a.email)
     const fromEmail = session.user.email
     if (adminEmails.length && fromEmail) {

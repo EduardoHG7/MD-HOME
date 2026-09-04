@@ -6,14 +6,22 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { sendMail, templateRespuestaCotizacion } from '@/lib/mail'
 import { sendWhatsApp } from '@/lib/whatsapp'
+import { puedeAprobar, receptoresRespuesta } from '@/lib/aprobaciones'
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
-  if (!session || session.user.role !== 'ADMIN') {
-    return NextResponse.json({ error: 'Solo admins pueden aprobar/rechazar' }, { status: 403 })
-  }
+  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const { estado, notaAdmin } = await req.json()
+
+  const existente = await prisma.cotizacion.findUnique({
+    where: { id: params.id },
+    select: { linea: { select: { categoria: { select: { presupuesto: { select: { evento: { select: { tenants: { select: { tenantId: true } } } } } } } } } } },
+  })
+  const tenantIds = existente?.linea.categoria.presupuesto.evento.tenants.map(t => t.tenantId) ?? []
+  if (!(await puedeAprobar(tenantIds, session.user))) {
+    return NextResponse.json({ error: 'No autorizado para aprobar/rechazar' }, { status: 403 })
+  }
 
   const cot = await prisma.cotizacion.update({
     where: { id: params.id },
@@ -24,12 +32,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     },
     include: {
       facturas:    true,
-      creadoPor:   { select: { name: true, email: true, telefono: true } },
+      creadoPor:   { select: { id: true, name: true, email: true, telefono: true } },
       aprobadaPor: { select: { name: true, email: true } },
       linea: {
         include: {
           categoria: {
-            include: { presupuesto: { include: { evento: { select: { nombre: true } } } } }
+            include: { presupuesto: { include: { evento: { select: { nombre: true, tenants: true } } } } }
           }
         }
       },
@@ -52,44 +60,49 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     })
   }
 
-  if ((estado === 'APROBADA' || estado === 'RECHAZADA') && session.user.email && cot.creadoPor.email) {
+  if ((estado === 'APROBADA' || estado === 'RECHAZADA') && session.user.email) {
     const emoji = estado === 'APROBADA' ? '✅' : '❌'
     const texto = estado === 'APROBADA' ? 'aprobada' : 'rechazada'
+    const eventoTenantIds = cot.linea.categoria.presupuesto.evento.tenants.map(t => t.tenantId)
+    const destinatarios = await receptoresRespuesta(eventoTenantIds, async () => [cot.creadoPor])
+    const destinatarioEmails = destinatarios.map(d => d.email).filter(Boolean)
 
-    try {
-      await sendMail({
-        fromEmail: session.user.email,
-        toEmails:  [cot.creadoPor.email],
-        subject:   `Tu cotización fue ${estado === 'APROBADA' ? 'aprobada ✅' : 'rechazada ❌'} — ${cot.linea.descripcion}`,
-        html: templateRespuestaCotizacion({
-          usuarioNombre:      cot.creadoPor.name ?? cot.creadoPor.email,
-          eventoNombre:       cot.linea.categoria.presupuesto.evento.nombre,
-          categoriaNombre:    cot.linea.categoria.nombre,
-          subcategoriaNombre: cot.linea.descripcion,
-          estado:             estado as 'APROBADA' | 'RECHAZADA',
-          montoTotal:         cot.montoTotal,
-          notaAdmin:          notaAdmin ?? null,
-          adminNombre:        session.user.name ?? session.user.email ?? '',
-        }),
-      })
-    } catch (err) {
-      console.error('[cotizaciones/id] Error enviando email:', err)
+    if (destinatarioEmails.length) {
+      try {
+        await sendMail({
+          fromEmail: session.user.email,
+          toEmails:  destinatarioEmails,
+          subject:   `Tu cotización fue ${estado === 'APROBADA' ? 'aprobada ✅' : 'rechazada ❌'} — ${cot.linea.descripcion}`,
+          html: templateRespuestaCotizacion({
+            usuarioNombre:      cot.creadoPor.name ?? cot.creadoPor.email,
+            eventoNombre:       cot.linea.categoria.presupuesto.evento.nombre,
+            categoriaNombre:    cot.linea.categoria.nombre,
+            subcategoriaNombre: cot.linea.descripcion,
+            estado:             estado as 'APROBADA' | 'RECHAZADA',
+            montoTotal:         cot.montoTotal,
+            notaAdmin:          notaAdmin ?? null,
+            adminNombre:        session.user.name ?? session.user.email ?? '',
+          }),
+        })
+      } catch (err) {
+        console.error('[cotizaciones/id] Error enviando email:', err)
+      }
     }
 
-    if (cot.creadoPor.telefono) {
+    for (const destinatario of destinatarios.filter(d => d.telefono)) {
       try {
         const lines = [
           `${emoji} *Magic Dreams Productions*`,
-          `Tu cotización fue *${texto}*.`,
+          `La cotización fue *${texto}*.`,
           ``,
           `*Evento:* ${cot.linea.categoria.presupuesto.evento.nombre}`,
           `*Subcategoría:* ${cot.linea.descripcion}`,
           `*Monto:* $${cot.montoTotal.toFixed(2)}`,
           ...(notaAdmin ? [`*Nota del admin:* ${notaAdmin}`] : []),
           `*Revisado por:* ${session.user.name ?? session.user.email}`,
-          ...(estado === 'APROBADA' ? [`\nRecuerda subir tu factura real para completar el proceso.`] : []),
+          ...(estado === 'APROBADA' ? [`\nRecuerda subir la factura real para completar el proceso.`] : []),
         ]
-        await sendWhatsApp(cot.creadoPor.telefono, lines.join('\n'))
+        await sendWhatsApp(destinatario.telefono!, lines.join('\n'))
       } catch (err) {
         console.error('[cotizaciones/id] Error enviando WhatsApp:', err)
       }
