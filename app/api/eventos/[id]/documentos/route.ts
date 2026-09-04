@@ -8,6 +8,7 @@ import { prisma } from '@/lib/prisma'
 import { uploadToSharePoint } from '@/lib/sharepoint'
 import { notificarExpedienteListo } from '@/lib/expediente'
 import { puedeGestionarExpediente } from '@/lib/expediente-permisos'
+import { getActiveTenantId } from '@/lib/tenant'
 
 const TIPOS_VALIDOS = [
   'CONTRATO', 'SEGURO', 'FIANZA', 'PERMISO', 'OTRO',
@@ -15,9 +16,20 @@ const TIPOS_VALIDOS = [
   'AVISO_OPERACIONES', 'CEDULA_REP_LEGAL', 'CIERRE', 'GASTOS', 'PLANILLA', 'LOGISTICA',
 ]
 
+// Los documentos legales del evento (contrato, seguro, fianza, etc.) son de
+// la empresa dueña del evento — Print Media no debe verlos, ni en eventos
+// que se le compartieron para el Cotizador PM.
+async function tenantBloqueado() {
+  const tenantId = getActiveTenantId()
+  if (!tenantId) return false
+  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } })
+  return tenant?.slug === 'printmediapty'
+}
+
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  if (await tenantBloqueado()) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const documentos = await prisma.eventoDocumento.findMany({
     where: { eventoId: params.id },
@@ -30,6 +42,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  if (await tenantBloqueado()) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   if (!(await puedeGestionarExpediente(params.id, session.user.id, session.user.role, session.user.availableTenants))) {
     return NextResponse.json({ error: 'No eres el responsable de documentación de este evento' }, { status: 403 })
@@ -78,6 +91,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 export async function DELETE(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  if (await tenantBloqueado()) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   if (!(await puedeGestionarExpediente(params.id, session.user.id, session.user.role, session.user.availableTenants))) {
     return NextResponse.json({ error: 'Sin permiso' }, { status: 403 })
