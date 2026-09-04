@@ -490,11 +490,17 @@ export default function EventosPage() {
               </div>
             </div>
             <div className="flex items-center gap-2 mt-3 flex-wrap">
-              {/* En Panatickets el presupuesto se reemplaza por el expediente de documentos */}
+              {/* En Panatickets el presupuesto se reemplaza por el expediente de documentos.
+                  Print Media nunca ve el presupuesto (es de la empresa dueña del evento,
+                  aunque el evento se le haya compartido para el Cotizador PM). */}
               {activeTenant?.slug === 'panatickets' ? (
                 <button onClick={() => router.push(`/admin/eventos/${ev.id}/documentos`)}
                   className="p-2 rounded-xl border border-blue-200 hover:border-blue-400 hover:bg-blue-50 transition-all text-blue-600 text-xs font-medium px-3"
                   title="Documentos, formulario y contrato del evento">📁 Documentos</button>
+              ) : activeTenant?.slug === 'printmediapty' ? (
+                <button onClick={() => setVerDocs(ev)}
+                  className="p-2 rounded-xl border border-blue-200 hover:border-blue-400 hover:bg-blue-50 transition-all text-blue-600 text-xs font-medium px-3"
+                  title="Documentos legales">📁 Documentos</button>
               ) : (
                 <>
                   <button onClick={() => router.push(`/admin/eventos/${ev.id}/presupuesto`)}

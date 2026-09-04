@@ -388,6 +388,16 @@ export default function PresupuestoPage() {
     finally { setExtractingBol(false) }
   }
 
+  if (esPrintMedia) {
+    return (
+      <div className="card p-8 text-center">
+        <p className="text-3xl mb-3">🔒</p>
+        <p className="text-gray-700 font-semibold">Print Media no tiene acceso al presupuesto de este evento.</p>
+        <p className="text-gray-400 text-sm mt-1">Usa el Cotizador para tus propias cotizaciones de este trabajo.</p>
+      </div>
+    )
+  }
+
   if (loading) return <div className="flex items-center justify-center h-64 text-gray-400 animate-pulse">Cargando presupuesto...</div>
 
   return (
