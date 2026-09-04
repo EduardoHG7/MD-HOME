@@ -20,9 +20,10 @@ const NAV_ITEMS = [
 // cotizador reemplaza el ítem genérico "Cotizaciones" (que es para aprobar
 // gastos del presupuesto de un evento tipo concierto — no aplica aquí).
 const NAV_PRINTMEDIA = [
-  { href: '/usuario/clientes',       label: '🧑‍💼 Clientes' },
-  { href: '/usuario/proveedores',    label: '🚚 Proveedores' },
+  { href: '/usuario/clientes',        label: '🧑‍💼 Clientes' },
+  { href: '/usuario/proveedores',     label: '🚚 Proveedores' },
   { href: '/usuario/cotizaciones-pm', label: '🖨️ Cotizador' },
+  { href: '/usuario/aplicantes',      label: '👥 Aplicantes' },
 ]
 
 // El operador Panatickets solo maneja eventuales (solicitudes), no cotizaciones

@@ -9,11 +9,18 @@ import { getActiveTenantId } from '@/lib/tenant'
 
 export async function GET() {
   const session = await getServerSession(authOptions)
-  if (!session || session.user.role !== 'ADMIN') {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  }
+  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const tenantId = getActiveTenantId()
+
+  // Los usuarios no-admin solo pueden ver la lista si su empresa activa es
+  // Print Media PTY (necesitan revisar el personal disponible para eventos).
+  if (session.user.role !== 'ADMIN') {
+    const tenant = tenantId ? await prisma.tenant.findUnique({ where: { id: tenantId } }) : null
+    if (tenant?.slug !== 'printmediapty') {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    }
+  }
 
   const aplicantes = await prisma.aplicante.findMany({
     where: tenantId ? { OR: [{ tenantId }, { asignaciones: { some: { evento: { tenants: { some: { tenantId } } } } } }] } : {},
