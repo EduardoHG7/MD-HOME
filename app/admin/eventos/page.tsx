@@ -73,13 +73,14 @@ const emptyForm: FormState = {
 interface TenantOption { id: string; nombre: string }
 
 // ── Componente fuera del padre para evitar re-mount en cada keystroke ──
-function EventoForm({ values, venues, usuarios, tenantsDisponibles, onChange, camposLimitados }: {
+function EventoForm({ values, venues, usuarios, tenantsDisponibles, onChange, camposLimitados, esPrintMedia }: {
   values: FormState
   venues: Venue[]
   usuarios: Usuario[]
   tenantsDisponibles: TenantOption[]
   onChange: (v: Partial<FormState>) => void
   camposLimitados?: boolean // operador Panatickets: solo nombre/fechas/venue/estado
+  esPrintMedia?: boolean // Print Media no maneja tipo de evento, responsable de docs ni socio externo
 }) {
   function toggleTenant(id: string) {
     const next = values.tenantIds.includes(id)
@@ -183,7 +184,7 @@ function EventoForm({ values, venues, usuarios, tenantsDisponibles, onChange, ca
       )}
 
       {/* Tipo de evento */}
-      {!camposLimitados && (
+      {!camposLimitados && !esPrintMedia && (
         <div>
           <label className="label">Tipo de evento</label>
           <div className="grid grid-cols-3 gap-2">
@@ -216,7 +217,7 @@ function EventoForm({ values, venues, usuarios, tenantsDisponibles, onChange, ca
       </div>
 
       {/* Responsable de documentación */}
-      {!camposLimitados && (
+      {!camposLimitados && !esPrintMedia && (
         <div>
           <label className="label">📁 Responsable de documentación</label>
           <p className="text-gray-400 text-xs mb-1">Esta persona podrá subir contrato, seguro, fianza y otros documentos legales del evento.</p>
@@ -230,7 +231,7 @@ function EventoForm({ values, venues, usuarios, tenantsDisponibles, onChange, ca
       )}
 
       {/* Socio externo */}
-      {!camposLimitados && (
+      {!camposLimitados && !esPrintMedia && (
         <div>
           <label className="label">¿Tiene socio externo?</label>
           <div className="flex gap-3">
@@ -417,7 +418,7 @@ export default function EventosPage() {
         <div className="card p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Crear Evento</h2>
           <form onSubmit={handleCreate} className="space-y-4">
-            <EventoForm values={form} venues={venues} usuarios={usuarios} tenantsDisponibles={tenantsDisponibles} onChange={v => setForm(f => ({ ...f, ...v }))} />
+            <EventoForm values={form} venues={venues} usuarios={usuarios} tenantsDisponibles={tenantsDisponibles} onChange={v => setForm(f => ({ ...f, ...v }))} esPrintMedia={activeTenant?.slug === 'printmediapty'} />
             <button type="submit" disabled={loading} className="btn-primary">
               {loading ? 'Creando...' : 'Crear Evento'}
             </button>
@@ -578,7 +579,7 @@ export default function EventosPage() {
               <button onClick={() => setEditing(null)} className="text-gray-400 hover:text-gray-700 text-xl">✕</button>
             </div>
             <form onSubmit={handleEdit} className="space-y-4">
-              <EventoForm values={editForm} venues={venues} usuarios={usuarios} tenantsDisponibles={tenantsDisponibles} onChange={v => setEditForm(f => ({ ...f, ...v }))} camposLimitados={esPana} />
+              <EventoForm values={editForm} venues={venues} usuarios={usuarios} tenantsDisponibles={tenantsDisponibles} onChange={v => setEditForm(f => ({ ...f, ...v }))} camposLimitados={esPana} esPrintMedia={activeTenant?.slug === 'printmediapty'} />
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setEditing(null)} className="btn-ghost flex-1">Cancelar</button>
                 <button type="submit" disabled={loading} className="btn-primary flex-1">

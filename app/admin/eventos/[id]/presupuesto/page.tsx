@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import { useTenant } from '@/hooks/useTenant'
 
 /* ─── Types ─── */
 interface Usuario     { id: string; name: string | null; email: string }
@@ -221,6 +222,8 @@ function CotizacionRow({ cot, isAdmin, onUpdate }: { cot: Cotizacion; isAdmin: b
 export default function PresupuestoPage() {
   const { id: eventoId } = useParams<{ id: string }>()
   const router = useRouter()
+  const { activeTenant } = useTenant()
+  const esPrintMedia = activeTenant?.slug === 'printmediapty'
 
   const [tab,         setTab]         = useState<Tab>('presupuesto')
   const [header,      setHeader]      = useState<Header>(emptyHeader)
@@ -553,8 +556,8 @@ export default function PresupuestoPage() {
 
           }
 
-          {/* Patrocinios presupuestados — solo eventos propios */}
-          {!isContratado && <PatrociniosSection title="🤝 Sponsorship Income (Presupuesto)" patrocinios={patrocinios} patrocinadores={patrocinadores} ticketZonas={ticketZonas} onChange={setPatrocinios} />}
+          {/* Patrocinios presupuestados — solo eventos propios, no aplica a Print Media */}
+          {!isContratado && !esPrintMedia && <PatrociniosSection title="🤝 Sponsorship Income (Presupuesto)" patrocinios={patrocinios} patrocinadores={patrocinadores} ticketZonas={ticketZonas} onChange={setPatrocinios} />}
 
           {/* ── Distribución de Ganancias ── */}
           {!isContratado && (() => {
@@ -817,8 +820,8 @@ export default function PresupuestoPage() {
 
           }
 
-          {/* Patrocinios reales — solo eventos propios */}
-          {!isContratado && <PatrociniosSection title="🤝 Patrocinios Reales Cobrados" patrocinios={patroReal} patrocinadores={patrocinadores} ticketZonas={ticketZonas} onChange={setPatroReal} />}
+          {/* Patrocinios reales — solo eventos propios, no aplica a Print Media */}
+          {!isContratado && !esPrintMedia && <PatrociniosSection title="🤝 Patrocinios Reales Cobrados" patrocinios={patroReal} patrocinadores={patrocinadores} ticketZonas={ticketZonas} onChange={setPatroReal} />}
 
           {/* ── Distribución de Ganancias Reales ── */}
           {!isContratado && (() => {

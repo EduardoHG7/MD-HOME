@@ -59,9 +59,11 @@ export function AdminSidebar({ session, role, soloEventos }: { session: Session;
     ? [...baseNav, FINANZAS_ITEM]
     : baseNav
 
-  // Clientes/Proveedores: exclusivo de Print Media PTY
-  const navConAcceso = !soloEventos && !soloFinanzas && activeTenant?.slug === 'printmediapty'
-    ? [...navConFinanzas, ...PRINTMEDIA_NAV_ITEMS]
+  // Clientes/Proveedores/Cotizador: exclusivo de Print Media PTY — y
+  // "Patrocinadores" no aplica a su negocio, se quita del menú.
+  const esPrintMedia = !soloEventos && !soloFinanzas && activeTenant?.slug === 'printmediapty'
+  const navConAcceso = esPrintMedia
+    ? [...navConFinanzas.filter(item => item.href !== '/admin/patrocinadores'), ...PRINTMEDIA_NAV_ITEMS]
     : navConFinanzas
 
   // Append Empresas link for super-admins (nunca para operadores acotados)
