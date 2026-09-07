@@ -62,7 +62,7 @@ function AprobacionesModal({ tenant, onClose }: { tenant: Tenant; onClose: () =>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl">✕</button>
         </div>
         <p className="text-gray-500 text-sm mb-4">
-          Aplica a Solicitudes de personal, Caja Menuda, Cotizaciones y el Cotizador Print Media. Sin marcar nada aquí, se mantiene el comportamiento por defecto (los ADMIN de la empresa aprueban/reciben, y quien creó la solicitud recibe la respuesta).
+          Aplica a Solicitudes de personal, Caja Menuda, Cotizaciones y el Cotizador Print Media. Sin marcar nada aquí, se mantiene el comportamiento por defecto (los ADMIN de la empresa aprueban/reciben). Quien creó la solicitud siempre recibe la respuesta — lo que marques abajo en "Recibe la respuesta" se suma a él, no lo reemplaza.
         </p>
         {cargando ? (
           <p className="text-gray-400 text-sm text-center py-6">Cargando...</p>
@@ -73,7 +73,7 @@ function AprobacionesModal({ tenant, onClose }: { tenant: Tenant; onClose: () =>
             {([
               ['receptoresSolicitud', '📥 Recibe la solicitud', 'A quién se le avisa cuando hay algo nuevo pendiente de aprobar.'],
               ['aprobadores',         '✅ Puede aprobar',        'Quién puede aprobar/rechazar, aunque no sea ADMIN.'],
-              ['receptoresRespuesta', '📤 Recibe la respuesta',  'A quién se le avisa cuando ya se aprobó o rechazó.'],
+              ['receptoresRespuesta', '📤 Recibe la respuesta',  'Además de quien lo solicitó (siempre), a quién más avisar cuando ya se aprobó o rechazó.'],
             ] as const).map(([campo, titulo, desc]) => (
               <div key={campo}>
                 <p className="text-xs font-semibold text-gray-700 mb-0.5">{titulo}</p>
