@@ -157,57 +157,65 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ error: 'Solo se pueden reenviar cotizaciones pendientes' }, { status: 400 })
   }
 
-  try {
-    const eventoTenantIds = cot.linea.categoria.presupuesto.evento.tenants.map(t => t.tenantId)
-    const admins = await receptoresSolicitud(eventoTenantIds, () => {
-      const adminFilter = eventoTenantIds.length
-        ? { role: 'ADMIN', tenants: { some: { tenantId: { in: eventoTenantIds } } } }
-        : { role: 'ADMIN' }
-      return prisma.user.findMany({ where: adminFilter, select: { id: true, name: true, email: true, telefono: true } })
-    })
-    const adminEmails = admins.map(a => a.email)
-    const fromEmail = session.user.email
-    if (adminEmails.length && fromEmail) {
-      await sendMail({
-        fromEmail,
-        toEmails: adminEmails,
-        subject: `[Reenvío] Nueva cotización — ${cot.linea.categoria.presupuesto.evento.nombre} · ${cot.linea.descripcion}`,
-        html: templateNuevaCotizacion({
-          usuarioNombre:      session.user.name ?? fromEmail,
-          usuarioEmail:       fromEmail,
-          eventoNombre:       cot.linea.categoria.presupuesto.evento.nombre,
-          categoriaNombre:    cot.linea.categoria.nombre,
-          subcategoriaNombre: cot.linea.descripcion,
-          descripcion:        cot.descripcion,
-          montoTotal:         cot.montoTotal,
-          numFacturas:        cot.facturas.length,
-          cotizacionId:       cot.id,
-        }),
-      })
-    }
+  const eventoTenantIds = cot.linea.categoria.presupuesto.evento.tenants.map(t => t.tenantId)
+  const admins = await receptoresSolicitud(eventoTenantIds, () => {
+    const adminFilter = eventoTenantIds.length
+      ? { role: 'ADMIN', tenants: { some: { tenantId: { in: eventoTenantIds } } } }
+      : { role: 'ADMIN' }
+    return prisma.user.findMany({ where: adminFilter, select: { id: true, name: true, email: true, telefono: true } })
+  })
+  const adminEmails = admins.map(a => a.email)
+  const fromEmail = session.user.email
 
-    const url = process.env.NEXTAUTH_URL ?? ''
-    for (const admin of admins.filter(a => a.telefono)) {
-      try {
-        await sendWhatsApp(
-          admin.telefono!,
-          `💰 *Magic Dreams — Cotización (reenvío)*\n\n` +
-          `*${session.user.name ?? fromEmail}* reenvía una cotización para aprobación.\n\n` +
-          `*Evento:* ${cot.linea.categoria.presupuesto.evento.nombre}\n` +
-          `*Subcategoría:* ${cot.linea.descripcion}${cot.concepto ? ` › ${cot.concepto}` : ''}\n` +
-          `*Monto total:* $${cot.montoTotal.toFixed(2)}\n\n` +
-          `Revisar y aprobar:\n${url}/admin/solicitudes?tab=cotizaciones&id=${cot.id}`
-        )
-      } catch (err) {
-        console.error('[cotizaciones/id] Error enviando WhatsApp a admin:', err)
-      }
-    }
-  } catch (err) {
-    console.error('[cotizaciones/id] Error reenviando notificación:', err)
-    return NextResponse.json({ error: 'Error al reenviar' }, { status: 500 })
+  if (!adminEmails.length) {
+    console.warn(`[cotizaciones/id] Reenvío sin destinatarios de correo — cotización ${cot.id}, tenants del evento: ${eventoTenantIds.join(', ') || '(ninguna)'}`)
+    return NextResponse.json({ error: 'No hay destinatarios configurados para esta empresa. Revisa la configuración de Aprobaciones en Empresas.' }, { status: 422 })
+  }
+  if (!fromEmail) {
+    return NextResponse.json({ error: 'Tu cuenta no tiene un correo válido para enviar la notificación.' }, { status: 400 })
   }
 
-  return NextResponse.json({ ok: true })
+  try {
+    await sendMail({
+      fromEmail,
+      toEmails: adminEmails,
+      subject: `[Reenvío] Nueva cotización — ${cot.linea.categoria.presupuesto.evento.nombre} · ${cot.linea.descripcion}`,
+      html: templateNuevaCotizacion({
+        usuarioNombre:      session.user.name ?? fromEmail,
+        usuarioEmail:       fromEmail,
+        eventoNombre:       cot.linea.categoria.presupuesto.evento.nombre,
+        categoriaNombre:    cot.linea.categoria.nombre,
+        subcategoriaNombre: cot.linea.descripcion,
+        descripcion:        cot.descripcion,
+        montoTotal:         cot.montoTotal,
+        numFacturas:        cot.facturas.length,
+        cotizacionId:       cot.id,
+      }),
+    })
+  } catch (err) {
+    console.error('[cotizaciones/id] Error reenviando correo:', err)
+    const detalle = err instanceof Error ? err.message : String(err)
+    return NextResponse.json({ error: `No se pudo enviar el correo: ${detalle}` }, { status: 500 })
+  }
+
+  const url = process.env.NEXTAUTH_URL ?? ''
+  for (const admin of admins.filter(a => a.telefono)) {
+    try {
+      await sendWhatsApp(
+        admin.telefono!,
+        `💰 *Magic Dreams — Cotización (reenvío)*\n\n` +
+        `*${session.user.name ?? fromEmail}* reenvía una cotización para aprobación.\n\n` +
+        `*Evento:* ${cot.linea.categoria.presupuesto.evento.nombre}\n` +
+        `*Subcategoría:* ${cot.linea.descripcion}${cot.concepto ? ` › ${cot.concepto}` : ''}\n` +
+        `*Monto total:* $${cot.montoTotal.toFixed(2)}\n\n` +
+        `Revisar y aprobar:\n${url}/admin/solicitudes?tab=cotizaciones&id=${cot.id}`
+      )
+    } catch (err) {
+      console.error('[cotizaciones/id] Error enviando WhatsApp a admin:', err)
+    }
+  }
+
+  return NextResponse.json({ ok: true, notificados: adminEmails })
 }
 
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
