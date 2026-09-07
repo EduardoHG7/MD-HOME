@@ -4,9 +4,9 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { sendMail, templateRespuestaCotizacion } from '@/lib/mail'
+import { sendMail, templateRespuestaCotizacion, templateNuevaCotizacion } from '@/lib/mail'
 import { sendWhatsApp } from '@/lib/whatsapp'
-import { puedeAprobar, receptoresRespuesta } from '@/lib/aprobaciones'
+import { puedeAprobar, receptoresRespuesta, receptoresSolicitud } from '@/lib/aprobaciones'
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
@@ -128,6 +128,86 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   }
 
   return NextResponse.json(cot)
+}
+
+// Reenviar notificación a quienes reciben la solicitud (el creador reenvía su cotización pendiente)
+export async function POST(_req: Request, { params }: { params: { id: string } }) {
+  const session = await getServerSession(authOptions)
+  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+  const cot = await prisma.cotizacion.findUnique({
+    where: { id: params.id },
+    include: {
+      facturas: true,
+      linea: {
+        include: {
+          categoria: {
+            include: { presupuesto: { include: { evento: { select: { nombre: true, tenants: true } } } } }
+          }
+        }
+      },
+    },
+  })
+
+  if (!cot) return NextResponse.json({ error: 'No encontrada' }, { status: 404 })
+  if (cot.creadoPorId !== session.user.id) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  }
+  if (cot.estado !== 'PENDIENTE') {
+    return NextResponse.json({ error: 'Solo se pueden reenviar cotizaciones pendientes' }, { status: 400 })
+  }
+
+  try {
+    const eventoTenantIds = cot.linea.categoria.presupuesto.evento.tenants.map(t => t.tenantId)
+    const admins = await receptoresSolicitud(eventoTenantIds, () => {
+      const adminFilter = eventoTenantIds.length
+        ? { role: 'ADMIN', tenants: { some: { tenantId: { in: eventoTenantIds } } } }
+        : { role: 'ADMIN' }
+      return prisma.user.findMany({ where: adminFilter, select: { id: true, name: true, email: true, telefono: true } })
+    })
+    const adminEmails = admins.map(a => a.email)
+    const fromEmail = session.user.email
+    if (adminEmails.length && fromEmail) {
+      await sendMail({
+        fromEmail,
+        toEmails: adminEmails,
+        subject: `[Reenvío] Nueva cotización — ${cot.linea.categoria.presupuesto.evento.nombre} · ${cot.linea.descripcion}`,
+        html: templateNuevaCotizacion({
+          usuarioNombre:      session.user.name ?? fromEmail,
+          usuarioEmail:       fromEmail,
+          eventoNombre:       cot.linea.categoria.presupuesto.evento.nombre,
+          categoriaNombre:    cot.linea.categoria.nombre,
+          subcategoriaNombre: cot.linea.descripcion,
+          descripcion:        cot.descripcion,
+          montoTotal:         cot.montoTotal,
+          numFacturas:        cot.facturas.length,
+          cotizacionId:       cot.id,
+        }),
+      })
+    }
+
+    const url = process.env.NEXTAUTH_URL ?? ''
+    for (const admin of admins.filter(a => a.telefono)) {
+      try {
+        await sendWhatsApp(
+          admin.telefono!,
+          `💰 *Magic Dreams — Cotización (reenvío)*\n\n` +
+          `*${session.user.name ?? fromEmail}* reenvía una cotización para aprobación.\n\n` +
+          `*Evento:* ${cot.linea.categoria.presupuesto.evento.nombre}\n` +
+          `*Subcategoría:* ${cot.linea.descripcion}${cot.concepto ? ` › ${cot.concepto}` : ''}\n` +
+          `*Monto total:* $${cot.montoTotal.toFixed(2)}\n\n` +
+          `Revisar y aprobar:\n${url}/admin/solicitudes?tab=cotizaciones&id=${cot.id}`
+        )
+      } catch (err) {
+        console.error('[cotizaciones/id] Error enviando WhatsApp a admin:', err)
+      }
+    }
+  } catch (err) {
+    console.error('[cotizaciones/id] Error reenviando notificación:', err)
+    return NextResponse.json({ error: 'Error al reenviar' }, { status: 500 })
+  }
+
+  return NextResponse.json({ ok: true })
 }
 
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {

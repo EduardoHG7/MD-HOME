@@ -257,6 +257,8 @@ export default function CotizacionesPage() {
   const [selected,     setSelected]     = useState<Linea | null>(null)
   const [showForm,     setShowForm]     = useState(false)
   const [filtroEvento, setFiltroEvento] = useState<string>('')
+  const [reenviandoId, setReenviandoId] = useState<string | null>(null)
+  const [reenviadoId,  setReenviadoId]  = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/mis-asignaciones').then(r => r.json()).then(d => { setLineas(Array.isArray(d) ? d : []); setLoading(false) })
@@ -281,6 +283,16 @@ export default function CotizacionesPage() {
       setLineas(prev => prev.map(l => l.id === lineaId ? { ...l, cotizaciones: l.cotizaciones.filter(c => c.id !== cotId) } : l))
       setSelected(prev => prev && prev.id === lineaId ? { ...prev, cotizaciones: prev.cotizaciones.filter(c => c.id !== cotId) } : prev)
     }
+  }
+
+  async function reenviarCot(cotId: string) {
+    setReenviandoId(cotId)
+    const res = await fetch(`/api/cotizaciones/${cotId}`, { method: 'POST' })
+    if (res.ok) {
+      setReenviadoId(cotId)
+      setTimeout(() => setReenviadoId(null), 3000)
+    }
+    setReenviandoId(null)
   }
 
   const porEvento: Record<string, { evento: Linea['categoria']['presupuesto']['evento']; lineas: Linea[] }> = {}
@@ -443,7 +455,13 @@ export default function CotizacionesPage() {
                                   <div className="text-right">
                                     <p className="font-bold text-gray-900">{fmt(cot.montoTotal)}</p>
                                     {cot.estado === 'PENDIENTE' && (
-                                      <button onClick={() => eliminarCot(selected.id, cot.id)} className="text-xs text-red-400 hover:text-red-600 mt-1 block">Eliminar</button>
+                                      <div className="flex flex-col items-end gap-1 mt-1">
+                                        <button onClick={() => reenviarCot(cot.id)} disabled={reenviandoId === cot.id}
+                                          className="text-xs text-blue-500 hover:text-blue-700 block">
+                                          {reenviandoId === cot.id ? 'Reenviando...' : reenviadoId === cot.id ? '✓ Reenviada' : '↩ Reenviar'}
+                                        </button>
+                                        <button onClick={() => eliminarCot(selected.id, cot.id)} className="text-xs text-red-400 hover:text-red-600 block">Eliminar</button>
+                                      </div>
                                     )}
                                   </div>
                                 </div>
