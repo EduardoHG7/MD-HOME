@@ -259,6 +259,7 @@ export default function CotizacionesPage() {
   const [filtroEvento, setFiltroEvento] = useState<string>('')
   const [reenviandoId, setReenviandoId] = useState<string | null>(null)
   const [reenviadoId,  setReenviadoId]  = useState<string | null>(null)
+  const [reenvioError, setReenvioError] = useState<{ id: string; msg: string } | null>(null)
 
   useEffect(() => {
     fetch('/api/mis-asignaciones').then(r => r.json()).then(d => { setLineas(Array.isArray(d) ? d : []); setLoading(false) })
@@ -286,13 +287,21 @@ export default function CotizacionesPage() {
   }
 
   async function reenviarCot(cotId: string) {
-    setReenviandoId(cotId)
-    const res = await fetch(`/api/cotizaciones/${cotId}`, { method: 'POST' })
-    if (res.ok) {
+    setReenviandoId(cotId); setReenvioError(null)
+    try {
+      const res = await fetch(`/api/cotizaciones/${cotId}`, { method: 'POST' })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        setReenvioError({ id: cotId, msg: data?.error ?? `Error al reenviar (${res.status})` })
+        return
+      }
       setReenviadoId(cotId)
       setTimeout(() => setReenviadoId(null), 3000)
+    } catch {
+      setReenvioError({ id: cotId, msg: 'Error de conexión al reenviar.' })
+    } finally {
+      setReenviandoId(null)
     }
-    setReenviandoId(null)
   }
 
   const porEvento: Record<string, { evento: Linea['categoria']['presupuesto']['evento']; lineas: Linea[] }> = {}
@@ -465,6 +474,9 @@ export default function CotizacionesPage() {
                                     )}
                                   </div>
                                 </div>
+                                {reenvioError?.id === cot.id && (
+                                  <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-2 py-1.5 mb-2">⚠️ {reenvioError.msg}</p>
+                                )}
                                 <div className="flex flex-wrap gap-2 mb-2">
                                   {cot.facturas.map(f => (
                                     <span key={f.id} className="text-xs bg-white border border-gray-200 rounded-lg px-2 py-1 text-gray-600">
