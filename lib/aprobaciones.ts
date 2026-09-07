@@ -42,14 +42,23 @@ export async function receptoresSolicitud(
   return configurados.length ? configurados : fallback()
 }
 
-// A quién avisar el resultado (aprobado/rechazado). Sin configuración, cada
-// flujo sigue avisando solo a quien lo creó (comportamiento previo).
+// A quién avisar el resultado (aprobado/rechazado). Quien lo creó SIEMPRE
+// recibe la respuesta (obligatorio, sin excepción) — lo configurado en el
+// panel se suma a esa lista, nunca la reemplaza.
 export async function receptoresRespuesta(
   tenantIds: string[],
-  fallback: () => Promise<UsuarioNotificable[]>,
+  obligatorios: () => Promise<UsuarioNotificable[]>,
 ): Promise<UsuarioNotificable[]> {
-  const configurados = await usuariosPorRolMultiTenant(tenantIds, 'RECEPTOR_RESPUESTA')
-  return configurados.length ? configurados : fallback()
+  const [base, configurados] = await Promise.all([
+    obligatorios(),
+    usuariosPorRolMultiTenant(tenantIds, 'RECEPTOR_RESPUESTA'),
+  ])
+  const vistos = new Set<string>()
+  const resultado: UsuarioNotificable[] = []
+  for (const u of [...base, ...configurados]) {
+    if (!vistos.has(u.id)) { vistos.add(u.id); resultado.push(u) }
+  }
+  return resultado
 }
 
 // ¿Puede este usuario aprobar/rechazar en alguna de estas empresas? ADMIN
