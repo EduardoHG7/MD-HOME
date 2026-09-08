@@ -222,8 +222,8 @@ export function templateRespuestaSolicitud({
         <tr><td style="padding:8px 0;color:#6b7280">Revisado por</td><td style="padding:8px 0">${adminNombre}</td></tr>
       </table>
       <div style="margin-top:24px">
-        <a href="${process.env.NEXTAUTH_URL}/usuario/solicitar" style="background:#111;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">
-          Ver mis solicitudes →
+        <a href="${process.env.NEXTAUTH_URL}/admin/solicitudes" style="background:#111;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">
+          Ver solicitud →
         </a>
       </div>
     </div>
@@ -365,8 +365,8 @@ export function templateRespuestaCotizacion({
         <p style="margin:0;color:#166534;font-size:13px">Tu cotización fue aprobada. Ahora debes subir la factura real para completar el proceso.</p>
       </div>` : ''}
       <div style="margin-top:24px">
-        <a href="${process.env.NEXTAUTH_URL}/usuario/cotizaciones" style="background:#111;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">
-          ${aprobada ? 'Subir factura →' : 'Ver mis cotizaciones →'}
+        <a href="${process.env.NEXTAUTH_URL}/admin/solicitudes?tab=cotizaciones" style="background:#111;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">
+          ${aprobada ? 'Subir factura →' : 'Ver cotización →'}
         </a>
       </div>
     </div>
@@ -448,8 +448,8 @@ export function templateRespuestaCotizacionPM({
         <p style="margin:0;color:#166534;font-size:13px">Ya puedes trabajar el pedido. Cuando termines, sube el costo real para cerrar la cotización.</p>
       </div>` : ''}
       <div style="margin-top:24px">
-        <a href="${process.env.NEXTAUTH_URL}/usuario/cotizaciones-pm" style="background:#111;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">
-          Ver mis cotizaciones →
+        <a href="${process.env.NEXTAUTH_URL}/admin/cotizaciones-pm" style="background:#111;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">
+          Ver cotización →
         </a>
       </div>
     </div>
@@ -519,8 +519,8 @@ export function templateRespuestaCostoRealPM({
         <tr><td style="padding:8px 0;color:#6b7280">Revisado por</td><td style="padding:8px 0">${adminNombre}</td></tr>
       </table>
       <div style="margin-top:24px">
-        <a href="${process.env.NEXTAUTH_URL}/usuario/cotizaciones-pm" style="background:#111;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">
-          Ver mis cotizaciones →
+        <a href="${process.env.NEXTAUTH_URL}/admin/cotizaciones-pm" style="background:#111;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">
+          Ver cotización →
         </a>
       </div>
     </div>

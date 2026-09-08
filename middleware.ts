@@ -85,7 +85,13 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL('/admin', req.url))
   }
 
-  return NextResponse.next()
+  // Se reenvía la ruta pedida en un header propio para que app/admin/layout.tsx
+  // pueda mandar a un usuario sin permisos a su equivalente en /usuario en vez
+  // de siempre a /usuario/solicitar (ej: un link de correo a /admin/cotizaciones-pm
+  // debe caer en /usuario/cotizaciones-pm, no en Solicitudes).
+  const requestHeaders = new Headers(req.headers)
+  requestHeaders.set('x-pathname', pathname + req.nextUrl.search)
+  return NextResponse.next({ request: { headers: requestHeaders } })
 }
 
 export const config = {
