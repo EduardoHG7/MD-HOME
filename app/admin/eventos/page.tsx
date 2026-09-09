@@ -272,7 +272,7 @@ function CotizacionesPMEventoModal({ evento, onClose }: { evento: Evento; onClos
   useEffect(() => {
     fetch(`/api/pm/cotizaciones?eventoId=${evento.id}`)
       .then(r => r.json())
-      .then(d => setCotizaciones(Array.isArray(d) ? d : []))
+      .then(d => setCotizaciones(Array.isArray(d?.cotizaciones) ? d.cotizaciones : []))
       .finally(() => setCargando(false))
   }, [evento.id])
 
