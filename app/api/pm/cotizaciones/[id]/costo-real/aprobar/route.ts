@@ -47,11 +47,18 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     include: { creadoPor: { select: { id: true, name: true, email: true, telefono: true } } },
   })
 
+  // El estado ya quedó guardado arriba — un fallo de correo no debe hacer
+  // parecer que la aprobación/rechazo falló. Se avisa aparte con avisoEmail.
+  let avisoEmail: string | null = null
   try {
     const fromEmail = session.user.email
     const destinatarios = await receptoresRespuesta([tenantId], async () => [cot.creadoPor])
     const destinatarioEmails = destinatarios.map(d => d.email).filter(Boolean)
-    if (destinatarioEmails.length && fromEmail) {
+    if (!fromEmail) {
+      avisoEmail = 'Se guardó, pero no se pudo notificar: tu cuenta no tiene un correo válido para enviar.'
+    } else if (!destinatarioEmails.length) {
+      avisoEmail = 'Se guardó, pero no hay destinatarios configurados para recibir la notificación.'
+    } else {
       await sendMail({
         fromEmail,
         toEmails: destinatarioEmails,
@@ -69,7 +76,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     }
   } catch (err) {
     console.error('[cotizaciones-pm] Error enviando respuesta de costo real:', err)
+    const detalle = err instanceof Error ? err.message : String(err)
+    avisoEmail = `Se guardó, pero no se pudo enviar el correo de notificación: ${detalle}`
   }
 
-  return NextResponse.json(cot)
+  return NextResponse.json({ ...cot, avisoEmail })
 }

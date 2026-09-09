@@ -22,6 +22,7 @@ interface CotizacionPM {
   aprobadaPor: { name: string | null; email: string } | null
   items: Item[]
   facturasCostoReal: FacturaCR[]
+  avisoEmail?: string | null
 }
 
 const ESTADO_COLORS: Record<string, string> = {
@@ -108,7 +109,7 @@ function CostoRealForm({ cot, onDone }: { cot: CotizacionPM; onDone: (c: Cotizac
   )
 }
 
-function AprobarPanel({ onAprobar, onRechazar, etiqueta }: { onAprobar: (nota: string) => void; onRechazar: (nota: string) => void; etiqueta: string }) {
+function AprobarPanel({ onAprobar, onRechazar, etiqueta, error }: { onAprobar: (nota: string) => void; onRechazar: (nota: string) => void; etiqueta: string; error?: string | null }) {
   const [nota, setNota] = useState('')
   const [loading, setLoading] = useState<'aprobar' | 'rechazar' | null>(null)
   return (
@@ -127,6 +128,7 @@ function AprobarPanel({ onAprobar, onRechazar, etiqueta }: { onAprobar: (nota: s
           {loading === 'rechazar' ? '...' : '✕ Rechazar'}
         </button>
       </div>
+      {error && <p className="text-xs text-amber-700 bg-amber-100 border border-amber-300 rounded-lg px-2 py-1.5">⚠️ {error}</p>}
     </div>
   )
 }
@@ -136,6 +138,7 @@ export function HistorialCotizacionesPM({ esAdmin }: { esAdmin: boolean }) {
   const [cotizaciones, setCotizaciones] = useState<CotizacionPM[]>([])
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [cargando, setCargando] = useState(true)
+  const [avisoAccion, setAvisoAccion] = useState<{ id: string; msg: string } | null>(null)
 
   function cargar() {
     fetch('/api/pm/cotizaciones').then(r => r.json()).then(d => setCotizaciones(Array.isArray(d) ? d : [])).finally(() => setCargando(false))
@@ -147,19 +150,35 @@ export function HistorialCotizacionesPM({ esAdmin }: { esAdmin: boolean }) {
   }
 
   async function aprobar(id: string, estado: 'APROBADA' | 'RECHAZADA', notaAdmin: string) {
-    const res = await fetch(`/api/pm/cotizaciones/${id}/aprobar`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ estado, notaAdmin }),
-    })
-    if (res.ok) actualizarCot(await res.json())
+    setAvisoAccion(null)
+    try {
+      const res = await fetch(`/api/pm/cotizaciones/${id}/aprobar`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado, notaAdmin }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) { setAvisoAccion({ id, msg: data?.error ?? `Error al procesar (${res.status})` }); return }
+      actualizarCot(data)
+      if (data?.avisoEmail) setAvisoAccion({ id, msg: data.avisoEmail })
+    } catch {
+      setAvisoAccion({ id, msg: 'Error de conexión al procesar la solicitud.' })
+    }
   }
 
   async function aprobarCostoReal(id: string, estado: 'APROBADO' | 'RECHAZADO', notaAdmin: string) {
-    const res = await fetch(`/api/pm/cotizaciones/${id}/costo-real/aprobar`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ estado, notaAdmin }),
-    })
-    if (res.ok) actualizarCot(await res.json())
+    setAvisoAccion(null)
+    try {
+      const res = await fetch(`/api/pm/cotizaciones/${id}/costo-real/aprobar`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado, notaAdmin }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) { setAvisoAccion({ id, msg: data?.error ?? `Error al procesar (${res.status})` }); return }
+      actualizarCot(data)
+      if (data?.avisoEmail) setAvisoAccion({ id, msg: data.avisoEmail })
+    } catch {
+      setAvisoAccion({ id, msg: 'Error de conexión al procesar la solicitud.' })
+    }
   }
 
   if (cargando) return <p className="text-gray-400 text-sm text-center py-8">Cargando...</p>
@@ -260,7 +279,8 @@ export function HistorialCotizacionesPM({ esAdmin }: { esAdmin: boolean }) {
                 {esAdmin && cot.estado === 'PENDIENTE' && (
                   <AprobarPanel etiqueta="Aprobar / rechazar cotización"
                     onAprobar={nota => aprobar(cot.id, 'APROBADA', nota)}
-                    onRechazar={nota => aprobar(cot.id, 'RECHAZADA', nota)} />
+                    onRechazar={nota => aprobar(cot.id, 'RECHAZADA', nota)}
+                    error={avisoAccion?.id === cot.id ? avisoAccion.msg : null} />
                 )}
 
                 {puedeSubirCostoReal && <CostoRealForm cot={cot} onDone={actualizarCot} />}
@@ -268,7 +288,8 @@ export function HistorialCotizacionesPM({ esAdmin }: { esAdmin: boolean }) {
                 {esAdmin && cot.costoRealEstado === 'PENDIENTE' && (
                   <AprobarPanel etiqueta="Aprobar / rechazar costo real"
                     onAprobar={nota => aprobarCostoReal(cot.id, 'APROBADO', nota)}
-                    onRechazar={nota => aprobarCostoReal(cot.id, 'RECHAZADO', nota)} />
+                    onRechazar={nota => aprobarCostoReal(cot.id, 'RECHAZADO', nota)}
+                    error={avisoAccion?.id === cot.id ? avisoAccion.msg : null} />
                 )}
               </div>
             )}
