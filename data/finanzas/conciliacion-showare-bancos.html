@@ -26,6 +26,7 @@
     --font-mono: system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
   }
   *{box-sizing:border-box;}
+  html,body{overflow-x:hidden;max-width:100%;}
   body{margin:0;background:var(--paper);color:var(--text);font-family:var(--font-body);-webkit-font-smoothing:antialiased;}
 
   /* ---------- HEADER ---------- */
@@ -80,11 +81,12 @@
   /* ---------- CONTENT ---------- */
   .content{max-width:1280px;margin:0 auto;padding:24px 32px 60px;}
 
-  .tab-nav{display:flex;gap:4px;margin-bottom:26px;border-bottom:1px solid var(--line);}
+  .tab-nav{display:flex;gap:4px;margin-bottom:26px;border-bottom:1px solid var(--line);overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:thin;}
   .tab-btn{
     font-family:var(--font-body);font-weight:500;text-transform:none;letter-spacing:0;
     font-size:14px;background:none;border:none;padding:10px 14px;cursor:pointer;color:var(--text-soft);
     border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s ease;
+    flex-shrink:0;white-space:nowrap;
   }
   .tab-btn:hover{color:var(--ink);}
   .tab-btn.active{color:var(--ink);border-bottom-color:var(--ink);font-weight:600;}
@@ -108,7 +110,7 @@
   .section-head .count{font-family:var(--font-body);font-size:12px;color:var(--text-soft);}
   .section-note{font-family:var(--font-body);font-size:12.5px;color:var(--text-soft);margin:-6px 0 18px;line-height:1.5;}
 
-  .table-wrap{background:#fff;border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .table-wrap{background:#fff;border:1px solid var(--line);border-radius:16px;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;}
   table{width:100%;border-collapse:collapse;font-size:13px;}
   thead th{
     background:#002060; color:#fff; font-family:var(--font-body); font-weight:700;
@@ -169,6 +171,12 @@
   @media (max-width:640px){
     .marquee-top{padding:18px 18px 16px;} .filters{padding:0 16px;} .content{padding:20px 16px 50px;}
     .logo-img{height:40px;} .brand-block{gap:12px;}
+    .filter-card{padding:14px 16px;gap:14px;} .filter-group{min-width:0;}
+    .kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;}
+    .stub{padding:14px 16px;} .stub-value{font-size:21px;}
+    table{font-size:12px;} thead th{padding:9px 10px;font-size:10px;} tbody td,tfoot td{padding:8px 10px;}
+    .tab-nav{gap:0;} .tab-btn{padding:9px 11px;font-size:13px;}
+    .section-head{margin:26px 0 10px;} .section-head h2{font-size:14.5px;}
   }
 
   /* ---------- DETALLE (drill-down) ---------- */
