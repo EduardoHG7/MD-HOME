@@ -19,6 +19,8 @@ const NAV_ITEMS = [
 // Clientes/Proveedores/Cotizador: exclusivo de Print Media PTY. Su propio
 // cotizador reemplaza el ítem genérico "Cotizaciones" (que es para aprobar
 // gastos del presupuesto de un evento tipo concierto — no aplica aquí).
+// "Solicitudes" (personal eventual + caja menuda) tampoco aplica: es de
+// Panatickets/Magic Dreams.
 const NAV_PRINTMEDIA = [
   { href: '/usuario/clientes',        label: '🧑‍💼 Clientes' },
   { href: '/usuario/proveedores',     label: '🚚 Proveedores' },
@@ -40,7 +42,7 @@ export function UserNav({ session }: { session: Session }) {
   const baseNavItems = esOperadorPanatickets(session.user?.availableTenants, session.user?.role)
     ? NAV_OPERADOR : NAV_ITEMS
   const navItems = esPrintMedia
-    ? [...baseNavItems.filter(item => item.href !== '/usuario/cotizaciones'), ...NAV_PRINTMEDIA]
+    ? [...baseNavItems.filter(item => item.href !== '/usuario/cotizaciones' && item.href !== '/usuario/solicitar'), ...NAV_PRINTMEDIA]
     : baseNavItems
 
   const logoSrc = activeTenant?.logo ?? '/logo.png'

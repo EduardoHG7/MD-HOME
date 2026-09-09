@@ -52,9 +52,13 @@ export function AdminSidebar({ session, role, soloEventos, soloAprobador }: { se
     ? [{ href: '/admin', label: 'Dashboard', icon: '◉' }]
     : soloAprobador
     ? [
-        { href: '/admin',             label: 'Dashboard',   icon: '◉' },
-        { href: '/admin/solicitudes', label: 'Solicitudes', icon: '📋' },
-        ...(activeTenant?.slug === 'printmediapty' ? [{ href: '/admin/cotizaciones-pm', label: 'Cotizador', icon: '🖨️' }] : []),
+        { href: '/admin', label: 'Dashboard', icon: '◉' },
+        // Solicitudes (personal/cotizaciones legacy/caja menuda) es de
+        // Panatickets/Magic Dreams — no aplica al negocio de Print Media,
+        // que aprueba sus cotizaciones desde el Cotizador.
+        ...(activeTenant?.slug === 'printmediapty'
+          ? [{ href: '/admin/cotizaciones-pm', label: 'Cotizador', icon: '🖨️' }]
+          : [{ href: '/admin/solicitudes', label: 'Solicitudes', icon: '📋' }]),
       ]
     : efectiveRole === 'CONTABILIDAD' ? CONTABILIDAD_NAV : ADMIN_NAV
   const pathname     = usePathname()
@@ -66,10 +70,12 @@ export function AdminSidebar({ session, role, soloEventos, soloAprobador }: { se
     : baseNav
 
   // Clientes/Proveedores/Cotizador: exclusivo de Print Media PTY — y
-  // "Patrocinadores" no aplica a su negocio, se quita del menú.
+  // "Patrocinadores" y "Solicitudes" (personal/cotizaciones legacy/caja
+  // menuda, de Panatickets/Magic Dreams) no aplican a su negocio, se quitan
+  // del menú.
   const esPrintMedia = !soloEventos && !soloFinanzas && !soloAprobador && activeTenant?.slug === 'printmediapty'
   const navConAcceso = esPrintMedia
-    ? [...navConFinanzas.filter(item => item.href !== '/admin/patrocinadores'), ...PRINTMEDIA_NAV_ITEMS]
+    ? [...navConFinanzas.filter(item => item.href !== '/admin/patrocinadores' && item.href !== '/admin/solicitudes'), ...PRINTMEDIA_NAV_ITEMS]
     : navConFinanzas
 
   // Append Empresas link for super-admins (nunca para operadores acotados)

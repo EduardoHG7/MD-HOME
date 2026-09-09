@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react'
 import dynamic from 'next/dynamic'
 import { formatDate, formatCurrency, TARIFA_LABELS, ESTADO_COLORS, ESTADO_SOLICITUD_LABELS } from '@/lib/utils'
 import { esOperadorPanatickets } from '@/lib/permisos'
+import { useTenant } from '@/hooks/useTenant'
 
 const QrScanner = dynamic(() => import('@/components/QrScanner'), { ssr: false })
 
@@ -81,6 +82,7 @@ function agruparPorDia(registros: Registro[]) {
 
 export default function SolicitarPage() {
   const { data: session } = useSession()
+  const { activeTenant } = useTenant()
   const esPana = esOperadorPanatickets(session?.user?.availableTenants, session?.user?.role)
   const [mainTab, setMainTab] = useState<'personal' | 'caja_menuda'>('personal')
 
@@ -372,6 +374,16 @@ export default function SolicitarPage() {
 
   const pendientes = solicitudes.filter(s => s.estado === 'PENDIENTE').length
   const aprobadas  = solicitudes.filter(s => s.estado === 'APROBADA').length
+
+  if (activeTenant?.slug === 'printmediapty') {
+    return (
+      <div className="card p-8 text-center max-w-lg mx-auto">
+        <p className="text-3xl mb-3">🔒</p>
+        <p className="text-gray-700 font-semibold">Este módulo no aplica para Print Media Pty.</p>
+        <p className="text-gray-400 text-sm mt-1">Usa el Cotizador para tus cotizaciones y trabajos.</p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
