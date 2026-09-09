@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { formatDate, formatCurrency, TARIFA_LABELS, ESTADO_COLORS, ESTADO_SOLICITUD_LABELS } from '@/lib/utils'
+import { useTenant } from '@/hooks/useTenant'
 
 interface Tarifa   { id: string; tipo: string; precioPorDia: number }
 interface Registro  { id: string; tipo: string; timestamp: string }
@@ -89,6 +90,7 @@ const CM_LABELS: Record<string, string> = {
 
 function SolicitudesAdminContent() {
   const searchParams = useSearchParams()
+  const { activeTenant } = useTenant()
   const [mainTab,     setMainTab]     = useState<'personal' | 'cotizaciones' | 'caja_menuda'>('personal')
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([])
   const [cotizaciones, setCotizaciones] = useState<CotAdmin[]>([])
@@ -340,6 +342,16 @@ function SolicitudesAdminContent() {
   const pendPersonal = solicitudes.filter(s => s.estado === 'PENDIENTE').length
   const pendCot      = cotizaciones.filter(c => c.estado === 'PENDIENTE').length
   const pendCM       = cajasMenuda.filter(c => c.estado === 'PENDIENTE').length
+
+  if (activeTenant?.slug === 'printmediapty') {
+    return (
+      <div className="card p-8 text-center max-w-lg mx-auto">
+        <p className="text-3xl mb-3">🔒</p>
+        <p className="text-gray-700 font-semibold">Este módulo no aplica para Print Media Pty.</p>
+        <p className="text-gray-400 text-sm mt-1">Personal, cotizaciones de presupuesto y caja menuda son de Panatickets/Magic Dreams. Usa el Cotizador para tus cotizaciones y trabajos.</p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">

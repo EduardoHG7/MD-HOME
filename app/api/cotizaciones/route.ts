@@ -9,9 +9,19 @@ import { sendWhatsApp } from '@/lib/whatsapp'
 import { getActiveTenantId } from '@/lib/tenant'
 import { receptoresSolicitud, tenantsDondeApruebo } from '@/lib/aprobaciones'
 
+// Cotizaciones de presupuesto de evento son de Panatickets/Magic Dreams —
+// no del negocio de Print Media (que tiene su propio Cotizador PM), aunque
+// comparta el evento con ellas.
+async function tenantBloqueado() {
+  const tenantId = getActiveTenantId()
+  const tenant = tenantId ? await prisma.tenant.findUnique({ where: { id: tenantId } }) : null
+  return tenant?.slug === 'printmediapty'
+}
+
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  if (await tenantBloqueado()) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const { searchParams } = new URL(req.url)
   const lineaId = searchParams.get('lineaId')

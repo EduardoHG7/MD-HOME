@@ -9,9 +9,19 @@ import { sendWhatsApp } from '@/lib/whatsapp'
 import { getActiveTenantId } from '@/lib/tenant'
 import { receptoresSolicitud, tenantsDondeApruebo } from '@/lib/aprobaciones'
 
+// Solicitudes de personal (staffing) son de Panatickets/Magic Dreams — no
+// del negocio de Print Media, aunque comparta el evento con ellas para el
+// Cotizador PM.
+async function tenantBloqueado() {
+  const tenantId = getActiveTenantId()
+  const tenant = tenantId ? await prisma.tenant.findUnique({ where: { id: tenantId } }) : null
+  return tenant?.slug === 'printmediapty'
+}
+
 export async function GET() {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  if (await tenantBloqueado()) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const tenantId = getActiveTenantId()
 

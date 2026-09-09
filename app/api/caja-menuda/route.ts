@@ -16,9 +16,18 @@ const include = {
   facturas:    true,
 }
 
+// Caja Menuda es de Panatickets/Magic Dreams — no del negocio de Print
+// Media, aunque comparta el evento con ellas.
+async function tenantBloqueado() {
+  const tenantId = getActiveTenantId()
+  const tenant = tenantId ? await prisma.tenant.findUnique({ where: { id: tenantId } }) : null
+  return tenant?.slug === 'printmediapty'
+}
+
 export async function GET() {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  if (await tenantBloqueado()) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const tenantId = getActiveTenantId()
   const tenantFilter = tenantId ? { evento: { tenants: { some: { tenantId } } } } : {}
