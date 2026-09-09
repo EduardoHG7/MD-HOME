@@ -139,9 +139,15 @@ export function HistorialCotizacionesPM({ esAdmin }: { esAdmin: boolean }) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [cargando, setCargando] = useState(true)
   const [avisoAccion, setAvisoAccion] = useState<{ id: string; msg: string } | null>(null)
+  // Un aprobador configurado puede no tener rol ADMIN — el servidor es quien
+  // sabe si puede aprobar, no el prop esAdmin de la página que lo llama.
+  const [puedeAprobar, setPuedeAprobar] = useState(false)
 
   function cargar() {
-    fetch('/api/pm/cotizaciones').then(r => r.json()).then(d => setCotizaciones(Array.isArray(d) ? d : [])).finally(() => setCargando(false))
+    fetch('/api/pm/cotizaciones').then(r => r.json()).then(d => {
+      setCotizaciones(Array.isArray(d?.cotizaciones) ? d.cotizaciones : [])
+      setPuedeAprobar(Boolean(d?.puedeAprobar))
+    }).finally(() => setCargando(false))
   }
   useEffect(cargar, [])
 
@@ -276,7 +282,7 @@ export function HistorialCotizacionesPM({ esAdmin }: { esAdmin: boolean }) {
                   </div>
                 )}
 
-                {esAdmin && cot.estado === 'PENDIENTE' && (
+                {puedeAprobar && cot.estado === 'PENDIENTE' && (
                   <AprobarPanel etiqueta="Aprobar / rechazar cotización"
                     onAprobar={nota => aprobar(cot.id, 'APROBADA', nota)}
                     onRechazar={nota => aprobar(cot.id, 'RECHAZADA', nota)}
@@ -285,7 +291,7 @@ export function HistorialCotizacionesPM({ esAdmin }: { esAdmin: boolean }) {
 
                 {puedeSubirCostoReal && <CostoRealForm cot={cot} onDone={actualizarCot} />}
 
-                {esAdmin && cot.costoRealEstado === 'PENDIENTE' && (
+                {puedeAprobar && cot.costoRealEstado === 'PENDIENTE' && (
                   <AprobarPanel etiqueta="Aprobar / rechazar costo real"
                     onAprobar={nota => aprobarCostoReal(cot.id, 'APROBADO', nota)}
                     onRechazar={nota => aprobarCostoReal(cot.id, 'RECHAZADO', nota)}

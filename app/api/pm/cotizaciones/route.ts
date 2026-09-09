@@ -46,7 +46,9 @@ export async function GET(req: Request) {
     },
     orderBy: { createdAt: 'desc' },
   })
-  return NextResponse.json(cotizaciones)
+  // puedeAprobar viaja aparte porque un aprobador configurado puede no ser
+  // ADMIN — el front no puede saberlo solo con el rol de la sesión.
+  return NextResponse.json({ cotizaciones, puedeAprobar: esAprobadorAqui })
 }
 
 interface ItemInput {
