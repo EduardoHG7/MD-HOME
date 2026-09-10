@@ -22,6 +22,11 @@ interface CotizacionPM {
   aprobadaPor: { name: string | null; email: string } | null
   items: Item[]
   facturasCostoReal: FacturaCR[]
+  facturaNumero: string | null
+  facturaArchivoNombre: string | null
+  facturaArchivoPath: string | null
+  facturaSubidaEn: string | null
+  facturaSubidaPor: { name: string | null; email: string } | null
   avisoEmail?: string | null
 }
 
@@ -104,6 +109,50 @@ function CostoRealForm({ cot, onDone }: { cot: CotizacionPM; onDone: (c: Cotizac
       {error && <p className="text-red-500 text-xs">{error}</p>}
       <button type="button" onClick={enviar} disabled={loading} className="btn-primary text-sm">
         {loading ? 'Enviando...' : 'Enviar costo real para aprobación'}
+      </button>
+    </div>
+  )
+}
+
+function FacturaClienteForm({ cot, onDone }: { cot: CotizacionPM; onDone: (c: CotizacionPM) => void }) {
+  const [numero, setNumero] = useState('')
+  const [archivo, setArchivo] = useState<File | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  async function enviar() {
+    if (!archivo) { setError('Adjunta el archivo de la factura.'); return }
+    setLoading(true); setError('')
+    try {
+      const base64 = await fileToBase64(archivo)
+      const res = await fetch(`/api/pm/cotizaciones/${cot.id}/factura`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          numeroFactura: numero,
+          archivo: { base64, mimeType: archivo.type, fileName: archivo.name },
+        }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) { setError(data?.error ?? 'Error al cargar la factura'); return }
+      onDone(data)
+    } finally { setLoading(false) }
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3 mt-2">
+      <p className="text-sm font-semibold text-gray-900">🧾 Cargar factura</p>
+      <div>
+        <label className="label">N.º de factura (opcional)</label>
+        <input className="input" value={numero} onChange={e => setNumero(e.target.value)} />
+      </div>
+      <label className="text-xs text-blue-500 cursor-pointer inline-block">
+        {archivo ? `📎 ${archivo.name}` : '📎 Adjuntar factura (PDF o imagen)'}
+        <input type="file" accept=".pdf,image/*" className="hidden"
+          onChange={e => { const file = e.target.files?.[0]; if (file) setArchivo(file) }} />
+      </label>
+      {error && <p className="text-red-500 text-xs">{error}</p>}
+      <button type="button" onClick={enviar} disabled={loading} className="btn-primary text-sm">
+        {loading ? 'Enviando...' : 'Guardar factura'}
       </button>
     </div>
   )
@@ -206,6 +255,7 @@ export function HistorialCotizacionesPM({ esAdmin, eventoId }: { esAdmin: boolea
         const esCreador = session?.user?.email === cot.creadoPor.email
         const puedeSubirCostoReal = (esAdmin || esCreador) && cot.estado === 'APROBADA' &&
           (!cot.costoRealEstado || cot.costoRealEstado === 'RECHAZADO')
+        const puedeCargarFactura = puedeAprobar && cot.estado === 'APROBADA' && !cot.facturaArchivoPath
         return (
           <div key={cot.id} className="card overflow-hidden">
             <button className="w-full text-left p-4 hover:bg-gray-50 transition-colors" onClick={() => setExpandedId(isExpanded ? null : cot.id)}>
@@ -226,6 +276,9 @@ export function HistorialCotizacionesPM({ esAdmin, eventoId }: { esAdmin: boolea
                     <span className={`badge border text-xs ${ESTADO_COLORS[cot.estado]}`}>{ESTADO_LABELS[cot.estado]}</span>
                     {cot.costoRealEstado && (
                       <span className={`badge border text-xs ${ESTADO_COLORS[cot.costoRealEstado]}`}>Costo real: {ESTADO_LABELS[cot.costoRealEstado]}</span>
+                    )}
+                    {cot.facturaArchivoPath && (
+                      <span className="badge border text-xs bg-blue-100 text-blue-700 border-blue-200">🧾 Facturada</span>
                     )}
                   </div>
                 </div>
@@ -284,6 +337,19 @@ export function HistorialCotizacionesPM({ esAdmin, eventoId }: { esAdmin: boolea
                   </div>
                 )}
 
+                {cot.facturaArchivoPath && (
+                  <div className="bg-white rounded-xl border border-gray-100 p-3 flex items-center justify-between text-sm">
+                    <div>
+                      <p className="text-gray-900 font-medium">🧾 Factura{cot.facturaNumero ? ` #${cot.facturaNumero}` : ''}</p>
+                      <p className="text-gray-400 text-xs">
+                        {cot.facturaSubidaPor?.name ?? cot.facturaSubidaPor?.email}
+                        {cot.facturaSubidaEn ? ` · ${new Date(cot.facturaSubidaEn).toLocaleDateString('es-PA')}` : ''}
+                      </p>
+                    </div>
+                    <a href={`/api/fotos?path=${encodeURIComponent(cot.facturaArchivoPath)}`} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline text-xs shrink-0">Ver</a>
+                  </div>
+                )}
+
                 {puedeAprobar && cot.estado === 'PENDIENTE' && (
                   <AprobarPanel etiqueta="Aprobar / rechazar cotización"
                     onAprobar={nota => aprobar(cot.id, 'APROBADA', nota)}
@@ -292,6 +358,7 @@ export function HistorialCotizacionesPM({ esAdmin, eventoId }: { esAdmin: boolea
                 )}
 
                 {puedeSubirCostoReal && <CostoRealForm cot={cot} onDone={actualizarCot} />}
+                {puedeCargarFactura && <FacturaClienteForm cot={cot} onDone={actualizarCot} />}
 
                 {puedeAprobar && cot.costoRealEstado === 'PENDIENTE' && (
                   <AprobarPanel etiqueta="Aprobar / rechazar costo real"

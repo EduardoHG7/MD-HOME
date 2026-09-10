@@ -76,6 +76,7 @@ model User {
   cotizacionesPMCreadas       CotizacionPM[] @relation("CotizacionPMCreador")
   cotizacionesPMAprobadas     CotizacionPM[] @relation("CotizacionPMAprobador")
   cotizacionesPMCostoRealAprobado CotizacionPM[] @relation("CotizacionPMCostoRealAprobador")
+  cotizacionesPMFacturadas   CotizacionPM[] @relation("CotizacionPMFacturaSubidoPor")
   aprobacionRoles AprobacionConfigUsuario[]
 
   @@map("users")
@@ -812,6 +813,15 @@ model CotizacionPM {
   costoRealAprobadoEn    DateTime?
   costoRealSubidoEn      DateTime?
 
+  // Factura al cliente (post-aprobación) — la sube contabilidad como
+  // respaldo de que ese trabajo ya fue facturado; no tiene flujo de
+  // aprobación propio, es un registro directo.
+  facturaNumero        String?
+  facturaArchivoNombre String?
+  facturaArchivoPath   String?
+  facturaSubidaPorId   String?
+  facturaSubidaEn      DateTime?
+
   creadoPorId String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -822,6 +832,7 @@ model CotizacionPM {
   creadoPor            User       @relation("CotizacionPMCreador", fields: [creadoPorId], references: [id])
   aprobadaPor          User?      @relation("CotizacionPMAprobador", fields: [aprobadaPorId], references: [id])
   costoRealAprobadoPor User?      @relation("CotizacionPMCostoRealAprobador", fields: [costoRealAprobadoPorId], references: [id])
+  facturaSubidaPor     User?      @relation("CotizacionPMFacturaSubidoPor", fields: [facturaSubidaPorId], references: [id])
   items                ItemCotizacionPM[]
   facturasCostoReal    FacturaCotizacionPM[]
 

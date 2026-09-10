@@ -9,6 +9,7 @@ import { getActiveTenantId } from '@/lib/tenant'
 import { uploadToSharePoint } from '@/lib/sharepoint'
 import { sendMail, templateNuevoCostoRealPM } from '@/lib/mail'
 import { receptoresSolicitud } from '@/lib/aprobaciones'
+import { cotizacionPMInclude } from '@/lib/cotizacionesPMInclude'
 
 const TENANT_SLUG = 'printmediapty'
 const DOMINIO_ADMIN_PM = '@printmediapty.com'
@@ -83,7 +84,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       costoRealSubidoEn: new Date(),
       facturasCostoReal: { deleteMany: {}, create: facturasData },
     },
-    include: { creadoPor: { select: { name: true, email: true } }, facturasCostoReal: true },
+    include: cotizacionPMInclude,
   })
 
   try {
