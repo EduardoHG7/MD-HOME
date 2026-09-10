@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma'
 import { getActiveTenantId } from '@/lib/tenant'
 import { sendMail, templateRespuestaCostoRealPM } from '@/lib/mail'
 import { puedeAprobar, receptoresRespuesta } from '@/lib/aprobaciones'
+import { cotizacionPMInclude } from '@/lib/cotizacionesPMInclude'
 
 const TENANT_SLUG = 'printmediapty'
 
@@ -44,7 +45,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       costoRealAprobadoPorId: session.user.id,
       costoRealAprobadoEn: new Date(),
     },
-    include: { creadoPor: { select: { id: true, name: true, email: true, telefono: true } } },
+    include: cotizacionPMInclude,
   })
 
   // El estado ya quedó guardado arriba — un fallo de correo no debe hacer

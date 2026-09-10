@@ -9,6 +9,7 @@ import { getActiveTenantId } from '@/lib/tenant'
 import { sendMail, templateNuevaCotizacionPM } from '@/lib/mail'
 import { calcularItem, calcularResumen, type ProductoCalc, type MaterialCalc, type NivelPrecio } from '@/lib/cotizadorPM'
 import { receptoresSolicitud, puedeAprobar } from '@/lib/aprobaciones'
+import { cotizacionPMInclude } from '@/lib/cotizacionesPMInclude'
 
 const TENANT_SLUG = 'printmediapty'
 const DOMINIO_ADMIN_PM = '@printmediapty.com'
@@ -36,14 +37,7 @@ export async function GET(req: Request) {
 
   const cotizaciones = await prisma.cotizacionPM.findMany({
     where,
-    include: {
-      items:     { orderBy: { orden: 'asc' } },
-      evento:    { select: { id: true, nombre: true } },
-      creadoPor: { select: { name: true, email: true } },
-      aprobadaPor: { select: { name: true, email: true } },
-      costoRealAprobadoPor: { select: { name: true, email: true } },
-      facturasCostoReal: true,
-    },
+    include: cotizacionPMInclude,
     orderBy: { createdAt: 'desc' },
   })
   // puedeAprobar viaja aparte porque un aprobador configurado puede no ser
