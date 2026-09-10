@@ -133,7 +133,7 @@ function AprobarPanel({ onAprobar, onRechazar, etiqueta, error }: { onAprobar: (
   )
 }
 
-export function HistorialCotizacionesPM({ esAdmin }: { esAdmin: boolean }) {
+export function HistorialCotizacionesPM({ esAdmin, eventoId }: { esAdmin: boolean; eventoId?: string }) {
   const { data: session } = useSession()
   const [cotizaciones, setCotizaciones] = useState<CotizacionPM[]>([])
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -144,12 +144,14 @@ export function HistorialCotizacionesPM({ esAdmin }: { esAdmin: boolean }) {
   const [puedeAprobar, setPuedeAprobar] = useState(false)
 
   function cargar() {
-    fetch('/api/pm/cotizaciones').then(r => r.json()).then(d => {
+    setCargando(true)
+    const url = eventoId ? `/api/pm/cotizaciones?eventoId=${eventoId}` : '/api/pm/cotizaciones'
+    fetch(url).then(r => r.json()).then(d => {
       setCotizaciones(Array.isArray(d?.cotizaciones) ? d.cotizaciones : [])
       setPuedeAprobar(Boolean(d?.puedeAprobar))
     }).finally(() => setCargando(false))
   }
-  useEffect(cargar, [])
+  useEffect(cargar, [eventoId])
 
   function actualizarCot(actualizada: CotizacionPM) {
     setCotizaciones(prev => prev.map(c => c.id === actualizada.id ? actualizada : c))
