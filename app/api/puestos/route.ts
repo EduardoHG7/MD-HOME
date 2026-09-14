@@ -8,9 +8,10 @@ import { getActiveTenantId } from '@/lib/tenant'
 
 export async function GET() {
   const tenantId = getActiveTenantId()
+  if (!tenantId) return NextResponse.json([])
 
   const puestos = await prisma.puesto.findMany({
-    where: { activo: true, ...(tenantId ? { tenantId } : {}) },
+    where: { activo: true, tenantId },
     orderBy: { nombre: 'asc' },
   })
   return NextResponse.json(puestos)

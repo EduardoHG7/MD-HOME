@@ -13,10 +13,10 @@ export async function GET() {
   }
 
   const tenantId = getActiveTenantId()
-  const tenantFilter = tenantId ? { tenants: { some: { tenantId } } } : {}
+  if (!tenantId) return NextResponse.json([])
 
   const usuarios = await prisma.user.findMany({
-    where: { role: { in: ['USER', 'ADMIN'] }, ...tenantFilter },
+    where: { role: { in: ['USER', 'ADMIN'] }, tenants: { some: { tenantId } } },
     select: { id: true, name: true, email: true, role: true },
     orderBy: { name: 'asc' },
   })

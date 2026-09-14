@@ -9,13 +9,17 @@ import { notificarDocsResponsable } from '@/lib/expediente'
 
 export async function GET(req: Request) {
   const tenantId = getActiveTenantId()
+  // Sin empresa activa no hay a qué empresa segmentar — mejor no devolver
+  // nada que devolver eventos de todas las empresas sin filtrar.
+  if (!tenantId) return NextResponse.json([])
+
   const { searchParams } = new URL(req.url)
   const incluirCancelados = searchParams.get('incluirCancelados') === '1'
 
   const eventos = await prisma.evento.findMany({
     where: {
       ...(incluirCancelados ? {} : { estado: { not: 'CANCELADO' } }),
-      ...(tenantId ? { tenants: { some: { tenantId } } } : {}),
+      tenants: { some: { tenantId } },
     },
     orderBy: { fechaInicio: 'desc' },
     include: {

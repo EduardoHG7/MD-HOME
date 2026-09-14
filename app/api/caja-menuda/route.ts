@@ -30,8 +30,12 @@ export async function GET() {
   if (await tenantBloqueado()) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const tenantId = getActiveTenantId()
-  const tenantFilter = tenantId ? { evento: { tenants: { some: { tenantId } } } } : {}
-  const esAprobadorAqui = tenantId ? (await tenantsDondeApruebo(session.user.id)).includes(tenantId) : false
+  // Sin empresa activa no hay a qué empresa segmentar — mejor no devolver
+  // nada que devolver todo sin filtrar.
+  if (!tenantId) return NextResponse.json([])
+
+  const tenantFilter = { evento: { tenants: { some: { tenantId } } } }
+  const esAprobadorAqui = (await tenantsDondeApruebo(session.user.id)).includes(tenantId)
   const userFilter   = session.user.role === 'ADMIN' || session.user.role === 'CONTABILIDAD' || esAprobadorAqui
     ? {}
     : { solicitanteId: session.user.id }
@@ -66,11 +70,14 @@ export async function POST(req: Request) {
   try {
     const evento = await prisma.evento.findUnique({ where: { id: eventoId }, select: { tenants: { select: { tenantId: true } } } })
     const eventoTenantIds = evento?.tenants.map(t => t.tenantId) ?? []
-    const admins = await receptoresSolicitud(eventoTenantIds, () => {
-      const adminFilter = eventoTenantIds.length
-        ? { role: 'ADMIN', tenants: { some: { tenantId: { in: eventoTenantIds } } } }
-        : { role: 'ADMIN' }
-      return prisma.user.findMany({ where: adminFilter, select: { id: true, name: true, email: true, telefono: true } })
+    const activeTenantId = getActiveTenantId()
+    const tenantsNotif = eventoTenantIds.length ? eventoTenantIds : (activeTenantId ? [activeTenantId] : [])
+    const admins = await receptoresSolicitud(tenantsNotif, () => {
+      if (!tenantsNotif.length) return Promise.resolve([])
+      return prisma.user.findMany({
+        where: { role: 'ADMIN', tenants: { some: { tenantId: { in: tenantsNotif } } } },
+        select: { id: true, name: true, email: true, telefono: true },
+      })
     })
     for (const a of admins) {
       if (a.telefono) await sendWhatsApp(a.telefono, `Nueva Caja Menuda\nEvento: ${caja.evento.nombre}\nMonto: $${montoSolicitado}`).catch(() => {})

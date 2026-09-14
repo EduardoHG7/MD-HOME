@@ -9,15 +9,16 @@ import { esOperadorPanatickets } from '@/lib/permisos'
 
 export async function GET() {
   const tenantId = getActiveTenantId()
+  if (!tenantId) return NextResponse.json([])
 
   const venues = await prisma.venue.findMany({
-    where: { activo: true, ...(tenantId ? { tenantId } : {}) },
+    where: { activo: true, tenantId },
     orderBy: { nombre: 'asc' },
     include: {
       eventos: {
         where: {
           estado: { not: 'CANCELADO' },
-          ...(tenantId ? { tenants: { some: { tenantId } } } : {}),
+          tenants: { some: { tenantId } },
         },
         select: { id: true, nombre: true, fechaInicio: true, fechaFin: true, estado: true },
         orderBy: { fechaInicio: 'desc' },

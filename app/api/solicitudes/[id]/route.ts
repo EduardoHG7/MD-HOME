@@ -169,11 +169,14 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   try {
     const eventoTenantIds = solicitud.evento.tenants.map(t => t.tenantId)
-    const admins = await receptoresSolicitud(eventoTenantIds, async () => {
-      const adminFilter = eventoTenantIds.length
-        ? { role: 'ADMIN', tenants: { some: { tenantId: { in: eventoTenantIds } } } }
-        : { role: 'ADMIN' }
-      return prisma.user.findMany({ where: adminFilter, select: { id: true, name: true, email: true, telefono: true } })
+    const activeTenantId = getActiveTenantId()
+    const tenantsNotif = eventoTenantIds.length ? eventoTenantIds : (activeTenantId ? [activeTenantId] : [])
+    const admins = await receptoresSolicitud(tenantsNotif, async () => {
+      if (!tenantsNotif.length) return []
+      return prisma.user.findMany({
+        where: { role: 'ADMIN', tenants: { some: { tenantId: { in: tenantsNotif } } } },
+        select: { id: true, name: true, email: true, telefono: true },
+      })
     })
     const adminEmails = admins.map(a => a.email)
     const fromEmail   = session.user.email

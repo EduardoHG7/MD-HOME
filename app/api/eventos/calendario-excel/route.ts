@@ -53,13 +53,14 @@ export async function GET(req: Request) {
   if (y1 * 12 + m1 < y0 * 12 + m0) { [y0, y1] = [y1, y0]; [m0, m1] = [m1, m0] }
 
   const tenantId    = getActiveTenantId()
+  if (!tenantId) return NextResponse.json({ error: 'Selecciona una empresa activa' }, { status: 400 })
   const inicioRango = new Date(Date.UTC(y0, m0, 1))
   const finRango    = new Date(Date.UTC(y1, m1 + 1, 0, 23, 59, 59))
 
   const todos = await prisma.evento.findMany({
     where: {
       estado: { not: 'CANCELADO' },
-      ...(tenantId ? { tenants: { some: { tenantId } } } : {}),
+      tenants: { some: { tenantId } },
     },
     select: { id: true, nombre: true, fechaInicio: true, fechaFin: true, montajeInicio: true, desmontajeFin: true },
     orderBy: { fechaInicio: 'asc' },
