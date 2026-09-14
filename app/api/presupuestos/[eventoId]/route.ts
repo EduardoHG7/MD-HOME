@@ -8,19 +8,20 @@ import { sendMail, templateLineaAsignada } from '@/lib/mail'
 import { getActiveTenantId } from '@/lib/tenant'
 
 // El presupuesto (boletería, artista, patrocinios) es exclusivo de la
-// empresa dueña del evento — Print Media nunca debe verlo, ni siquiera en
-// eventos que se le compartieron para el Cotizador PM.
-async function tenantBloqueado() {
+// empresa dueña del evento (evento.tenantId) — aunque el evento se haya
+// compartido con otras empresas (Cotizador PM, logística, etc.), ninguna
+// de ellas debe ver el presupuesto, solo la dueña original.
+async function esDuenioDelEvento(eventoId: string) {
   const tenantId = getActiveTenantId()
   if (!tenantId) return false
-  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } })
-  return tenant?.slug === 'printmediapty'
+  const evento = await prisma.evento.findUnique({ where: { id: eventoId }, select: { tenantId: true } })
+  return evento?.tenantId === tenantId
 }
 
 export async function GET(_req: Request, { params }: { params: { eventoId: string } }) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (await tenantBloqueado()) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  if (!(await esDuenioDelEvento(params.eventoId))) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const presupuesto = await prisma.presupuesto.findUnique({
     where: { eventoId: params.eventoId },
@@ -55,7 +56,7 @@ export async function PUT(req: Request, { params }: { params: { eventoId: string
   if (!session || session.user.role !== 'ADMIN') {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
-  if (await tenantBloqueado()) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  if (!(await esDuenioDelEvento(params.eventoId))) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const body = await req.json()
   const { artista, pais, ciudad, promotor, moneda, exchangeRate, numShows, artistGuarantee,

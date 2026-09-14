@@ -240,6 +240,7 @@ export default function PresupuestoPage() {
   const [socios,           setSocios]           = useState<Socio[]>([])
   const [loading,     setLoading]     = useState(true)
   const [dataLoaded,  setDataLoaded]  = useState(false)
+  const [noAccess,    setNoAccess]    = useState(false)
   const [tipoEvento,  setTipoEvento]  = useState<string | null>(null)
   const [saving,          setSaving]          = useState(false)
   const [extracting,      setExtracting]      = useState(false)
@@ -255,6 +256,7 @@ export default function PresupuestoPage() {
   const loadPresupuesto = useCallback(async () => {
     setLoading(true)
     const res = await fetch(`/api/presupuestos/${eventoId}`)
+    if (res.status === 403) { setNoAccess(true); setLoading(false); return }
     if (res.ok) {
       const data = await res.json()
       setDataLoaded(true) // marcar siempre que el GET fue exitoso
@@ -399,6 +401,16 @@ export default function PresupuestoPage() {
   }
 
   if (loading) return <div className="flex items-center justify-center h-64 text-gray-400 animate-pulse">Cargando presupuesto...</div>
+
+  if (noAccess) {
+    return (
+      <div className="card p-8 text-center">
+        <p className="text-3xl mb-3">🔒</p>
+        <p className="text-gray-700 font-semibold">No tienes acceso al presupuesto de este evento.</p>
+        <p className="text-gray-400 text-sm mt-1">El presupuesto es exclusivo de la empresa dueña del evento, aunque se te haya compartido para otro fin.</p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">

@@ -18,6 +18,7 @@ interface Evento {
   tieneSocio: boolean; nombreSocio: string | null
   montajeInicio: string | null; desmontajeFin: string | null
   docsResponsableId: string | null
+  tenantId: string | null
   venue: Venue | null
   tenants?: { tenantId: string }[]
   _count: { asignaciones: number }
@@ -463,9 +464,11 @@ export default function EventosPage() {
                   title="Documentos, formulario y contrato del evento">📁 Documentos</button>
               ) : activeTenant?.slug === 'printmediapty' ? null : (
                 <>
-                  <button onClick={() => router.push(`/admin/eventos/${ev.id}/presupuesto`)}
-                    className="p-2 rounded-xl border border-amber-200 hover:border-amber-400 hover:bg-amber-50 transition-all text-amber-600 text-xs font-medium px-3"
-                    title="Ver presupuesto">💰 Presupuesto</button>
+                  {ev.tenantId === activeTenant?.id && (
+                    <button onClick={() => router.push(`/admin/eventos/${ev.id}/presupuesto`)}
+                      className="p-2 rounded-xl border border-amber-200 hover:border-amber-400 hover:bg-amber-50 transition-all text-amber-600 text-xs font-medium px-3"
+                      title="Ver presupuesto">💰 Presupuesto</button>
+                  )}
                   <button onClick={() => setVerDocs(ev)}
                     className="p-2 rounded-xl border border-blue-200 hover:border-blue-400 hover:bg-blue-50 transition-all text-blue-600 text-xs font-medium px-3"
                     title="Documentos legales">📁 Documentos</button>
