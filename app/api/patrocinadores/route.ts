@@ -10,9 +10,10 @@ import { uploadToSharePoint } from '@/lib/sharepoint'
 
 export async function GET() {
   const tenantId = getActiveTenantId()
+  if (!tenantId) return NextResponse.json([])
 
   const patrocinadores = await prisma.patrocinador.findMany({
-    where: { activo: true, ...(tenantId ? { tenantId } : {}) },
+    where: { activo: true, tenantId },
     orderBy: { nombre: 'asc' },
     include: {
       patrocinios: {

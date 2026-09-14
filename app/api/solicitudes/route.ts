@@ -24,9 +24,12 @@ export async function GET() {
   if (await tenantBloqueado()) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const tenantId = getActiveTenantId()
+  // Sin empresa activa no hay a qué empresa segmentar — mejor no devolver
+  // nada que devolver todo sin filtrar.
+  if (!tenantId) return NextResponse.json([])
 
-  const tenantFilter = tenantId ? { evento: { tenants: { some: { tenantId } } } } : {}
-  const esAprobadorAqui = tenantId ? (await tenantsDondeApruebo(session.user.id)).includes(tenantId) : false
+  const tenantFilter = { evento: { tenants: { some: { tenantId } } } }
+  const esAprobadorAqui = (await tenantsDondeApruebo(session.user.id)).includes(tenantId)
   const userFilter   = session.user.role === 'ADMIN' || session.user.role === 'CONTABILIDAD' || esAprobadorAqui
     ? {}
     : { solicitanteId: session.user.id }
@@ -79,15 +82,19 @@ export async function POST(req: Request) {
 
   try {
     // Notificar a los receptores configurados para la(s) empresa(s) del
-    // evento; sin configuración, cae a los ADMIN de esas empresas (o de
-    // todas si el evento no tiene empresa asignada, para no dejar la
-    // solicitud sin notificar).
+    // evento; sin configuración, cae a los ADMIN de esas empresas. Si el
+    // evento no tiene empresa asignada, se usa la de quien crea la
+    // solicitud — nunca se notifica a admins de otras empresas sin que el
+    // evento o la config de Aprobaciones lo indique explícitamente.
     const eventoTenantIds = solicitud.evento.tenants.map(t => t.tenantId)
-    const admins = await receptoresSolicitud(eventoTenantIds, async () => {
-      const adminFilter = eventoTenantIds.length
-        ? { role: 'ADMIN', tenants: { some: { tenantId: { in: eventoTenantIds } } } }
-        : { role: 'ADMIN' }
-      return prisma.user.findMany({ where: adminFilter, select: { id: true, name: true, email: true, telefono: true } })
+    const activeTenantId = getActiveTenantId()
+    const tenantsNotif = eventoTenantIds.length ? eventoTenantIds : (activeTenantId ? [activeTenantId] : [])
+    const admins = await receptoresSolicitud(tenantsNotif, async () => {
+      if (!tenantsNotif.length) return []
+      return prisma.user.findMany({
+        where: { role: 'ADMIN', tenants: { some: { tenantId: { in: tenantsNotif } } } },
+        select: { id: true, name: true, email: true, telefono: true },
+      })
     })
     const adminEmails = admins.map(a => a.email)
     const fromEmail   = session.user.email

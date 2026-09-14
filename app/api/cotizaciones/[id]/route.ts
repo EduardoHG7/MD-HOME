@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma'
 import { sendMail, templateRespuestaCotizacion, templateNuevaCotizacion } from '@/lib/mail'
 import { sendWhatsApp } from '@/lib/whatsapp'
 import { puedeAprobar, receptoresRespuesta, receptoresSolicitud } from '@/lib/aprobaciones'
+import { getActiveTenantId } from '@/lib/tenant'
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
@@ -158,11 +159,14 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   }
 
   const eventoTenantIds = cot.linea.categoria.presupuesto.evento.tenants.map(t => t.tenantId)
-  const admins = await receptoresSolicitud(eventoTenantIds, () => {
-    const adminFilter = eventoTenantIds.length
-      ? { role: 'ADMIN', tenants: { some: { tenantId: { in: eventoTenantIds } } } }
-      : { role: 'ADMIN' }
-    return prisma.user.findMany({ where: adminFilter, select: { id: true, name: true, email: true, telefono: true } })
+  const activeTenantId = getActiveTenantId()
+  const tenantsNotif = eventoTenantIds.length ? eventoTenantIds : (activeTenantId ? [activeTenantId] : [])
+  const admins = await receptoresSolicitud(tenantsNotif, () => {
+    if (!tenantsNotif.length) return Promise.resolve([])
+    return prisma.user.findMany({
+      where: { role: 'ADMIN', tenants: { some: { tenantId: { in: tenantsNotif } } } },
+      select: { id: true, name: true, email: true, telefono: true },
+    })
   })
   const adminEmails = admins.map(a => a.email)
   const fromEmail = session.user.email

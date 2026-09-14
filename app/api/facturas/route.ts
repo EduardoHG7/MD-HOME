@@ -11,10 +11,9 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const tenantId = getActiveTenantId()
+  if (!tenantId) return NextResponse.json([])
 
-  const tenantFilter = tenantId
-    ? { OR: [{ evento: { tenants: { some: { tenantId } } } }, { eventoId: null }] }
-    : {}
+  const tenantFilter = { OR: [{ evento: { tenants: { some: { tenantId } } } }, { eventoId: null }] }
   const userFilter = session.user.role === 'ADMIN' ? {} : { creadoPorId: session.user.id }
 
   const facturas = await prisma.factura.findMany({

@@ -8,9 +8,10 @@ import { getActiveTenantId } from '@/lib/tenant'
 
 export async function GET() {
   const tenantId = getActiveTenantId()
+  if (!tenantId) return NextResponse.json([])
 
   const tarifas = await prisma.tarifa.findMany({
-    where: tenantId ? { tenantId } : {},
+    where: { tenantId },
     orderBy: { tipo: 'asc' },
   })
   return NextResponse.json(tarifas)
