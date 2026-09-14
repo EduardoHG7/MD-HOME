@@ -75,20 +75,19 @@ export async function POST(req: Request) {
       presupuesto:      presupuesto ? parseFloat(presupuesto) : null,
       comentario:       comentario?.trim() || null,
     },
-    include: { evento: { include: { tenants: true } }, tarifa: true },
+    include: { evento: true, tarifa: true },
   })
 
   const url = process.env.NEXTAUTH_URL ?? ''
 
   try {
-    // Notificar a los receptores configurados para la(s) empresa(s) del
-    // evento; sin configuración, cae a los ADMIN de esas empresas. Si el
-    // evento no tiene empresa asignada, se usa la de quien crea la
-    // solicitud — nunca se notifica a admins de otras empresas sin que el
-    // evento o la config de Aprobaciones lo indique explícitamente.
-    const eventoTenantIds = solicitud.evento.tenants.map(t => t.tenantId)
+    // Quién recibe se rige por la empresa activa de quien crea la
+    // solicitud (su asignación), no por a cuántas empresas esté etiquetado
+    // el evento — un evento compartido entre varias empresas nunca debe
+    // ampliar a quién llega esto. Sin configuración de Aprobaciones, cae a
+    // los ADMIN de esa única empresa.
     const activeTenantId = getActiveTenantId()
-    const tenantsNotif = eventoTenantIds.length ? eventoTenantIds : (activeTenantId ? [activeTenantId] : [])
+    const tenantsNotif = activeTenantId ? [activeTenantId] : []
     const admins = await receptoresSolicitud(tenantsNotif, async () => {
       if (!tenantsNotif.length) return []
       return prisma.user.findMany({

@@ -156,7 +156,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   const solicitud = await prisma.solicitud.findUnique({
     where: { id: params.id },
-    include: { evento: { include: { tenants: true } } },
+    include: { evento: true },
   })
 
   if (!solicitud) return NextResponse.json({ error: 'No encontrada' }, { status: 404 })
@@ -168,9 +168,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   }
 
   try {
-    const eventoTenantIds = solicitud.evento.tenants.map(t => t.tenantId)
+    // Quién recibe se rige por la empresa activa de quien reenvía, no por
+    // a cuántas empresas esté etiquetado el evento.
     const activeTenantId = getActiveTenantId()
-    const tenantsNotif = eventoTenantIds.length ? eventoTenantIds : (activeTenantId ? [activeTenantId] : [])
+    const tenantsNotif = activeTenantId ? [activeTenantId] : []
     const admins = await receptoresSolicitud(tenantsNotif, async () => {
       if (!tenantsNotif.length) return []
       return prisma.user.findMany({

@@ -91,21 +91,18 @@ export async function POST(req: Request) {
       linea: {
         include: {
           categoria: {
-            include: { presupuesto: { include: { evento: { select: { nombre: true, tenants: true } } } } }
+            include: { presupuesto: { include: { evento: { select: { nombre: true } } } } }
           }
         }
       },
     },
   })
 
-  // Notificar a los receptores configurados de la(s) empresa(s) del evento;
-  // sin configuración, cae a los ADMIN de esas empresas. Si el evento no
-  // tiene empresa asignada, se usa la de quien crea la cotización — nunca
-  // se notifica a admins de otras empresas sin asignación explícita.
+  // Quién recibe se rige por la empresa activa de quien crea la
+  // cotización, no por a cuántas empresas esté etiquetado el evento.
   try {
-    const eventoTenantIds = cot.linea.categoria.presupuesto.evento.tenants.map(t => t.tenantId)
     const activeTenantId = getActiveTenantId()
-    const tenantsNotif = eventoTenantIds.length ? eventoTenantIds : (activeTenantId ? [activeTenantId] : [])
+    const tenantsNotif = activeTenantId ? [activeTenantId] : []
     const admins = await receptoresSolicitud(tenantsNotif, async () => {
       if (!tenantsNotif.length) return []
       return prisma.user.findMany({

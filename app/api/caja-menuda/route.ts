@@ -68,10 +68,10 @@ export async function POST(req: Request) {
   })
 
   try {
-    const evento = await prisma.evento.findUnique({ where: { id: eventoId }, select: { tenants: { select: { tenantId: true } } } })
-    const eventoTenantIds = evento?.tenants.map(t => t.tenantId) ?? []
+    // Quién recibe se rige por la empresa activa de quien crea la caja
+    // menuda, no por a cuántas empresas esté etiquetado el evento.
     const activeTenantId = getActiveTenantId()
-    const tenantsNotif = eventoTenantIds.length ? eventoTenantIds : (activeTenantId ? [activeTenantId] : [])
+    const tenantsNotif = activeTenantId ? [activeTenantId] : []
     const admins = await receptoresSolicitud(tenantsNotif, () => {
       if (!tenantsNotif.length) return Promise.resolve([])
       return prisma.user.findMany({

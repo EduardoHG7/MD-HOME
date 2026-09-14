@@ -143,7 +143,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       linea: {
         include: {
           categoria: {
-            include: { presupuesto: { include: { evento: { select: { nombre: true, tenants: true } } } } }
+            include: { presupuesto: { include: { evento: { select: { nombre: true } } } } }
           }
         }
       },
@@ -158,9 +158,10 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ error: 'Solo se pueden reenviar cotizaciones pendientes' }, { status: 400 })
   }
 
-  const eventoTenantIds = cot.linea.categoria.presupuesto.evento.tenants.map(t => t.tenantId)
+  // Quién recibe se rige por la empresa activa de quien reenvía, no por a
+  // cuántas empresas esté etiquetado el evento.
   const activeTenantId = getActiveTenantId()
-  const tenantsNotif = eventoTenantIds.length ? eventoTenantIds : (activeTenantId ? [activeTenantId] : [])
+  const tenantsNotif = activeTenantId ? [activeTenantId] : []
   const admins = await receptoresSolicitud(tenantsNotif, () => {
     if (!tenantsNotif.length) return Promise.resolve([])
     return prisma.user.findMany({
@@ -172,7 +173,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   const fromEmail = session.user.email
 
   if (!adminEmails.length) {
-    console.warn(`[cotizaciones/id] Reenvío sin destinatarios de correo — cotización ${cot.id}, tenants del evento: ${eventoTenantIds.join(', ') || '(ninguna)'}`)
+    console.warn(`[cotizaciones/id] Reenvío sin destinatarios de correo — cotización ${cot.id}, empresa activa: ${activeTenantId ?? '(ninguna)'}`)
     return NextResponse.json({ error: 'No hay destinatarios configurados para esta empresa. Revisa la configuración de Aprobaciones en Empresas.' }, { status: 422 })
   }
   if (!fromEmail) {
