@@ -71,7 +71,7 @@ Retorna SOLO el JSON, sin texto adicional ni backticks:
     },
     body: JSON.stringify({
       model:      'claude-opus-4-5',
-      max_tokens: 4096,
+      max_tokens: 8192,
       system:     systemPrompt,
       messages:   [{ role: 'user', content: [contentBlock, { type: 'text', text: 'Extrae todas las filas de este reporte de ventas de boletos exactamente como aparecen.' }] }],
     }),
@@ -101,7 +101,14 @@ Retorna SOLO el JSON, sin texto adicional ni backticks:
       }
     } catch { /* continúa */ }
     if (!filas.length) {
-      return NextResponse.json({ error: 'Claude no devolvió JSON válido', raw: text }, { status: 422 })
+      console.error('[extract-boletos] JSON inválido de Claude (stop_reason:', result.stop_reason, ')', text)
+      const truncado = result.stop_reason === 'max_tokens'
+      return NextResponse.json({
+        error: truncado
+          ? 'El reporte es muy extenso y la respuesta se cortó antes de terminar. Prueba subiéndolo por partes.'
+          : 'Claude no devolvió JSON válido',
+        raw: text,
+      }, { status: 422 })
     }
   }
 
