@@ -84,10 +84,14 @@ export default function SolicitarPage() {
   const { data: session } = useSession()
   const { activeTenant } = useTenant()
   const esPana = esOperadorPanatickets(session?.user?.availableTenants, session?.user?.role)
+  // En Panatickets el eventual se asigna directo, sin aprobación — el
+  // propio usuario elige la tarifa al crear la solicitud.
+  const esPanatickets = activeTenant?.slug === 'panatickets'
   const [mainTab, setMainTab] = useState<'personal' | 'caja_menuda'>('personal')
 
   const [eventos,     setEventos]     = useState<Evento[]>([])
   const [puestos,     setPuestos]     = useState<Puesto[]>([])
+  const [tarifas,     setTarifas]     = useState<Tarifa[]>([])
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([])
   const [showForm,    setShowForm]    = useState(false)
   const [loading,     setLoading]     = useState(false)
@@ -124,17 +128,19 @@ export default function SolicitarPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [reenvioId,  setReenvioId]  = useState<string | null>(null)
 
-  const [form, setForm] = useState({ eventoId: '', numPersonas: 1, funcion: '', funcionCustom: '', fechaInicioLabor: '', fechaFinLabor: '', presupuesto: '', comentario: '' })
+  const [form, setForm] = useState({ eventoId: '', numPersonas: 1, funcion: '', funcionCustom: '', fechaInicioLabor: '', fechaFinLabor: '', presupuesto: '', comentario: '', tipoTarifa: '' })
 
   useEffect(() => {
     Promise.all([
       fetch('/api/eventos').then(r => r.json()),
       fetch('/api/puestos').then(r => r.json()),
+      fetch('/api/tarifas').then(r => r.json()),
       fetch('/api/solicitudes').then(r => r.json()),
       fetch('/api/caja-menuda').then(r => r.json()),
-    ]).then(([ev, pu, sol, cm]) => {
+    ]).then(([ev, pu, tar, sol, cm]) => {
       setEventos(Array.isArray(ev) ? ev : [])
       setPuestos(Array.isArray(pu) ? pu : [])
+      setTarifas(Array.isArray(tar) ? tar : [])
       setSolicitudes(Array.isArray(sol) ? sol : [])
       setCajasMenuda(Array.isArray(cm) ? cm : [])
     })
@@ -248,6 +254,7 @@ export default function SolicitarPage() {
     if (!funcion) { setError('Indica la función.'); return }
     if (!form.fechaInicioLabor || !form.fechaFinLabor) { setError('Indica las fechas de labor.'); return }
     if (form.fechaFinLabor < form.fechaInicioLabor) { setError('La fecha de fin no puede ser antes de la de inicio.'); return }
+    if (esPanatickets && !form.tipoTarifa) { setError('Selecciona un tipo de tarifa.'); return }
     setLoading(true)
     try {
       const res = await fetch('/api/solicitudes', {
@@ -257,12 +264,13 @@ export default function SolicitarPage() {
           fechaInicioLabor: form.fechaInicioLabor,
           fechaFinLabor:    form.fechaFinLabor,
           presupuesto:      form.presupuesto || null,
+          tipoTarifa:       esPanatickets ? form.tipoTarifa : undefined,
         }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Error al enviar.'); return }
       setSolicitudes(prev => [{ ...data, asignaciones: [] }, ...prev])
-      setSuccess(true); setForm({ eventoId: '', numPersonas: 1, funcion: '', funcionCustom: '', fechaInicioLabor: '', fechaFinLabor: '', presupuesto: '', comentario: '' }); setShowForm(false)
+      setSuccess(true); setForm({ eventoId: '', numPersonas: 1, funcion: '', funcionCustom: '', fechaInicioLabor: '', fechaFinLabor: '', presupuesto: '', comentario: '', tipoTarifa: '' }); setShowForm(false)
       setTimeout(() => setSuccess(false), 4000)
     } catch { setError('Error de conexión.') }
     finally { setLoading(false) }
@@ -404,12 +412,12 @@ export default function SolicitarPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Solicitudes</h1>
-          <p className="text-gray-500 mt-1">Gestiona tus solicitudes y asigna personal</p>
+          <h1 className="text-2xl font-bold text-gray-900">{esPanatickets ? 'Eventuales' : 'Solicitudes'}</h1>
+          <p className="text-gray-500 mt-1">{esPanatickets ? 'Asigna personal a tus eventos directamente' : 'Gestiona tus solicitudes y asigna personal'}</p>
         </div>
         {mainTab === 'personal' && (
           <button onClick={() => { setShowForm(v => !v); setError('') }} className="btn-primary">
-            {showForm ? '✕ Cancelar' : '+ Nueva Solicitud'}
+            {showForm ? '✕ Cancelar' : esPanatickets ? '+ Asignar eventual' : '+ Nueva Solicitud'}
           </button>
         )}
         {mainTab === 'caja_menuda' && (
@@ -692,7 +700,7 @@ export default function SolicitarPage() {
       {/* Formulario */}
       {showForm && (
         <div className="card p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-5">Nueva Solicitud</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-5">{esPanatickets ? 'Asignar eventual' : 'Nueva Solicitud'}</h2>
           {error && <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl px-4 py-3 mb-4 text-sm">{error}</div>}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -748,9 +756,37 @@ export default function SolicitarPage() {
                 onChange={e => setForm(f => ({ ...f, presupuesto: e.target.value }))} />
               <p className="text-gray-400 text-xs mt-1">El admin verá la ganancia estimada contra este presupuesto.</p>
             </div>
-            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700">
-              💡 El administrador asignará la tarifa al revisar tu solicitud.
-            </div>
+            {esPanatickets ? (
+              <div className="space-y-2">
+                <label className="label">Tipo de tarifa *</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {tarifas.map(t => (
+                    <button key={t.tipo} type="button" onClick={() => setForm(f => ({ ...f, tipoTarifa: t.tipo }))}
+                      className={`p-2 rounded-xl border-2 text-center transition-all ${form.tipoTarifa === t.tipo ? 'border-gray-900 bg-gray-50' : 'border-gray-200 bg-white hover:border-gray-300'}`}>
+                      <p className="text-xs font-semibold text-gray-500">{TARIFA_LABELS[t.tipo]}</p>
+                      <p className="text-sm font-bold text-gray-900">{formatCurrency(t.precioPorDia)}/día</p>
+                    </button>
+                  ))}
+                </div>
+                {(() => {
+                  const tarifaSel = tarifas.find(t => t.tipo === form.tipoTarifa)
+                  if (!tarifaSel || !form.fechaInicioLabor || !form.fechaFinLabor || form.fechaFinLabor < form.fechaInicioLabor) return null
+                  const dias = Math.max(1, Math.ceil((new Date(form.fechaFinLabor).getTime() - new Date(form.fechaInicioLabor).getTime()) / (1000 * 60 * 60 * 24)) + 1)
+                  const total = tarifaSel.precioPorDia * form.numPersonas * dias
+                  return (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-sm flex justify-between items-center">
+                      <span className="text-amber-700">Total estimado ({dias} día(s) × {form.numPersonas} persona(s))</span>
+                      <span className="text-amber-600 font-bold">{formatCurrency(total)}</span>
+                    </div>
+                  )
+                })()}
+                <p className="text-gray-400 text-xs">Se asigna directo — no necesita aprobación de un administrador.</p>
+              </div>
+            ) : (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700">
+                💡 El administrador asignará la tarifa al revisar tu solicitud.
+              </div>
+            )}
             <div>
               <label className="label">Comentario (opcional)</label>
               <textarea
@@ -761,7 +797,7 @@ export default function SolicitarPage() {
               />
             </div>
             <button type="submit" disabled={loading} className="btn-primary w-full">
-              {loading ? 'Enviando...' : 'Enviar Solicitud'}
+              {loading ? (esPanatickets ? 'Asignando...' : 'Enviando...') : esPanatickets ? 'Asignar' : 'Enviar Solicitud'}
             </button>
           </form>
         </div>
@@ -787,12 +823,12 @@ export default function SolicitarPage() {
 
       {/* Lista */}
       <div>
-        <h2 className="text-lg font-semibold text-gray-900 mb-3">Mis Solicitudes</h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-3">{esPanatickets ? 'Mis Eventuales' : 'Mis Solicitudes'}</h2>
         {solicitudes.length === 0 ? (
           <div className="card p-10 text-center">
             <p className="text-4xl mb-3">📋</p>
-            <p className="text-gray-700 font-semibold">No tienes solicitudes aún</p>
-            <p className="text-gray-400 text-sm mt-1">Haz click en &quot;+ Nueva Solicitud&quot; para comenzar</p>
+            <p className="text-gray-700 font-semibold">{esPanatickets ? 'No has asignado eventuales aún' : 'No tienes solicitudes aún'}</p>
+            <p className="text-gray-400 text-sm mt-1">{esPanatickets ? 'Haz click en "+ Asignar eventual" para comenzar' : 'Haz click en "+ Nueva Solicitud" para comenzar'}</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -862,6 +898,7 @@ export default function SolicitarPage() {
                                 fechaFinLabor:    s.fechaFinLabor    ? s.fechaFinLabor.slice(0, 10)    : '',
                                 presupuesto:     '',
                                 comentario:      '',
+                                tipoTarifa:      '',
                               })
                               setShowForm(true)
                               window.scrollTo({ top: 0, behavior: 'smooth' })

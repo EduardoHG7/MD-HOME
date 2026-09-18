@@ -58,10 +58,28 @@ export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const { eventoId, numPersonas, funcion, fechaInicioLabor, fechaFinLabor, presupuesto, comentario } = await req.json()
+  const { eventoId, numPersonas, funcion, fechaInicioLabor, fechaFinLabor, presupuesto, comentario, tipoTarifa } = await req.json()
 
   if (!eventoId || !numPersonas || !funcion || !fechaInicioLabor || !fechaFinLabor) {
     return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
+  }
+
+  // En Panatickets el eventual se asigna directo, sin aprobación: el propio
+  // usuario elige la tarifa al crear la solicitud y esta queda aprobada de
+  // una vez, lista para asignar aplicantes.
+  const activeTenantId = getActiveTenantId()
+  const activeTenant = activeTenantId ? await prisma.tenant.findUnique({ where: { id: activeTenantId } }) : null
+  const esPanatickets = activeTenant?.slug === 'panatickets'
+
+  let tarifaId: string | null = null
+  let costoTotal: number | null = null
+  if (esPanatickets) {
+    if (!tipoTarifa) return NextResponse.json({ error: 'Selecciona un tipo de tarifa' }, { status: 400 })
+    const tarifa = await prisma.tarifa.findFirst({ where: { tipo: tipoTarifa, tenantId: activeTenantId } })
+    if (!tarifa) return NextResponse.json({ error: 'Tipo de tarifa inválido' }, { status: 400 })
+    const dias = Math.max(1, Math.ceil((new Date(fechaFinLabor).getTime() - new Date(fechaInicioLabor).getTime()) / (1000 * 60 * 60 * 24)) + 1)
+    tarifaId = tarifa.id
+    costoTotal = tarifa.precioPorDia * numPersonas * dias
   }
 
   const solicitud = await prisma.solicitud.create({
@@ -74,9 +92,17 @@ export async function POST(req: Request) {
       fechaFinLabor:    new Date(fechaFinLabor),
       presupuesto:      presupuesto ? parseFloat(presupuesto) : null,
       comentario:       comentario?.trim() || null,
+      ...(esPanatickets ? {
+        estado: 'APROBADA', tarifaId, costoTotal,
+        aprobadoPorId: session.user.id, aprobadoEn: new Date(),
+      } : {}),
     },
     include: { evento: true, tarifa: true },
   })
+
+  // En Panatickets no hay nada que aprobar — el eventual ya quedó
+  // asignable, no hace falta notificar a un admin para que revise nada.
+  if (esPanatickets) return NextResponse.json(solicitud, { status: 201 })
 
   const url = process.env.NEXTAUTH_URL ?? ''
 
