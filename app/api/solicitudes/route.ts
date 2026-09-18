@@ -8,6 +8,7 @@ import { sendMail, templateNuevaSolicitud } from '@/lib/mail'
 import { sendWhatsApp } from '@/lib/whatsapp'
 import { getActiveTenantId } from '@/lib/tenant'
 import { receptoresSolicitud, tenantsDondeApruebo } from '@/lib/aprobaciones'
+import { tarifaParaTenant } from '@/lib/tarifas'
 
 // Solicitudes de personal (staffing) son de Panatickets/Magic Dreams — no
 // del negocio de Print Media, aunque comparta el evento con ellas para el
@@ -75,10 +76,7 @@ export async function POST(req: Request) {
   let costoTotal: number | null = null
   if (esPanatickets) {
     if (!tipoTarifa) return NextResponse.json({ error: 'Selecciona un tipo de tarifa' }, { status: 400 })
-    // Si la empresa aún no definió sus propias tarifas, usar la sembrada
-    // por defecto (sin empresa) — mismo fallback que GET /api/tarifas.
-    const tarifa = await prisma.tarifa.findFirst({ where: { tipo: tipoTarifa, tenantId: activeTenantId } })
-      ?? await prisma.tarifa.findFirst({ where: { tipo: tipoTarifa, tenantId: null } })
+    const tarifa = await tarifaParaTenant(tipoTarifa, activeTenantId!)
     if (!tarifa) return NextResponse.json({ error: 'Tipo de tarifa inválido' }, { status: 400 })
     const dias = Math.max(1, Math.ceil((new Date(fechaFinLabor).getTime() - new Date(fechaInicioLabor).getTime()) / (1000 * 60 * 60 * 24)) + 1)
     tarifaId = tarifa.id
