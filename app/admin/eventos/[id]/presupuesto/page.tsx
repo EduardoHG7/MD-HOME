@@ -245,6 +245,7 @@ export default function PresupuestoPage() {
   const [saving,          setSaving]          = useState(false)
   const [extracting,      setExtracting]      = useState(false)
   const [extractError,    setExtractError]    = useState('')
+  const [extractRaw,      setExtractRaw]      = useState('')
   const [extractingBol,   setExtractingBol]   = useState(false)
   const [extractBolError, setExtractBolError] = useState('')
   const fileRef    = useRef<HTMLInputElement>(null)
@@ -313,12 +314,12 @@ export default function PresupuestoPage() {
   }
 
   async function handleFileUpload(file: File) {
-    setExtracting(true); setExtractError('')
+    setExtracting(true); setExtractError(''); setExtractRaw('')
     try {
       const base64 = await new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res((r.result as string).split(',')[1]); r.onerror = rej; r.readAsDataURL(file) })
       const resp = await fetch('/api/presupuestos/extract', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ base64, mimeType: file.type, fileName: file.name }) })
       const data = await resp.json()
-      if (!resp.ok) { setExtractError(data.error ?? 'Error al procesar'); return }
+      if (!resp.ok) { setExtractError(data.error ?? 'Error al procesar'); setExtractRaw(data.raw ?? ''); return }
       if (data.header) setHeader({ artista: data.header.artista ?? '', pais: data.header.pais ?? '', ciudad: data.header.ciudad ?? '', promotor: data.header.promotor ?? '', moneda: data.header.moneda ?? 'USD', exchangeRate: data.header.exchangeRate ?? 1, numShows: data.header.numShows ?? 1 })
       if (data.artistGuarantee) setArtistG(data.artistGuarantee)
       if (data.categorias?.length) setCategorias(data.categorias.map((c: Categoria) => ({ ...c, lineas: c.lineas ?? [] })))
@@ -435,7 +436,17 @@ export default function PresupuestoPage() {
         </div>
       </div>
 
-      {extractError && <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl px-4 py-3 text-sm">{extractError}</div>}
+      {extractError && (
+        <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl px-4 py-3 text-sm space-y-2">
+          <p>{extractError}</p>
+          {extractRaw && (
+            <details>
+              <summary className="cursor-pointer text-xs text-red-500">Ver respuesta cruda (para diagnóstico)</summary>
+              <pre className="mt-2 whitespace-pre-wrap break-words text-xs text-gray-600 bg-white border border-red-100 rounded-lg p-2 max-h-64 overflow-y-auto">{extractRaw}</pre>
+            </details>
+          )}
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 rounded-2xl p-1 w-fit">
