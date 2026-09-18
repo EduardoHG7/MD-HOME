@@ -10,11 +10,20 @@ export async function GET() {
   const tenantId = getActiveTenantId()
   if (!tenantId) return NextResponse.json([])
 
-  const tarifas = await prisma.tarifa.findMany({
+  const propias = await prisma.tarifa.findMany({
     where: { tenantId },
     orderBy: { tipo: 'asc' },
   })
-  return NextResponse.json(tarifas)
+  if (propias.length) return NextResponse.json(propias)
+
+  // La empresa activa todavía no definió sus propias tarifas — se usan los
+  // valores por defecto (sembrados sin empresa) hasta que las configure en
+  // Tarifas.
+  const globales = await prisma.tarifa.findMany({
+    where: { tenantId: null },
+    orderBy: { tipo: 'asc' },
+  })
+  return NextResponse.json(globales)
 }
 
 export async function PUT(req: Request) {
