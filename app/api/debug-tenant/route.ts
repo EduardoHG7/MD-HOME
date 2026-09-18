@@ -20,11 +20,20 @@ export async function GET() {
 
   const allCookies = cookieStore.getAll().map(c => ({ name: c.name, value: c.value.slice(0, 20) }))
 
+  const tarifasPropias = activeTenantId
+    ? await prisma.tarifa.findMany({ where: { tenantId: activeTenantId } })
+    : []
+  const tarifasGlobales = await prisma.tarifa.findMany({ where: { tenantId: null } })
+  const tarifasTotal = await prisma.tarifa.count()
+
   return NextResponse.json({
     activeTenantId,
     tenant,
     eventosEnEsteTenant: eventosCount,
     eventosTotal,
+    tarifasPropias,
+    tarifasGlobales,
+    tarifasTotal,
     allCookies,
   })
 }
