@@ -129,18 +129,23 @@ export default function SolicitarPage() {
   const [reenvioId,  setReenvioId]  = useState<string | null>(null)
 
   const [form, setForm] = useState({ eventoId: '', numPersonas: 1, funcion: '', funcionCustom: '', fechaInicioLabor: '', fechaFinLabor: '', presupuesto: '', comentario: '', tipoTarifa: '' })
+  const [tarifasError, setTarifasError] = useState('')
 
   useEffect(() => {
+    fetch('/api/tarifas').then(async r => {
+      const data = await r.json().catch(() => null)
+      if (!r.ok) { setTarifasError(data?.error ?? `Error al cargar tarifas (${r.status})`); return }
+      setTarifas(Array.isArray(data) ? data : [])
+    }).catch(e => setTarifasError(String(e)))
+
     Promise.all([
       fetch('/api/eventos').then(r => r.json()),
       fetch('/api/puestos').then(r => r.json()),
-      fetch('/api/tarifas').then(r => r.json()),
       fetch('/api/solicitudes').then(r => r.json()),
       fetch('/api/caja-menuda').then(r => r.json()),
-    ]).then(([ev, pu, tar, sol, cm]) => {
+    ]).then(([ev, pu, sol, cm]) => {
       setEventos(Array.isArray(ev) ? ev : [])
       setPuestos(Array.isArray(pu) ? pu : [])
-      setTarifas(Array.isArray(tar) ? tar : [])
       setSolicitudes(Array.isArray(sol) ? sol : [])
       setCajasMenuda(Array.isArray(cm) ? cm : [])
     })
@@ -759,6 +764,12 @@ export default function SolicitarPage() {
             {esPanatickets ? (
               <div className="space-y-2">
                 <label className="label">Tipo de tarifa *</label>
+                {tarifasError && (
+                  <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-2 py-1.5">⚠️ {tarifasError}</p>
+                )}
+                {!tarifasError && tarifas.length === 0 && (
+                  <p className="text-xs text-gray-400">Cargando tarifas...</p>
+                )}
                 <div className="grid grid-cols-2 gap-2">
                   {tarifas.map(t => (
                     <button key={t.tipo} type="button" onClick={() => setForm(f => ({ ...f, tipoTarifa: t.tipo }))}

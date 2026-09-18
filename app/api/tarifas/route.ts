@@ -11,8 +11,14 @@ export async function GET() {
   const tenantId = getActiveTenantId()
   if (!tenantId) return NextResponse.json([])
 
-  const tarifas = await tarifasParaTenant(tenantId)
-  return NextResponse.json(tarifas)
+  try {
+    const tarifas = await tarifasParaTenant(tenantId)
+    return NextResponse.json(tarifas)
+  } catch (err) {
+    console.error('[tarifas] Error obteniendo/creando tarifas:', err)
+    const detalle = err instanceof Error ? err.message : String(err)
+    return NextResponse.json({ error: `Error al cargar tarifas: ${detalle}` }, { status: 500 })
+  }
 }
 
 export async function PUT(req: Request) {
