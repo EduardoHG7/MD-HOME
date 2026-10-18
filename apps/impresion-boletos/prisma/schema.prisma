@@ -1,0 +1,54 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Un punto de impresión = una compu/tablet con su propia impresora,
+// identificado por un token único que se usa tanto en la URL del webhook
+// de CodeREADr como en la URL de la pantalla de impresión (kiosko).
+model Punto {
+  id        String   @id @default(cuid())
+  nombre    String
+  token     String   @unique
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  boletos Boleto[]
+
+  @@map("puntos")
+}
+
+// Un boleto recibido desde CodeREADr (o una prueba manual) para imprimir
+// en un punto específico.
+model Boleto {
+  id      String @id @default(cuid())
+  puntoId String
+  punto   Punto  @relation(fields: [puntoId], references: [id], onDelete: Cascade)
+
+  codigo   String?
+  nombre   String?
+  apellido String?
+  evento   String?
+  fecha    String?
+  extra    String? // JSON con cualquier otro campo recibido, no mapeado
+  raw      String // JSON del payload completo recibido, para depurar el mapeo
+
+  estado    String    @default("PENDIENTE") // PENDIENTE | IMPRESO | INVALIDO
+  createdAt DateTime  @default(now())
+  printedAt DateTime?
+
+  @@index([puntoId, createdAt])
+  @@map("boletos")
+}
+
+// Configuración simple clave/valor (mapeo de campos, etc).
+model Setting {
+  key   String @id
+  value String
+
+  @@map("settings")
+}
