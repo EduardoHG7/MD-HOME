@@ -24,6 +24,7 @@ async function getToken(): Promise<string> {
       client_secret: CLIENT_SECRET,
       scope: 'https://graph.microsoft.com/.default',
     }),
+    cache: 'no-store', // Next 14 cachea fetch() por defecto: devolvería un token viejo
   })
   const data = await res.json()
   if (!res.ok) {
@@ -37,7 +38,7 @@ export async function downloadPanaticketsFinanzasExcel(): Promise<Buffer> {
   const token = await getToken()
   const encodedPath = FILE_PATH.split('/').map(encodeURIComponent).join('/')
   const url = `https://graph.microsoft.com/v1.0/users/${UPN}/drive/root:/${encodedPath}:/content`
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' })
   if (!res.ok) {
     const err = await res.text()
     throw new Error(`Error descargando Excel de Panatickets (${res.status}): ${err}`)
