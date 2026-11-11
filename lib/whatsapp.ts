@@ -16,6 +16,7 @@ export async function sendWhatsApp(to: string, body: string): Promise<void> {
     `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`,
     {
       method: 'POST',
+      cache: 'no-store', // Next 14 cachea fetch() por defecto: no reenviaría mensajes idénticos
       headers: {
         Authorization: `Basic ${Buffer.from(`${sid}:${token}`).toString('base64')}`,
         'Content-Type': 'application/x-www-form-urlencoded',

@@ -20,6 +20,7 @@ export async function sendMail({
     `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(fromEmail)}/sendMail`,
     {
       method:  'POST',
+      cache:   'no-store', // Next 14 cachea fetch() por defecto: no reenviaría correos idénticos
       headers: {
         Authorization:  `Bearer ${token}`,
         'Content-Type': 'application/json',

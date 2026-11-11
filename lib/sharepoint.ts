@@ -40,6 +40,12 @@ async function requestToken(useV1: boolean): Promise<{ accessToken: string; expi
     method:  'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body,
+    // IMPRESCINDIBLE: Next.js 14 cachea fetch() por defecto en su Data Cache
+    // (persistente entre invocaciones y despliegues en Vercel), incluso los
+    // POST. Sin esto, Next devolvía la respuesta guardada de una petición
+    // anterior — es decir, un access_token viejo ya vencido — sin llegar a
+    // llamar a Azure AD. Esa era la causa real de los "tokens ya vencidos".
+    cache: 'no-store',
   })
 
   if (!res.ok) {
@@ -105,8 +111,8 @@ async function fetchNewToken(): Promise<string> {
   }
 
   throw new Error(
-    'Azure AD sigue devolviendo tokens ya vencidos para esta app (problema del lado de Microsoft, ' +
-    'no de la app). Puede requerir revisar el estado del servicio en Entra/Microsoft 365 o abrir un caso de soporte.'
+    'No se pudo obtener un token vigente de Azure AD: todas las respuestas traían un token ya vencido. ' +
+    'Revisar los logs "[sharepoint] Token emitido" para ver iat/exp de cada intento.'
   )
 }
 
@@ -141,10 +147,11 @@ async function graphFetch(url: string, init: RequestInit = {}): Promise<Response
       ...init,
       headers: { ...(init.headers ?? {}), Authorization: `Bearer ${token}` },
       redirect: 'manual',
+      cache: 'no-store',
     })
     if (res.status >= 300 && res.status < 400) {
       const location = res.headers.get('location')
-      if (location) res = await fetch(location, { method: init.method ?? 'GET' })
+      if (location) res = await fetch(location, { method: init.method ?? 'GET', cache: 'no-store' })
     }
     return res
   }
