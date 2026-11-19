@@ -65,13 +65,66 @@ const SLOTS_SUBIDA = [
   { tipo: 'PLANILLA',          icono: '👥', titulo: 'Planilla',                        nota: 'Se genera de los eventuales asignados; sube aquí la versión firmada' },
 ]
 
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload  = () => resolve((reader.result as string).split(',')[1])
-    reader.onerror = reject
-    reader.readAsDataURL(file)
-  })
+// Vercel corta cualquier request de más de 4.5 MB antes de llegar a la API
+const MAX_SUBIDA_BYTES = 4.4 * 1024 * 1024
+
+/**
+ * Reduce fotos grandes (p. ej. tomadas con el celular) a JPEG de máx. 2000 px.
+ * Si no se puede (formato raro, navegador viejo) devuelve el archivo original.
+ */
+async function comprimirImagen(file: File): Promise<File> {
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size < 1.5 * 1024 * 1024) return file
+  try {
+    const bitmap = await createImageBitmap(file)
+    const escala = Math.min(1, 2000 / Math.max(bitmap.width, bitmap.height))
+    const canvas = document.createElement('canvas')
+    canvas.width  = Math.round(bitmap.width * escala)
+    canvas.height = Math.round(bitmap.height * escala)
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return file
+    ctx.fillStyle = '#fff'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+    const blob = await new Promise<Blob | null>(r => canvas.toBlob(r, 'image/jpeg', 0.82))
+    if (!blob || blob.size >= file.size) return file
+    return new File([blob], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' })
+  } catch {
+    return file
+  }
+}
+
+/**
+ * Sube un documento del expediente como body binario (no base64 en JSON, que
+ * pesa 33% más) y devuelve un mensaje de error claro en vez de un genérico
+ * "Error de conexión" cuando el servidor rechaza la subida.
+ */
+async function subirDocumento(eventoId: string, tipo: string, original: File): Promise<{ doc?: EventoDoc; error?: string }> {
+  const file = await comprimirImagen(original)
+  if (file.size > MAX_SUBIDA_BYTES) {
+    return { error: `El archivo pesa ${(file.size / 1024 / 1024).toFixed(1)} MB; el máximo es ~4.4 MB. Comprímelo (por ejemplo con un compresor de PDF en línea) o súbelo como foto, e inténtalo de nuevo.` }
+  }
+  let res: Response
+  try {
+    res = await fetch(`/api/eventos/${eventoId}/documentos`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': file.type || 'application/octet-stream',
+        'X-Doc-Tipo':   tipo,
+        'X-File-Name':  encodeURIComponent(file.name),
+      },
+      body: file,
+    })
+  } catch {
+    return { error: 'Error de conexión: no se pudo contactar al servidor. Revisa tu internet e inténtalo de nuevo.' }
+  }
+  let data: { error?: string } & Partial<EventoDoc> = {}
+  try { data = await res.json() } catch {
+    return { error: res.status === 413
+      ? 'El archivo es demasiado grande para subirlo (máx. ~4.4 MB). Comprímelo e inténtalo de nuevo.'
+      : `Error del servidor (${res.status}). Inténtalo de nuevo; si sigue fallando, avisa a soporte.` }
+  }
+  if (!res.ok) return { error: data.error ?? `Error al subir (${res.status})` }
+  return { doc: data as EventoDoc }
 }
 
 const verUrl = (path: string) => `/api/fotos?path=${encodeURIComponent(path)}`
@@ -381,19 +434,9 @@ function SlotDocumento({ eventoId, slot, docs, onSubido, onEliminado, extra }: {
 
   async function subir(file: File) {
     setSubiendo(true); setError('')
-    try {
-      const base64 = await fileToBase64(file)
-      const res  = await fetch(`/api/eventos/${eventoId}/documentos`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tipo: slot.tipo, nombre: null, base64, mimeType: file.type, fileName: file.name }),
-      })
-      const data = await res.json()
-      if (!res.ok) { setError(data.error ?? 'Error al subir'); return }
-      onSubido(data)
-    } catch {
-      setError('Error de conexión')
-    } finally { setSubiendo(false) }
+    const { doc, error } = await subirDocumento(eventoId, slot.tipo, file)
+    if (doc) onSubido(doc); else setError(error ?? 'Error al subir')
+    setSubiendo(false)
   }
 
   async function eliminar(docId: string) {
@@ -473,16 +516,9 @@ function SlotLogistica({ eventoId, slot, aplica, docs, onSubido, onEliminado, on
 
   async function subir(file: File) {
     setSubiendo(true); setError('')
-    try {
-      const base64 = await fileToBase64(file)
-      const res = await fetch(`/api/eventos/${eventoId}/documentos`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tipo: 'LOGISTICA', nombre: null, base64, mimeType: file.type, fileName: file.name }),
-      })
-      const data = await res.json()
-      if (!res.ok) { setError(data.error ?? 'Error al subir'); return }
-      onSubido(data)
-    } catch { setError('Error de conexión') } finally { setSubiendo(false) }
+    const { doc, error } = await subirDocumento(eventoId, 'LOGISTICA', file)
+    if (doc) onSubido(doc); else setError(error ?? 'Error al subir')
+    setSubiendo(false)
   }
 
   async function eliminar(docId: string) {
@@ -562,16 +598,9 @@ function SlotCierre({ eventoId, slot, docs, onSubido, onEliminado, esAdmin, even
 
   async function subir(file: File) {
     setSubiendo(true); setError('')
-    try {
-      const base64 = await fileToBase64(file)
-      const res = await fetch(`/api/eventos/${eventoId}/documentos`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tipo: 'CIERRE', nombre: null, base64, mimeType: file.type, fileName: file.name }),
-      })
-      const data = await res.json()
-      if (!res.ok) { setError(data.error ?? 'Error al subir'); return }
-      onSubido(data)
-    } catch { setError('Error de conexión') } finally { setSubiendo(false) }
+    const { doc, error } = await subirDocumento(eventoId, 'CIERRE', file)
+    if (doc) onSubido(doc); else setError(error ?? 'Error al subir')
+    setSubiendo(false)
   }
 
   async function eliminar(docId: string) {

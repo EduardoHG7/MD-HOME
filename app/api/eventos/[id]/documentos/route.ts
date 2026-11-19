@@ -48,9 +48,28 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ error: 'No eres el responsable de documentación de este evento' }, { status: 403 })
   }
 
-  const { tipo, nombre, base64, mimeType, fileName } = await req.json()
-  if (!tipo || !base64 || !mimeType || !fileName) {
-    return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
+  // El archivo puede llegar como body binario (lo que usa el expediente) o
+  // como base64 en JSON (formato anterior). El binario evita el +33% de peso
+  // del base64, que hacía que documentos escaneados de ~3.4 MB o más chocaran
+  // con el límite de 4.5 MB de Vercel y el navegador solo viera "Error de
+  // conexión".
+  let tipo: string | null, nombre: string | null, mimeType: string | null, fileName: string | null
+  let buffer: Buffer
+  const contentType = (req.headers.get('content-type') ?? '').split(';')[0].trim()
+  if (contentType === 'application/json') {
+    const body = await req.json()
+    tipo = body.tipo; nombre = body.nombre ?? null; mimeType = body.mimeType; fileName = body.fileName
+    buffer = Buffer.from(body.base64 ?? '', 'base64')
+  } else {
+    tipo     = req.headers.get('x-doc-tipo')
+    nombre   = null
+    mimeType = contentType || null
+    const nombreHeader = req.headers.get('x-file-name')
+    fileName = nombreHeader ? decodeURIComponent(nombreHeader) : null
+    buffer   = Buffer.from(await req.arrayBuffer())
+  }
+  if (!tipo || !mimeType || !fileName || buffer.length === 0) {
+    return NextResponse.json({ error: 'Faltan campos requeridos o el archivo llegó vacío' }, { status: 400 })
   }
   if (!TIPOS_VALIDOS.includes(tipo)) {
     return NextResponse.json({ error: 'Tipo de documento inválido' }, { status: 400 })
@@ -59,11 +78,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const allowedMimes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp',
     'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
   if (!allowedMimes.includes(mimeType)) {
-    return NextResponse.json({ error: 'Formato no permitido (PDF, imagen o Word)' }, { status: 400 })
+    return NextResponse.json({ error: 'Formato no permitido (PDF, imagen JPG/PNG/WEBP o Word)' }, { status: 400 })
   }
 
   try {
-    const buffer = Buffer.from(base64, 'base64')
     const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_')
     const path = `EventoDocumentos/${params.id}/${tipo}-${Date.now()}-${safeName}`
 
