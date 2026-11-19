@@ -35,11 +35,16 @@ interface Formulario {
   telefonos: string
   organizacion: string
   correoEnvio: string
+  banco: string
+  tipoCuenta: string
+  numeroCuenta: string
+  nombreCuenta: string
 }
 
 const FORM_VACIO: Formulario = {
   razonSocial: '', nombreComercial: '', rucDv: '', direccion: '', provincia: '',
   distrito: '', corregimiento: '', telefonos: '', organizacion: '', correoEnvio: '',
+  banco: '', tipoCuenta: '', numeroCuenta: '', nombreCuenta: '',
 }
 
 interface EventoExp {
@@ -114,6 +119,7 @@ export function ExpedienteDocumentos({ eventoId, puedeFirmar, basePath, volverHr
     { label: 'Cédula rep. legal',    ok: tiene('CEDULA_REP_LEGAL') },
     { label: 'Logística',            ok: logisticaOk },
     { label: 'Formulario',           ok: Boolean(form.razonSocial && form.rucDv) },
+    { label: 'Cuenta bancaria',      ok: Boolean(form.banco && form.tipoCuenta && form.numeroCuenta && form.nombreCuenta) },
     { label: 'Cierre',               ok: tiene('CIERRE') },
     { label: 'Cierre aprobado',      ok: Boolean(evento?.cierreAprobado) },
     { label: 'Gastos',               ok: tiene('GASTOS') },
@@ -194,6 +200,8 @@ export function ExpedienteDocumentos({ eventoId, puedeFirmar, basePath, volverHr
           )
         })}
       </div>
+
+      <SeccionCuentaBancaria eventoId={eventoId} form={form} setForm={setForm} />
 
       <SeccionFormulario eventoId={eventoId} form={form} setForm={setForm} basePath={basePath} />
     </div>
@@ -669,6 +677,131 @@ function SlotCierre({ eventoId, slot, docs, onSubido, onEliminado, esAdmin, even
       {error && <p className="text-red-500 text-xs mt-2">{error}</p>}
       <input ref={fileRef} type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" className="hidden"
         onChange={e => { const f = e.target.files?.[0]; if (f) subir(f); e.target.value = '' }} />
+    </div>
+  )
+}
+
+/* ---------------------------- Cuenta bancaria ---------------------------- */
+
+const NUEVO_BANCO = '__nuevo__'
+
+function SeccionCuentaBancaria({ eventoId, form, setForm }: {
+  eventoId: string
+  form: Formulario
+  setForm: React.Dispatch<React.SetStateAction<Formulario>>
+}) {
+  const [bancos,       setBancos]       = useState<string[]>([])
+  const [agregando,    setAgregando]    = useState(false)
+  const [nuevoBanco,   setNuevoBanco]   = useState('')
+  const [guardandoBco, setGuardandoBco] = useState(false)
+  const [guardando,    setGuardando]    = useState(false)
+  const [mensaje,      setMensaje]      = useState('')
+  const [error,        setError]        = useState('')
+
+  useEffect(() => {
+    fetch('/api/bancos').then(r => r.json()).then(d => { if (Array.isArray(d)) setBancos(d) }).catch(() => {})
+  }, [])
+
+  // Si el evento ya tenía un banco guardado que no está en la lista, igual se muestra
+  const opciones = form.banco && !bancos.includes(form.banco) ? [form.banco, ...bancos] : bancos
+
+  const set = (campo: keyof Formulario) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    setMensaje('')
+    setForm(prev => ({ ...prev, [campo]: e.target.value }))
+  }
+
+  function elegirBanco(e: React.ChangeEvent<HTMLSelectElement>) {
+    if (e.target.value === NUEVO_BANCO) { setAgregando(true); return }
+    setAgregando(false)
+    set('banco')(e)
+  }
+
+  async function agregarBanco() {
+    if (!nuevoBanco.trim()) return
+    setGuardandoBco(true); setError('')
+    try {
+      const res  = await fetch('/api/bancos', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre: nuevoBanco }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'Error al agregar el banco'); return }
+      setBancos(prev => prev.includes(data.nombre) ? prev : [...prev, data.nombre].sort((a, b) => a.localeCompare(b, 'es')))
+      setForm(prev => ({ ...prev, banco: data.nombre }))
+      setNuevoBanco(''); setAgregando(false); setMensaje('')
+    } catch { setError('Error de conexión') } finally { setGuardandoBco(false) }
+  }
+
+  async function guardar() {
+    if (!form.banco || !form.tipoCuenta || !form.numeroCuenta.trim() || !form.nombreCuenta.trim()) {
+      setError('Completa banco, tipo, número y nombre de la cuenta'); return
+    }
+    setGuardando(true); setError(''); setMensaje('')
+    try {
+      const res  = await fetch(`/api/eventos/${eventoId}/formulario`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          banco: form.banco, tipoCuenta: form.tipoCuenta,
+          numeroCuenta: form.numeroCuenta, nombreCuenta: form.nombreCuenta,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'Error al guardar'); return }
+      setMensaje('✅ Cuenta guardada')
+    } catch { setError('Error de conexión') } finally { setGuardando(false) }
+  }
+
+  return (
+    <div className="card p-5">
+      <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">🏦 Cuenta bancaria</p>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="label">Nombre del banco</label>
+          <select className="input" value={agregando ? NUEVO_BANCO : form.banco} onChange={elegirBanco}>
+            <option value="">— Seleccionar —</option>
+            {opciones.map(b => <option key={b} value={b}>{b}</option>)}
+            <option value={NUEVO_BANCO}>➕ Agregar otro banco…</option>
+          </select>
+          {agregando && (
+            <div className="flex gap-2 mt-2">
+              <input className="input" autoFocus placeholder="Nombre del banco" value={nuevoBanco}
+                onChange={e => setNuevoBanco(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); agregarBanco() } }} />
+              <button onClick={agregarBanco} disabled={guardandoBco || !nuevoBanco.trim()}
+                className="text-xs px-3 py-1.5 rounded-xl border-2 border-gray-200 text-gray-600 hover:border-gray-400 font-medium whitespace-nowrap">
+                {guardandoBco ? '...' : 'Agregar'}
+              </button>
+              <button onClick={() => { setAgregando(false); setNuevoBanco('') }}
+                className="text-xs text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+          )}
+        </div>
+        <div>
+          <label className="label">Tipo de cuenta</label>
+          <select className="input" value={form.tipoCuenta} onChange={set('tipoCuenta')}>
+            <option value="">— Seleccionar —</option>
+            <option value="CORRIENTE">Corriente</option>
+            <option value="AHORRO">Ahorro</option>
+          </select>
+        </div>
+        <div>
+          <label className="label">Número de cuenta</label>
+          <input className="input" inputMode="numeric" value={form.numeroCuenta} onChange={set('numeroCuenta')} />
+        </div>
+        <div>
+          <label className="label">Nombre de la cuenta</label>
+          <input className="input" placeholder="Titular de la cuenta" value={form.nombreCuenta} onChange={set('nombreCuenta')} />
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3 mt-4">
+        <button onClick={guardar} disabled={guardando} className="btn-primary text-sm">
+          {guardando ? 'Guardando...' : '💾 Guardar cuenta'}
+        </button>
+        {mensaje && <span className="text-sm text-green-600">{mensaje}</span>}
+        {error && <span className="text-sm text-red-500">{error}</span>}
+      </div>
     </div>
   )
 }

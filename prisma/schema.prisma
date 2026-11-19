@@ -117,12 +117,27 @@ model FormularioComprobantes {
   telefonos       String?
   organizacion    String?
   correoEnvio     String?
+  // Cuenta bancaria del organizador (expediente Panatickets)
+  banco           String?
+  tipoCuenta      String?  // CORRIENTE | AHORRO
+  numeroCuenta    String?
+  nombreCuenta    String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   evento Evento @relation(fields: [eventoId], references: [id], onDelete: Cascade)
 
   @@map("formularios_comprobantes")
+}
+
+// Bancos agregados por los usuarios, además de la lista fija de bancos
+// panameños que vive en lib/bancos.ts
+model Banco {
+  id        String   @id @default(cuid())
+  nombre    String   @unique
+  createdAt DateTime @default(now())
+
+  @@map("bancos")
 }
 
 // TipoDocumento: CONTRATO | SEGURO | FIANZA | PERMISO | OTRO

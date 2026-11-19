@@ -9,6 +9,7 @@ import { notificarExpedienteListo } from '@/lib/expediente'
 const CAMPOS = [
   'razonSocial', 'nombreComercial', 'rucDv', 'direccion', 'provincia',
   'distrito', 'corregimiento', 'telefonos', 'organizacion', 'correoEnvio',
+  'banco', 'tipoCuenta', 'numeroCuenta', 'nombreCuenta',
 ] as const
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
@@ -30,7 +31,10 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   const body = await req.json()
   const data: Record<string, string | null> = {}
   for (const campo of CAMPOS) {
-    if (campo in body) data[campo] = body[campo] ? String(body[campo]) : null
+    if (campo in body) data[campo] = body[campo] ? String(body[campo]).trim() || null : null
+  }
+  if (data.tipoCuenta && !['CORRIENTE', 'AHORRO'].includes(data.tipoCuenta)) {
+    return NextResponse.json({ error: 'Tipo de cuenta inválido' }, { status: 400 })
   }
 
   const formulario = await prisma.formularioComprobantes.upsert({
